@@ -113,7 +113,7 @@ Exit code 2 means environment failure — do NOT modify code.`,
 var interfacesCmd = &cobra.Command{
 	Use:   "interfaces",
 	Short: "Regenerate the interface summary",
-	Long:  `Runs the configured interfaces command to regenerate docs/generated/interfaces.txt.`,
+	Long:  `Runs the configured interfaces command to regenerate .metis/interfaces.txt.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, err := loadContext()
 		if err != nil {

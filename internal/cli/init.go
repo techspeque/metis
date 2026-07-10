@@ -74,7 +74,7 @@ Use --from metis.yaml for non-interactive mode.`,
 					ADR:        ".metis/adr/",
 					Findings:   ".metis/findings.yaml",
 					Runs:       ".metis/runs/",
-					Interfaces: "docs/generated/interfaces.txt",
+					Interfaces: ".metis/interfaces.txt",
 				},
 			}
 
@@ -101,7 +101,6 @@ Use --from metis.yaml for non-interactive mode.`,
 			filepath.Join(repoRoot, ".metis", "plans"),
 			filepath.Join(repoRoot, ".metis", "adr"),
 			filepath.Join(repoRoot, ".metis", "runs"),
-			filepath.Join(repoRoot, "docs", "generated"),
 		}
 		for _, dir := range dirs {
 			if err := os.MkdirAll(dir, 0o755); err != nil {

@@ -56,7 +56,7 @@ paths:
   briefs: .metis/briefs/
   findings: .metis/findings.yaml
   runs: .metis/runs/
-  interfaces: docs/generated/interfaces.txt
+  interfaces: .metis/interfaces.txt
 `)
 
 	cfg, err := Parse(data)

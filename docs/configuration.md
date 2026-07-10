@@ -231,7 +231,7 @@ paths:
   adr: .metis/adr/                        # Architecture Decision Records
   findings: .metis/findings.yaml          # Review findings
   runs: .metis/runs/                      # Verification logs (gitignored)
-  interfaces: docs/generated/interfaces.txt  # Generated API summary
+  interfaces: .metis/interfaces.txt       # Generated API summary
 ```
 
 All paths are relative to the repo root. These are the defaults — override
@@ -262,7 +262,7 @@ paths:
   adr: .metis/adr/
   findings: .metis/findings.yaml
   runs: .metis/runs/
-  interfaces: docs/generated/interfaces.txt
+  interfaces: .metis/interfaces.txt
 ```
 
 ---

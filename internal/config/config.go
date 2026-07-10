@@ -109,7 +109,7 @@ func DefaultConfig() Config {
 			ADR:        ".metis/adr/",
 			Findings:   ".metis/findings.yaml",
 			Runs:       ".metis/runs/",
-			Interfaces: "docs/generated/interfaces.txt",
+			Interfaces: ".metis/interfaces.txt",
 		},
 	}
 }

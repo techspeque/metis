@@ -78,4 +78,4 @@ paths:
   adr: .metis/adr/
   findings: .metis/findings.yaml
   runs: .metis/runs/
-  interfaces: docs/generated/interfaces.txt
+  interfaces: .metis/interfaces.txt
