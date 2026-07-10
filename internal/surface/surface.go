@@ -68,8 +68,9 @@ func Validate(cfg *config.Config, repoRoot string) []string {
 
 func writeCLAUDE(cfg *config.Config, repoRoot string) error {
 	content := `# CLAUDE.md
-Run ` + "`metis kickoff`" + ` from step 1 at the start of every session. No pasted
-prompt is needed. For full contract details: ` + "`metis instructions`" + `.
+
+This repository is governed by ` + "`AGENTS.md`" + `. Read it now.
+Run ` + "`metis kickoff`" + ` immediately at session start. No other action first.
 
 Identity: state your model as one of the slugs from ` + "`metis next`" + ` output.
 `
@@ -77,8 +78,36 @@ Identity: state your model as one of the slugs from ` + "`metis next`" + ` outpu
 }
 
 func writeAGENTS(cfg *config.Config, repoRoot string) error {
-	content := instructions.Generate(cfg, repoRoot)
-	return os.WriteFile(filepath.Join(repoRoot, "AGENTS.md"), []byte(content+"\n"), 0o644)
+	preamble := fmt.Sprintf(`# Agent Contract — %s
+
+This repository is managed by Metis. ALL autonomous work follows the
+protocol below. These rules are non-negotiable.
+
+## Mandatory
+
+Run `+"`metis kickoff`"+` from step 1 at the start of every session.
+Do NOT skip this. Do NOT start work without following the protocol.
+
+## Hard Rules
+
+1. ONE slice at a time — `+"`metis next`"+` decides which, not you
+2. Brief BEFORE code — commit scope contract before implementation
+3. Scope is a contract — only touch files declared in your brief
+4. Cross-vendor review — you cannot review your own work
+5. `+"`metis commit`"+` for all commits — enforces format, strips attribution
+6. STOP on environment failure — do not modify code to fix a broken sandbox
+7. Reality beats documents — if code contradicts plan, fix the document
+8. No planning in execution — do not re-scope or invent additional work
+9. Report mismatches — if you're the wrong agent for this slice, STOP
+10. Trust the tools — do not walk YAML, compare slugs, or evaluate booleans manually
+
+---
+
+`, cfg.Project.Name)
+
+	contract := instructions.Generate(cfg, repoRoot)
+	content := preamble + contract + "\n"
+	return os.WriteFile(filepath.Join(repoRoot, "AGENTS.md"), []byte(content), 0o644)
 }
 
 func writeOpencode(repoRoot string) error {

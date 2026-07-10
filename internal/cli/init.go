@@ -9,6 +9,7 @@ import (
 
 	"github.com/techspeque/metis/internal/config"
 	"github.com/techspeque/metis/internal/surface"
+	"github.com/techspeque/metis/internal/templates"
 )
 
 func init() {
@@ -140,10 +141,16 @@ Use --from metis.yaml for non-interactive mode.`,
 			return fmt.Errorf("generating surface adapters: %w", err)
 		}
 
-		// Create ADR template
+		// Create ADR template (uses the rich template from templates package)
 		adrTemplate := filepath.Join(repoRoot, ".metis", "adr", "_template.md")
 		if _, err := os.Stat(adrTemplate); os.IsNotExist(err) {
-			os.WriteFile(adrTemplate, []byte(adrTemplateContent), 0o644)
+			os.WriteFile(adrTemplate, []byte(templates.ADRTemplate), 0o644)
+		}
+
+		// Write document templates
+		templatesDir := filepath.Join(repoRoot, ".metis", "templates")
+		if err := templates.WriteAll(templatesDir); err != nil {
+			return fmt.Errorf("writing templates: %w", err)
 		}
 
 		// Add .metis/runs/ to .gitignore if not already there
@@ -151,11 +158,14 @@ Use --from metis.yaml for non-interactive mode.`,
 		appendToGitignore(gitignorePath, ".metis/runs/")
 
 		fmt.Println("\nMetis initialized successfully!")
-		fmt.Println("  .metis/          — state directory")
-		fmt.Println("  CLAUDE.md        — Claude Code adapter")
-		fmt.Println("  AGENTS.md        — full agent contract")
-		fmt.Println("  opencode.json    — opencode adapter")
-		fmt.Printf("\nNext: add agents to metis.yaml, then run 'metis seed <plan>' or 'metis add'.\n")
+		fmt.Println("  .metis/            — state directory")
+		fmt.Println("  .metis/templates/  — document templates (for agents)")
+		fmt.Println("  CLAUDE.md          — Claude Code adapter (points to AGENTS.md)")
+		fmt.Println("  AGENTS.md          — governance + full agent contract")
+		fmt.Println("  opencode.json      — opencode adapter")
+		fmt.Printf("\nNext: write your OVERVIEW.md, set project.overview in metis.yaml,\n")
+		fmt.Printf("      add agents, then ask an agent to plan Phase 0 using\n")
+		fmt.Printf("      the template in .metis/templates/plan.md\n")
 		return nil
 	},
 }
@@ -195,26 +205,3 @@ func splitLines(s string) []string {
 	}
 	return lines
 }
-
-const adrTemplateContent = `# ADR-NNNN: <decision title>
-
-- **Status:** Proposed | Accepted | Superseded by ADR-MMMM | Deprecated
-- **Date:** YYYY-MM-DD
-- **Decision drivers:** <why this decision, why now>
-
-## Context
-
-<The problem, the forces, the constraints.>
-
-## Decision
-
-<What we are doing. Imperative and specific.>
-
-## Consequences
-
-<Positive and negative. What gets easier, what gets harder.>
-
-## Alternatives considered
-
-<Other options and why not.>
-`
