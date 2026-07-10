@@ -96,10 +96,12 @@ Do NOT skip this. Do NOT start work without following the protocol.
 4. Cross-vendor review — you cannot review your own work
 5. `+"`metis commit`"+` for all commits — enforces format, strips attribution
 6. STOP on environment failure — do not modify code to fix a broken sandbox
-7. Reality beats documents — if code contradicts plan, fix the document
-8. No planning in execution — do not re-scope or invent additional work
-9. Report mismatches — if you're the wrong agent for this slice, STOP
-10. Trust the tools — do not walk YAML, compare slugs, or evaluate booleans manually
+7. Dirty tree with in-scope files — resume the interrupted session (read brief, check git log, continue)
+8. Dirty tree with out-of-scope files — STOP and report to human
+9. Reality beats documents — if code contradicts plan, fix the document
+10. No planning in execution — do not re-scope or invent additional work
+11. Report mismatches — if you're the wrong agent for this slice, STOP
+12. Trust the tools — do not walk YAML, compare slugs, or evaluate booleans manually
 
 ---
 
