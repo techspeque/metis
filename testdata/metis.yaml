@@ -1,0 +1,78 @@
+version: 1
+
+project:
+  name: sample-project
+  integration_branch: dev
+  release_branch: main
+  technology:
+    language: go
+    build_system: go
+    test_runner: "go test ./..."
+    linter: "go vet"
+
+agents:
+  claude-code/opus:
+    surface: claude-code
+    model: opus
+    label: "Claude Code (Opus)"
+  opencode/opus:
+    surface: opencode
+    model: opus
+    label: "opencode (Opus)"
+  codex:
+    surface: codex
+    model: codex
+    label: "Codex"
+
+routing:
+  high: [claude-code/opus, opencode/opus]
+  medium: [codex, opencode/opus]
+  low: [codex]
+  review: cross-vendor
+
+hot_paths:
+  - src/auth/
+  - src/payments/
+  - migrations/
+
+accuracy_rules:
+  - Do not hallucinate interfaces — read real source before consuming or implementing them
+  - Hard gates override weighted scores — never average away a hard-gate failure
+
+non_goals:
+  - Frontend or web UI
+  - gRPC (REST JSON API only)
+  - Kubernetes deployment manifests
+
+testing:
+  - Mock at trust boundaries only; never mock the thing under test
+  - Integration tests hit real dependencies where cheap (in-memory DBs, temp files)
+  - A slice without relevant tests is incomplete
+  - Test files live alongside the code they test
+
+review_checklist:
+  - Behavioral correctness
+  - Security and authorization correctness
+  - Scope discipline (diff vs. the committed brief)
+  - Test sufficiency
+  - Architectural fit — no duplicated/hallucinated interfaces; matches ADRs
+  - Maintainability
+
+commands:
+  verify: "go build ./... && go vet ./... && go test ./..."
+  env_check: "go version"
+  interfaces: "go doc ./..."
+
+commits:
+  prefixes: [feat, fix, refactor, docs, test, chore]
+  require_slice_id: true
+  no_attribution: true
+  format: "{prefix}({slice_id}): {message}"
+
+paths:
+  ledger: .metis/slices.yaml
+  archive: .metis/slices-done.yaml
+  briefs: .metis/briefs/
+  findings: .metis/findings.yaml
+  runs: .metis/runs/
+  interfaces: docs/generated/interfaces.txt
