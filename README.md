@@ -33,7 +33,18 @@ go build -o metis ./cmd/metis
 
 ## Quick Start
 
-### 1. Initialize a project
+### 1. Write your OVERVIEW
+
+The OVERVIEW is the single source of intent — it describes what you're building
+and why. This is a human-maintained specification that agents reference for
+context during every session.
+
+```bash
+# Create your application spec
+vim OVERVIEW.md
+```
+
+### 2. Initialize Metis
 
 ```bash
 cd your-project
@@ -42,10 +53,10 @@ metis init
 
 This creates:
 - `metis.yaml` — project configuration
-- `.metis/` — state directory (ledger, briefs, findings)
+- `.metis/` — state directory (ledger, briefs, plans, ADRs, findings)
 - `CLAUDE.md`, `AGENTS.md`, `opencode.json` — surface adapters
 
-### 2. Configure agents and commands
+### 3. Configure
 
 Edit `metis.yaml`:
 
@@ -54,6 +65,7 @@ version: 1
 
 project:
   name: my-project
+  overview: OVERVIEW.md
   integration_branch: dev
   release_branch: main
 
@@ -78,128 +90,87 @@ commands:
   env_check: "go version"
 ```
 
-### 3. Add work slices
+### 4. Plan a phase (agent-assisted)
+
+Ask a coding agent to create an implementation plan from your OVERVIEW.
+The agent produces a plan file in `.metis/plans/` and ADRs in `.metis/adr/`.
+
+### 5. Seed and execute
 
 ```bash
-# From a plan file
-metis seed plans/impl-plan.md --dry-run   # preview
-metis seed plans/impl-plan.md             # create slices
-
-# Or manually
-metis add feat --title "Add auth middleware" \
-  --coder opencode/opus --reviewer claude-code/opus \
-  --risk high
+metis seed .metis/plans/phase-1-plan.md     # create slices from plan
+metis check                                  # validate everything
+# Launch agent sessions — each runs `metis kickoff`
 ```
 
-### 4. Agents run the loop
-
-Every agent session starts with:
-
-```bash
-metis kickoff
-```
-
-Which tells the agent to:
-
-1. Check branch and clean tree
-2. Run `metis next` to find the active slice
-3. Self-identify and match the required model
-4. Read `metis instructions --for <id>` for the risk-scaled contract
-5. Run `metis verify --pre` (pre-flight)
-6. Execute (code or review)
-7. Run `metis verify --post`
-8. Flip and report
-
-## Workflow: Planning to Execution
+## Workflow: OVERVIEW to Execution
 
 Metis has two clearly separated regimes:
 
-1. **Planning** (human-led, runs rarely) — produces frozen artifacts
+1. **Planning** (human-led, runs per phase) — produces frozen plan artifacts
 2. **Execution** (agent-driven, runs every session) — drains the ledger one slice at a time
 
 ### Source of Truth
 
-The authority chain at any point in time:
+The authority chain, in order:
 
-| Stage | Source of truth | Who owns it |
+| Level | Artifact | Who owns it |
 |---|---|---|
-| Intent | Plan file (`plans/*.md`) | Human |
-| Dispatch | Ledger (`.metis/slices.yaml`) | Human seeds, Metis manages |
-| Scope | Brief (`.metis/briefs/<id>.md`) | Coder commits before coding |
-| Reality | The code itself | Code > contract > plan |
+| Intent | `OVERVIEW.md` | Human (updated when requirements change) |
+| Decisions | `.metis/adr/NNNN-*.md` | Human (created during planning, per phase) |
+| How | `.metis/plans/phase-N.md` | Agent-generated from overview, human-approved |
+| Dispatch | `.metis/slices.yaml` | Derived from plan via `metis seed` |
+| Scope | `.metis/briefs/<id>.md` | Coder commits before coding |
+| Reality | The code itself | Trumps everything above |
 
-When documents disagree: **observed code > brief > plan**. The agent fixes the
-wrong document, never silently codes around a contradiction.
+When documents disagree: **observed code > brief > plan > overview**.
+The agent fixes the wrong document — never silently codes around a contradiction.
 
 ---
 
 ### Greenfield: Building a New App
 
-When you have nothing but an idea, the workflow is:
-
-#### Step 1: Plan (human, with agent assistance)
-
-Write a structured plan decomposing the build into phases and workstreams:
-
-```markdown
-## Phase 0 — Foundation
-
-### Workstream 0.1: Project scaffold
-- **Risk:** high
-- **Coder:** claude-code/opus
-- **Reviewer:** opencode/opus
-- **Stage:** foundation
-
-Tasks:
-- Initialize project structure
-- Set up build/test/lint pipeline
-- Create core interfaces
-
-Acceptance criteria:
-- Project compiles
-- `metis verify` passes
-- Interface summary generates
-
-### Workstream 0.2: Domain model
-- **Risk:** high
-- **Coder:** opencode/opus
-- **Reviewer:** claude-code/opus
-- **Stage:** foundation
-
-Tasks:
-- Define domain entities
-- Define repository interfaces
-
-Acceptance criteria:
-- Domain types compile
-- Interfaces documented
-
-## Phase 1 — Core Features
-...
+```
+OVERVIEW.md (you write the full application spec)
+    ↓ agent-assisted planning, one phase at a time
+.metis/plans/phase-N.md + .metis/adr/NNNN-*.md
+    ↓ metis seed
+.metis/slices.yaml → agents execute → code
 ```
 
-Save this as `plans/impl-plan.md`.
+#### Step 1: Write the OVERVIEW
 
-#### Step 2: Bootstrap Metis
+The OVERVIEW describes the full application: what it does, its architecture,
+constraints, non-goals, and a rough sketch of all phases. This is the
+document you hand to an agent when you say "plan Phase 1."
+
+#### Step 2: Initialize and configure
 
 ```bash
 metis init
-# Edit metis.yaml with your agents, commands, hot paths, rules
+# Edit metis.yaml: set project.overview, agents, commands, hot_paths, routing
 metis surface generate
 ```
 
-#### Step 3: Seed the ledger
+#### Step 3: Plan one phase at a time
+
+Ask a coding agent to read the OVERVIEW and produce:
+- A structured plan file (`.metis/plans/phase-0-plan.md`)
+- ADRs for binding decisions (`.metis/adr/0001-*.md`)
+
+The plan file follows the workstream format that `metis seed` can parse.
+
+#### Step 4: Seed the ledger
 
 ```bash
-metis seed plans/impl-plan.md --dry-run    # preview
-metis seed plans/impl-plan.md              # create slices
-metis check                                # validate
+metis seed .metis/plans/phase-0-plan.md --dry-run   # preview
+metis seed .metis/plans/phase-0-plan.md             # create slices
+metis check                                          # validate
 ```
 
-#### Step 4: Cold-start slices
+#### Step 5: Cold-start (Phase 0)
 
-The first slices in a greenfield project **create the things later slices
-will read**. A typical Phase 0:
+The first slices create the things later slices read:
 
 | Slice | Purpose | Why first |
 |---|---|---|
@@ -207,49 +178,39 @@ will read**. A typical Phase 0:
 | `phase-0-ws-0.2` | Core interfaces + ADRs | Makes `metis interfaces` meaningful |
 | `phase-0-ws-0.3` | Domain model | Gives later slices real types to consume |
 
-Only after Phase 0 do feature slices begin. Each completed brief becomes
-archaeology for the next slice — the corpus grows itself.
+Each completed brief becomes archaeology for the next slice.
 
-#### Step 5: Execute
+#### Step 6: Execute, then plan the next phase
 
-Launch agent sessions. Each agent runs `metis kickoff` and the system handles
-dispatch, scope enforcement, and review.
+```bash
+# After Phase 0 is done:
+# Ask agent to plan Phase 1 (it now has the benefit of Phase 0 learnings)
+metis seed .metis/plans/phase-1-plan.md --append
+```
+
+The hybrid approach: sketch all phases in the OVERVIEW upfront, but plan
+each phase in detail only when you're about to execute it.
 
 ---
 
-### Extending: Adding Features to an Existing App
+### Extending: Adding to an Existing App
 
-When you already have a running codebase:
+When you already have a running codebase and want to add features, fix bugs,
+or refactor:
 
-#### Step 1: Plan the change
+#### Step 1: Update the OVERVIEW
 
-Write a plan for the new work (a feature, a refactoring campaign, a bug
-batch). This can be small — even a single phase with a few workstreams:
+Add the new requirements to OVERVIEW.md. This keeps it as the single source
+of intent for the full application.
 
-```markdown
-## Phase 1 — Payment Integration
+#### Step 2: Plan the change
 
-### Workstream 1.1: Payment gateway adapter
-- **Risk:** high
-- **Coder:** claude-code/opus
-- **Reviewer:** opencode/opus
-- **Stage:** payments
-
-Tasks:
-- Define payment interface
-- Implement Stripe adapter
-- Add webhook handler
-
-Acceptance criteria:
-- Payments process in test mode
-- Webhook signature verified
-- Error cases handled
-```
-
-#### Step 2: Seed (append to existing ledger)
+Ask an agent to plan the new work from the updated OVERVIEW. The plan can
+be small — even a single phase with a few workstreams:
 
 ```bash
-metis seed plans/payments.md --append
+# Agent produces .metis/plans/payments-plan.md
+metis seed .metis/plans/payments-plan.md --append
 ```
 
 Or add individual slices for reactive work:
@@ -260,12 +221,7 @@ metis add fix --title "Race condition in checkout" \
   --coder claude-code/opus --reviewer opencode/opus \
   --priority p0 --risk high
 
-# Refactoring
-metis add refactor --title "Consolidate auth middleware" \
-  --coder opencode/opus --reviewer claude-code/opus \
-  --risk medium
-
-# Tech debt
+# Tech debt (runs when nothing urgent)
 metis add debt --title "Replace hand-rolled errors" \
   --coder opencode/opus --reviewer claude-code/opus \
   --priority p3 --risk low
@@ -274,38 +230,49 @@ metis add debt --title "Replace hand-rolled errors" \
 #### Step 3: Execute
 
 Same as greenfield — agents run `metis kickoff` and the dispatch algorithm
-handles priority, ordering, and blocked dependencies automatically.
+handles priority, ordering, and blocked dependencies.
+
+---
+
+### When the OVERVIEW Changes
+
+Requirements change. The OVERVIEW is a living document. The rule is:
+**update the OVERVIEW first, then reconcile forward.**
+
+```bash
+# 1. Edit OVERVIEW.md with new/changed requirements
+vim OVERVIEW.md
+
+# 2. Metis detects the drift
+metis check
+# WARNING: OVERVIEW has changed since last planning cycle. Consider: metis recon
+
+# 3. Create a reconciliation slice
+metis recon
+
+# 4. The recon agent reads the changes and:
+#    - Identifies affected pending slices
+#    - Proposes edits, skips, or new slices
+#    - Updates plan docs and ADRs
+#    - Never touches completed/archived work
+```
+
+Completed work is **never rewritten** — always fix forward.
 
 ---
 
 ### Ongoing Maintenance
 
-Metis handles the full SDLC, not just feature building:
-
 | Scenario | How |
 |---|---|
-| Bug report | `metis add fix --priority p0 --risk high ...` (interrupts queue) |
-| Tech debt | `metis add debt --priority p3 ...` (runs when nothing urgent) |
-| Refactoring | `metis add refactor ...` (broad scope, migration strategy brief) |
+| Bug report | `metis add fix --priority p0 --risk high ...` |
+| Tech debt | `metis add debt --priority p3 ...` |
+| Refactoring | `metis add refactor ...` |
 | Dependency updates | `metis add chore --risk low ...` |
-| Security fix | `metis add security --risk high ...` (always high risk) |
-| Code removal | `metis add remove ...` (deletion checklist brief) |
-| Phase validation | `metis add gate ...` (composition proof, no code) |
-| Plan/ADR drift check | `metis add recon ...` (docs-only, align with reality) |
-
----
-
-### When Plans Change
-
-- **Completed slices** are immutable (archived, never modified)
-- **Pending slices** can be edited: `metis edit <id> --title "..." --risk high`
-- **New work** is additive: `metis add` or `metis seed --append`
-- **Abandoned work** is skipped: `metis skip <id> --reason "descoped"`
-- **Always validate** after changes: `metis check`
-
-The ledger is the single dispatch truth. The plan file is frozen intent — when
-reality diverges, update the ledger (not the plan), and file a `recon` slice
-if the drift is significant enough to warrant re-aligning documentation.
+| Security fix | `metis add security --risk high ...` |
+| Code removal | `metis add remove ...` |
+| Phase validation | `metis add gate ...` |
+| OVERVIEW changed | `metis recon` |
 
 ---
 
@@ -424,11 +391,15 @@ After `metis init`:
 
 ```
 your-project/
+├── OVERVIEW.md             # Application spec (you maintain this)
 ├── metis.yaml              # Configuration (you edit this)
 ├── .metis/
 │   ├── slices.yaml         # Active ledger
 │   ├── slices-done.yaml    # Archive
 │   ├── briefs/             # Per-slice scope contracts
+│   ├── plans/              # Implementation plans (per phase)
+│   ├── adr/                # Architecture Decision Records
+│   │   └── _template.md
 │   ├── findings.yaml       # Review findings
 │   └── runs/               # Verification logs (gitignored)
 ├── CLAUDE.md               # Surface adapter (generated)

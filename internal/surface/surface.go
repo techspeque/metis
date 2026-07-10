@@ -77,7 +77,7 @@ Identity: state your model as one of the slugs from ` + "`metis next`" + ` outpu
 }
 
 func writeAGENTS(cfg *config.Config, repoRoot string) error {
-	content := instructions.Generate(cfg)
+	content := instructions.Generate(cfg, repoRoot)
 	return os.WriteFile(filepath.Join(repoRoot, "AGENTS.md"), []byte(content+"\n"), 0o644)
 }
 

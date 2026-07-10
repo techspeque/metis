@@ -106,6 +106,11 @@ var seedCmd = &cobra.Command{
 			return err
 		}
 
+		// Store overview hash to baseline drift detection
+		if err := ctx.storeOverviewHash(); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not store overview hash: %v\n", err)
+		}
+
 		fmt.Printf("Seeded %d slice(s) from %s\n", added, planFile)
 		if len(skipped) > 0 {
 			fmt.Printf("Skipped %d (already exist): %s\n", len(skipped), strings.Join(skipped, ", "))

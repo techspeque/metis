@@ -30,6 +30,7 @@ type ProjectConfig struct {
 	Name              string           `yaml:"name"`
 	IntegrationBranch string           `yaml:"integration_branch"`
 	ReleaseBranch     string           `yaml:"release_branch"`
+	Overview          string           `yaml:"overview,omitempty"`
 	Technology        TechnologyConfig `yaml:"technology,omitempty"`
 }
 
@@ -76,6 +77,8 @@ type PathsConfig struct {
 	Ledger     string `yaml:"ledger"`
 	Archive    string `yaml:"archive"`
 	Briefs     string `yaml:"briefs"`
+	Plans      string `yaml:"plans"`
+	ADR        string `yaml:"adr"`
 	Findings   string `yaml:"findings"`
 	Runs       string `yaml:"runs"`
 	Interfaces string `yaml:"interfaces"`
@@ -102,6 +105,8 @@ func DefaultConfig() Config {
 			Ledger:     ".metis/slices.yaml",
 			Archive:    ".metis/slices-done.yaml",
 			Briefs:     ".metis/briefs/",
+			Plans:      ".metis/plans/",
+			ADR:        ".metis/adr/",
 			Findings:   ".metis/findings.yaml",
 			Runs:       ".metis/runs/",
 			Interfaces: "docs/generated/interfaces.txt",

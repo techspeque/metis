@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -77,4 +79,65 @@ func (c *context) agentSlugs() map[string]bool {
 		slugs[slug] = true
 	}
 	return slugs
+}
+
+// overviewPath returns the absolute path to the overview file, or empty if not configured.
+func (c *context) overviewPath() string {
+	if c.cfg.Project.Overview == "" {
+		return ""
+	}
+	return filepath.Join(c.repoRoot, c.cfg.Project.Overview)
+}
+
+// overviewHashPath returns the path to the stored overview hash file.
+func (c *context) overviewHashPath() string {
+	return filepath.Join(c.repoRoot, ".metis", "overview.hash")
+}
+
+// computeOverviewHash reads the overview file and returns its SHA256 hash.
+// Returns empty string if overview is not configured or file doesn't exist.
+func (c *context) computeOverviewHash() string {
+	path := c.overviewPath()
+	if path == "" {
+		return ""
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	h := sha256.Sum256(data)
+	return hex.EncodeToString(h[:])
+}
+
+// storeOverviewHash writes the current overview hash to .metis/overview.hash.
+func (c *context) storeOverviewHash() error {
+	hash := c.computeOverviewHash()
+	if hash == "" {
+		return nil
+	}
+	dir := filepath.Dir(c.overviewHashPath())
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(c.overviewHashPath(), []byte(hash), 0o644)
+}
+
+// checkOverviewDrift compares stored hash with current overview.
+// Returns: "ok", "drifted", "no-baseline", or "not-configured".
+func (c *context) checkOverviewDrift() string {
+	if c.cfg.Project.Overview == "" {
+		return "not-configured"
+	}
+	current := c.computeOverviewHash()
+	if current == "" {
+		return "not-configured"
+	}
+	stored, err := os.ReadFile(c.overviewHashPath())
+	if err != nil {
+		return "no-baseline"
+	}
+	if string(stored) == current {
+		return "ok"
+	}
+	return "drifted"
 }

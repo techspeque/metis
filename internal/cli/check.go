@@ -64,6 +64,15 @@ var checkCmd = &cobra.Command{
 		if len(allErrors) > 0 {
 			return fmt.Errorf("validation failed with %d error(s)", len(allErrors))
 		}
+
+		// Overview drift detection (warning only, not a hard error)
+		switch ctx.checkOverviewDrift() {
+		case "drifted":
+			fmt.Println("WARNING: OVERVIEW has changed since last planning cycle. Consider: metis recon")
+		case "no-baseline":
+			fmt.Println("NOTE: No overview hash stored. Run 'metis seed' or 'metis recon' to baseline.")
+		}
+
 		return nil
 	},
 }

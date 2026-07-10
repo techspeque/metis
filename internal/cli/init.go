@@ -69,6 +69,8 @@ Use --from metis.yaml for non-interactive mode.`,
 					Ledger:     ".metis/slices.yaml",
 					Archive:    ".metis/slices-done.yaml",
 					Briefs:     ".metis/briefs/",
+					Plans:      ".metis/plans/",
+					ADR:        ".metis/adr/",
 					Findings:   ".metis/findings.yaml",
 					Runs:       ".metis/runs/",
 					Interfaces: "docs/generated/interfaces.txt",
@@ -95,9 +97,10 @@ Use --from metis.yaml for non-interactive mode.`,
 		dirs := []string{
 			filepath.Join(repoRoot, ".metis"),
 			filepath.Join(repoRoot, ".metis", "briefs"),
+			filepath.Join(repoRoot, ".metis", "plans"),
+			filepath.Join(repoRoot, ".metis", "adr"),
 			filepath.Join(repoRoot, ".metis", "runs"),
 			filepath.Join(repoRoot, "docs", "generated"),
-			filepath.Join(repoRoot, "docs", "adr"),
 		}
 		for _, dir := range dirs {
 			if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -108,6 +111,7 @@ Use --from metis.yaml for non-interactive mode.`,
 		// Create .gitkeep files
 		gitkeeps := []string{
 			filepath.Join(repoRoot, ".metis", "briefs", ".gitkeep"),
+			filepath.Join(repoRoot, ".metis", "plans", ".gitkeep"),
 			filepath.Join(repoRoot, ".metis", "runs", ".gitkeep"),
 		}
 		for _, gk := range gitkeeps {
@@ -137,7 +141,7 @@ Use --from metis.yaml for non-interactive mode.`,
 		}
 
 		// Create ADR template
-		adrTemplate := filepath.Join(repoRoot, "docs", "adr", "_template.md")
+		adrTemplate := filepath.Join(repoRoot, ".metis", "adr", "_template.md")
 		if _, err := os.Stat(adrTemplate); os.IsNotExist(err) {
 			os.WriteFile(adrTemplate, []byte(adrTemplateContent), 0o644)
 		}

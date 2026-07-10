@@ -4,6 +4,8 @@ package instructions
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/techspeque/metis/internal/config"
@@ -11,9 +13,9 @@ import (
 )
 
 // Generate assembles the full agent contract from configuration.
-func Generate(cfg *config.Config) string {
+func Generate(cfg *config.Config, repoRoot string) string {
 	var b strings.Builder
-	for _, section := range allSections(cfg) {
+	for _, section := range allSections(cfg, repoRoot) {
 		b.WriteString(section)
 		b.WriteString("\n\n")
 	}
@@ -21,9 +23,9 @@ func Generate(cfg *config.Config) string {
 }
 
 // GenerateForSlice assembles a risk-scaled contract for a specific slice.
-func GenerateForSlice(cfg *config.Config, s *slice.Slice) string {
+func GenerateForSlice(cfg *config.Config, s *slice.Slice, repoRoot string) string {
 	var b strings.Builder
-	for _, section := range filteredSections(cfg, s.Risk) {
+	for _, section := range filteredSections(cfg, s.Risk, repoRoot) {
 		b.WriteString(section)
 		b.WriteString("\n\n")
 	}
@@ -89,9 +91,15 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 }
 
 // allSections returns all instruction sections in assembly order.
-func allSections(cfg *config.Config) []string {
-	return []string{
-		sectionHeader(cfg),
+func allSections(cfg *config.Config, repoRoot string) []string {
+	sections := []string{sectionHeader(cfg)}
+
+	// Overview is included at all levels — agents always need the full picture
+	if ov := sectionOverview(cfg, repoRoot); ov != "" {
+		sections = append(sections, ov)
+	}
+
+	sections = append(sections,
 		sectionSessionProtocol(),
 		sectionBranchCommit(cfg),
 		sectionDoD(),
@@ -105,18 +113,25 @@ func allSections(cfg *config.Config) []string {
 		sectionReviewChecklist(cfg),
 		sectionFeedbackLoop(),
 		sectionToolingMap(),
-	}
+	)
+	return sections
 }
 
 // filteredSections returns sections filtered by risk level.
-func filteredSections(cfg *config.Config, risk slice.Risk) []string {
-	sections := []string{
-		sectionHeader(cfg),
+func filteredSections(cfg *config.Config, risk slice.Risk, repoRoot string) []string {
+	sections := []string{sectionHeader(cfg)}
+
+	// Overview is included at all risk levels
+	if ov := sectionOverview(cfg, repoRoot); ov != "" {
+		sections = append(sections, ov)
+	}
+
+	sections = append(sections,
 		sectionSessionProtocol(),
 		sectionBranchCommit(cfg),
 		sectionDoD(),
 		sectionRoles(),
-	}
+	)
 
 	if risk == slice.RiskMedium || risk == slice.RiskHigh {
 		sections = append(sections, sectionHotPaths(cfg))
@@ -301,4 +316,23 @@ func sectionToolingMap() string {
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
 | ` + "`metis status`" + ` | One-line progress summary |`
+}
+
+func sectionOverview(cfg *config.Config, repoRoot string) string {
+	if cfg.Project.Overview == "" {
+		return ""
+	}
+
+	overviewPath := filepath.Join(repoRoot, cfg.Project.Overview)
+	data, err := os.ReadFile(overviewPath)
+	if err != nil {
+		return ""
+	}
+
+	content := strings.TrimSpace(string(data))
+	if content == "" {
+		return ""
+	}
+
+	return fmt.Sprintf("## Project Overview\n\nSource: `%s`\n\n%s", cfg.Project.Overview, content)
 }

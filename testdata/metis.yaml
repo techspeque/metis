@@ -4,6 +4,7 @@ project:
   name: sample-project
   integration_branch: dev
   release_branch: main
+  overview: OVERVIEW.md
   technology:
     language: go
     build_system: go
@@ -73,6 +74,8 @@ paths:
   ledger: .metis/slices.yaml
   archive: .metis/slices-done.yaml
   briefs: .metis/briefs/
+  plans: .metis/plans/
+  adr: .metis/adr/
   findings: .metis/findings.yaml
   runs: .metis/runs/
   interfaces: docs/generated/interfaces.txt

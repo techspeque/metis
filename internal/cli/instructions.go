@@ -38,9 +38,9 @@ var instructionsCmd = &cobra.Command{
 			if s == nil {
 				return fmt.Errorf("slice %q not found", forSlice)
 			}
-			fmt.Println(instructions.GenerateForSlice(ctx.cfg, s))
+			fmt.Println(instructions.GenerateForSlice(ctx.cfg, s, ctx.repoRoot))
 		} else {
-			fmt.Println(instructions.Generate(ctx.cfg))
+			fmt.Println(instructions.Generate(ctx.cfg, ctx.repoRoot))
 		}
 
 		return nil
