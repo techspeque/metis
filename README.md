@@ -1,5 +1,11 @@
 # Metis
 
+[![CI](https://github.com/techspeque/metis/actions/workflows/ci.yml/badge.svg)](https://github.com/techspeque/metis/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/techspeque/metis/branch/main/graph/badge.svg)](https://codecov.io/gh/techspeque/metis)
+[![Release](https://img.shields.io/github/v/release/techspeque/metis)](https://github.com/techspeque/metis/releases/latest)
+[![Go Report Card](https://goreportcard.com/badge/github.com/techspeque/metis)](https://goreportcard.com/report/github.com/techspeque/metis)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 > The meta-harness that orchestrates AI coding agents.
 
 Metis is a Go CLI that replaces ad-hoc agent management with deterministic,
