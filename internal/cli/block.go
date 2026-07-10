@@ -2,8 +2,11 @@ package cli
 
 import (
 	"fmt"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+
+	"github.com/techspeque/metis/internal/findings"
 )
 
 func init() {
@@ -40,10 +43,24 @@ var blockCmd = &cobra.Command{
 		s := l.FindByID(args[0])
 		fmt.Printf("Blocked slice: %s (review_cycles=%d)\n", args[0], s.ReviewCycles)
 
-		// TODO: append finding to .metis/findings.yaml (Phase 6)
-		finding, _ := cmd.Flags().GetString("finding")
-		if finding != "" {
-			fmt.Printf("Finding: %s\n", finding)
+		// Record finding if provided
+		findingText, _ := cmd.Flags().GetString("finding")
+		if findingText != "" {
+			severity, _ := cmd.Flags().GetString("severity")
+			category, _ := cmd.Flags().GetString("category")
+
+			findingsPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Findings)
+			store, err := findings.Load(findingsPath)
+			if err != nil {
+				return err
+			}
+
+			id := store.Add(args[0], severity, category, findingText)
+			if err := store.Save(findingsPath); err != nil {
+				return err
+			}
+
+			fmt.Printf("Finding %s recorded: [%s/%s] %s\n", id, severity, category, findingText)
 		}
 
 		return nil
