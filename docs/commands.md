@@ -1,0 +1,343 @@
+# Command Reference
+
+Complete reference for all Metis CLI commands.
+
+## Dispatch
+
+| Command | Purpose |
+|---|---|
+| `metis next` | Find the active slice, role, and required agent |
+| `metis next --json` | Same, as structured JSON |
+| `metis next --quiet` | Print only the slice ID (for scripting) |
+| `metis status` | One-line summary: `slice-id | Role | agent | progress` |
+
+### The Dispatch Algorithm
+
+`metis next` finds the active slice using a deterministic algorithm:
+
+1. Filter to unblocked slices (no incomplete `blocked_by` dependencies)
+2. Sort by priority (p0 > p1 > p2 > p3)
+3. Within same priority, declaration order wins
+4. First slice with `coded: false` → role is **Coder**
+5. If `coded: true` but `reviewed: false` → role is **Reviewer**
+6. If both true → skip (should be archived)
+
+Returns the slice ID, title, type, risk, role, required agent slug, plan
+reference, review cycles count, and reading rule.
+
+---
+
+## Work Management
+
+### `metis add <type>`
+
+Add a new slice to the ledger.
+
+**Types:** `feat`, `fix`, `refactor`, `debt`, `remove`, `chore`, `security`, `gate`, `recon`
+
+**Required flags:**
+- `--title "..."` — human-readable title
+- `--coder <slug>` — agent slug for coding
+- `--reviewer <slug>` — agent slug for review
+
+**Optional flags:**
+- `--risk <low|medium|high>` — defaults to `medium`
+- `--priority <p0|p1|p2|p3>` — defaults to `p2`
+- `--stage <string>` — project taxonomy label
+- `--plan <path>` — source plan file
+- `--plan-section <string>` — required when `--plan` is set
+- `--blocked-by <id>,<id>` — comma-separated dependencies
+- `--id <slug>` — explicit ID (auto-generated as `type-NNNN` if omitted)
+- `--notes "..."` — clarification text
+- `--after <id>` — insert after this slice
+- `--before <id>` — insert before this slice
+
+**Examples:**
+
+```bash
+metis add feat --title "Add webhook handler" \
+  --coder opencode/opus --reviewer claude-code/opus \
+  --risk medium --plan .metis/plans/phase-1.md --plan-section "§1.3"
+
+metis add fix --title "Auth bypass in token validation" \
+  --coder claude-code/opus --reviewer opencode/opus \
+  --priority p0 --risk high
+
+metis add refactor --title "Consolidate auth middleware" \
+  --coder opencode/opus --reviewer claude-code/opus --risk high
+
+metis add gate --title "Phase 2 composition validation" \
+  --coder claude-code/opus --reviewer opencode/opus --id phase-2-gate
+```
+
+### `metis list`
+
+List slices with optional filters.
+
+```bash
+metis list                          # all slices
+metis list --type feat              # only features
+metis list --priority p0            # only urgent
+metis list --status pending         # only pending
+```
+
+### `metis show <id>`
+
+Full details of a single slice including status, coder/reviewer, plan reference,
+review cycles, notes, and creation date.
+
+### `metis seed <plan-file>`
+
+Parse a structured plan file and generate ledger entries.
+
+```bash
+metis seed .metis/plans/phase-1.md --dry-run    # preview without writing
+metis seed .metis/plans/phase-1.md              # create slices
+metis seed .metis/plans/phase-2.md --append     # add to existing ledger
+metis seed .metis/plans/phase-1.md --phase 1    # only phase 1 workstreams
+metis seed .metis/plans/phase-1.md --type feat  # override type (default: feat)
+```
+
+---
+
+## Slice Lifecycle
+
+### `metis flip coded <id>`
+
+Mark a slice as coded. The coder runs this after implementation is complete.
+
+### `metis flip reviewed <id>`
+
+Mark a slice as reviewed (sign-off). The reviewer runs this after approving.
+
+Flags:
+- `--agent <slug>` — identifies the reviewer (validates not same as coder)
+
+### `metis block <id>`
+
+Block a slice during review. Resets `coded=false`, increments `review_cycles`,
+and records the finding.
+
+```bash
+metis block feat-0001 \
+  --severity P1 \
+  --category arch-dup \
+  --finding "Duplicated Validator trait at src/eval/mod.rs:42"
+```
+
+**Severities:** P1 (breaks guarantee), P2 (wrong, contained), P3 (debt)
+
+**Categories:** `auth`, `protocol`, `scope`, `tests`, `arch-dup`, `arch-fit`,
+`data`, `maint`, `security`, `behavior`, `performance`
+
+### `metis skip <id> --reason "..."`
+
+Mark a slice as done without implementation (effectively removes from queue).
+
+### `metis reopen <id> --reason "..."`
+
+Reset a slice to uncoded/unreviewed for re-implementation.
+
+### `metis archive`
+
+Move all fully-done slices (`coded && reviewed`) to `.metis/slices-done.yaml`.
+
+---
+
+## Verification
+
+### `metis verify`
+
+Full verification pipeline:
+
+1. Run `metis env-check` → fail = exit 2 (environment failure)
+2. Run configured `commands.verify` → fail = exit 1 (code failure)
+
+```bash
+metis verify --pre     # pre-flight (before changes), stored as verify-pre.log
+metis verify --post    # post-implementation, stored as verify-post.log
+metis verify           # stored as verify-latest.log
+```
+
+**Exit codes:**
+- 0: all pass
+- 1: verify command failed (code error)
+- 2: environment failure (do NOT modify code)
+
+### `metis env-check`
+
+Run the configured `commands.env_check` to verify environment soundness.
+
+Exit 2 prints:
+```
+VERDICT: ENVIRONMENT FAILURE — NOT A CODE FAILURE.
+Do NOT modify code, tests, or config to make verify pass.
+Do NOT flip ledger booleans. Stop and report this verbatim.
+```
+
+### `metis interfaces`
+
+Run the configured `commands.interfaces` to regenerate the API summary.
+If not configured, prints a skip message and exits 0.
+
+### `metis check`
+
+Validate configuration and ledger integrity.
+
+```bash
+metis check             # validate everything
+metis check --config    # config only
+metis check --ledger    # ledger only
+```
+
+Also detects OVERVIEW drift (warns if overview has changed since last seed/recon).
+
+---
+
+## Git Enforcement
+
+### `metis commit`
+
+Git commit wrapper that enforces branch, format, and attribution rules.
+
+```bash
+metis commit -m "add webhook handler"           # auto-infers prefix from slice type
+metis commit --prefix test -m "add tests"       # explicit prefix
+metis commit --brief                            # stage and commit the brief
+metis commit --flip coded                       # flip + commit ledger
+metis commit --flip reviewed                    # flip + commit ledger
+metis commit --amend                            # amend previous commit
+```
+
+**Enforces:**
+- Current branch must be `project.integration_branch`
+- Commit format: `{prefix}({slice_id}): {message}`
+- Prefix must be in `commits.prefixes` list
+- Attribution stripped (Co-Authored-By, Generated with, model names)
+
+---
+
+## Instructions
+
+### `metis instructions`
+
+Emit the full dynamic agent contract assembled from `metis.yaml`.
+
+```bash
+metis instructions                  # full contract
+metis instructions --for feat-0001  # risk-scaled for specific slice
+```
+
+### Risk Scaling
+
+When `--for <id>` is used, sections are filtered by the slice's risk:
+
+| Section | Low | Medium | High |
+|---|---|---|---|
+| Overview, session protocol, branch/commit, DoD, scope, testing, non-goals, tooling | Yes | Yes | Yes |
+| Hot-path zones, accuracy rules, review checklist | | Yes | Yes |
+| Model routing, feedback loop | | | Yes |
+
+### `metis kickoff`
+
+Emit the session protocol — the step-by-step procedure agents follow.
+
+```bash
+metis kickoff               # full protocol (coder + reviewer)
+metis kickoff --role coder  # coder flow only
+metis kickoff --role reviewer  # reviewer flow only
+```
+
+### `metis brief <id>`
+
+Show or generate the brief template for a slice.
+
+```bash
+metis brief feat-0001          # print brief (or template if none exists)
+metis brief feat-0001 --write  # write template to .metis/briefs/feat-0001.md
+```
+
+Brief templates adapt based on slice type (feat, refactor, remove, gate, etc.).
+
+---
+
+## Observability
+
+### `metis progress`
+
+Terminal dashboard showing completion stats with progress bars, by-stage
+breakdown, and done/reviewing/rework/pending counts.
+
+### `metis findings`
+
+Show review findings with optional filters.
+
+```bash
+metis findings                      # all findings
+metis findings --severity P1        # only P1
+metis findings --category auth      # only auth category
+metis findings --slice feat-0001    # only for specific slice
+metis findings --stats              # aggregated statistics
+```
+
+### `metis status`
+
+One-line status for quick orientation:
+
+```
+feat-0001 | Coder | opencode/opus | 14/42 done (33%)
+```
+
+---
+
+## Rules & Surface Adapters
+
+### `metis rule add "..."`
+
+Append a new accuracy rule to `metis.yaml`.
+
+### `metis rule list`
+
+Show all accuracy rules (numbered).
+
+### `metis rule promote <finding-id>`
+
+Promote a review finding to a permanent accuracy rule.
+
+### `metis surface generate`
+
+Write/overwrite all surface adapter files (CLAUDE.md, AGENTS.md, opencode.json,
+.claude/settings.json) from current config.
+
+### `metis surface validate`
+
+Check adapter files exist and are not stale (config changed since last generate).
+
+---
+
+## Initialization
+
+### `metis init`
+
+Scaffold a new Metis project.
+
+```bash
+metis init                    # interactive (creates minimal metis.yaml)
+metis init --from metis.yaml  # non-interactive (reads existing config, scaffolds state)
+```
+
+Creates:
+- `metis.yaml` (if not present)
+- `.metis/` directory structure (slices, briefs, plans, adr, templates, runs)
+- Surface adapters (CLAUDE.md, AGENTS.md, opencode.json, .claude/settings.json)
+- Document templates in `.metis/templates/`
+
+### `metis recon`
+
+Create a reconciliation slice when the OVERVIEW has changed.
+
+```bash
+metis recon                                    # uses high-risk routing agents
+metis recon --coder claude-code/opus --reviewer opencode/opus
+metis recon --priority p1                      # default priority
+```

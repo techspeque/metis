@@ -1,0 +1,72 @@
+version: 1
+slices:
+  # Phase 0: Foundation (completed)
+  - id: phase-0-ws-0.1
+    title: "Foundational ADRs"
+    type: feat
+    priority: p2
+    risk: high
+    coder: claude-code/opus
+    reviewer: opencode/opus
+    plan: plans/impl-plan.md
+    plan_section: "§3.1"
+    coded: true
+    reviewed: true
+    review_cycles: 0
+    created: 2026-07-01
+
+  # Phase 1: Core (in progress)
+  - id: phase-1-ws-1.1
+    title: "Domain model"
+    type: feat
+    priority: p2
+    risk: high
+    coder: opencode/opus
+    reviewer: codex
+    plan: plans/impl-plan.md
+    plan_section: "§4.1"
+    coded: true
+    reviewed: false
+    review_cycles: 0
+    created: 2026-07-02
+
+  - id: phase-1-ws-1.2
+    title: "Storage layer"
+    type: feat
+    priority: p2
+    risk: medium
+    coder: codex
+    reviewer: opencode/opus
+    plan: plans/impl-plan.md
+    plan_section: "§4.2"
+    coded: false
+    reviewed: false
+    review_cycles: 0
+    blocked_by: [phase-1-ws-1.1]
+    created: 2026-07-02
+
+  # Interrupt: P0 security fix
+  - id: fix-0001
+    title: "Auth bypass in token validation"
+    type: security
+    priority: p0
+    risk: high
+    coder: claude-code/opus
+    reviewer: opencode/opus
+    coded: false
+    reviewed: false
+    review_cycles: 0
+    created: 2026-07-09
+
+  # Tech debt (low priority)
+  - id: debt-0001
+    title: "Replace hand-rolled errors with thiserror"
+    type: debt
+    priority: p3
+    risk: low
+    coder: codex
+    reviewer: opencode/opus
+    coded: false
+    reviewed: false
+    review_cycles: 0
+    created: 2026-07-08
