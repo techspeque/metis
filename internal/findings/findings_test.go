@@ -53,6 +53,7 @@ func TestStore_FindByID(t *testing.T) {
 	f := s.FindByID("f-001")
 	if f == nil {
 		t.Fatal("FindByID returned nil")
+		return
 	}
 	if f.Finding != "Finding one" {
 		t.Errorf("Finding = %q", f.Finding)

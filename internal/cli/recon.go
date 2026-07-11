@@ -87,7 +87,7 @@ Completed/archived work is never touched — always fix forward.`,
 			Created:  time.Now().Format("2006-01-02"),
 		}
 
-		if err := l.Add(s); err != nil {
+		if err := l.Add(&s); err != nil {
 			return err
 		}
 		if err := ctx.saveLedger(l); err != nil {

@@ -130,7 +130,7 @@ func writeClaudeSettings(repoRoot string) error {
 		return err
 	}
 	data := map[string]interface{}{
-		"attribution":      map[string]string{"commit": "", "pr": ""},
+		"attribution":         map[string]string{"commit": "", "pr": ""},
 		"includeCoAuthoredBy": false,
 	}
 	content, err := json.MarshalIndent(data, "", "  ")

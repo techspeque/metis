@@ -116,22 +116,30 @@ Use --from metis.yaml for non-interactive mode.`,
 		}
 		for _, gk := range gitkeeps {
 			if _, err := os.Stat(gk); os.IsNotExist(err) {
-				os.WriteFile(gk, []byte{}, 0o644)
+				if err := os.WriteFile(gk, []byte{}, 0o644); err != nil {
+					return fmt.Errorf("creating gitkeep %s: %w", gk, err)
+				}
 			}
 		}
 
 		// Create empty ledger if it doesn't exist
 		ledgerPath := filepath.Join(repoRoot, cfg.Paths.Ledger)
 		if _, err := os.Stat(ledgerPath); os.IsNotExist(err) {
-			os.MkdirAll(filepath.Dir(ledgerPath), 0o755)
-			os.WriteFile(ledgerPath, []byte("version: 1\nslices: []\n"), 0o644)
+			if err := os.MkdirAll(filepath.Dir(ledgerPath), 0o755); err != nil {
+				return fmt.Errorf("creating ledger directory: %w", err)
+			}
+			if err := os.WriteFile(ledgerPath, []byte("version: 1\nslices: []\n"), 0o644); err != nil {
+				return fmt.Errorf("creating ledger file: %w", err)
+			}
 			fmt.Println("Created .metis/slices.yaml")
 		}
 
 		// Create empty findings if it doesn't exist
 		findingsPath := filepath.Join(repoRoot, cfg.Paths.Findings)
 		if _, err := os.Stat(findingsPath); os.IsNotExist(err) {
-			os.WriteFile(findingsPath, []byte("findings: []\n"), 0o644)
+			if err := os.WriteFile(findingsPath, []byte("findings: []\n"), 0o644); err != nil {
+				return fmt.Errorf("creating findings file: %w", err)
+			}
 			fmt.Println("Created .metis/findings.yaml")
 		}
 
@@ -143,7 +151,9 @@ Use --from metis.yaml for non-interactive mode.`,
 		// Create ADR template (uses the rich template from templates package)
 		adrTemplate := filepath.Join(repoRoot, ".metis", "adr", "_template.md")
 		if _, err := os.Stat(adrTemplate); os.IsNotExist(err) {
-			os.WriteFile(adrTemplate, []byte(templates.ADRTemplate), 0o644)
+			if err := os.WriteFile(adrTemplate, []byte(templates.ADRTemplate), 0o644); err != nil {
+				return fmt.Errorf("creating ADR template: %w", err)
+			}
 		}
 
 		// Write document templates
@@ -177,7 +187,7 @@ func appendToGitignore(path, entry string) {
 			content += "\n"
 		}
 		content += entry + "\n"
-		os.WriteFile(path, []byte(content), 0o644)
+		_ = os.WriteFile(path, []byte(content), 0o644)
 	}
 }
 

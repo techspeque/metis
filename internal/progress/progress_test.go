@@ -16,9 +16,9 @@ func TestCompute_Empty(t *testing.T) {
 
 func TestCompute_Counts(t *testing.T) {
 	slices := []slice.Slice{
-		{Coded: true, Reviewed: true},                   // done
-		{Coded: true, Reviewed: true},                   // done
-		{Coded: true, Reviewed: false},                  // reviewing
+		{Coded: true, Reviewed: true},                    // done
+		{Coded: true, Reviewed: true},                    // done
+		{Coded: true, Reviewed: false},                   // reviewing
 		{Coded: false, Reviewed: false, ReviewCycles: 1}, // rework
 		{Coded: false, Reviewed: false},                  // pending
 	}

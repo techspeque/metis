@@ -12,15 +12,15 @@ import (
 
 // Workstream represents a parsed workstream from a plan file.
 type Workstream struct {
-	Phase       int
-	Workstream  string
-	Title       string
-	Risk        slice.Risk
-	Coder       string
-	Reviewer    string
-	Stage       string
-	Tasks       []string
-	Acceptance  []string
+	Phase      int
+	Workstream string
+	Title      string
+	Risk       slice.Risk
+	Coder      string
+	Reviewer   string
+	Stage      string
+	Tasks      []string
+	Acceptance []string
 }
 
 // ParseResult holds the output of parsing a plan file.
@@ -48,7 +48,7 @@ func Parse(content string) *ParseResult {
 
 		// Phase heading
 		if m := phaseHeadingRe.FindStringSubmatch(trimmed); m != nil {
-			fmt.Sscanf(m[1], "%d", &currentPhase)
+			_, _ = fmt.Sscanf(m[1], "%d", &currentPhase)
 			if currentWS != nil {
 				result.Workstreams = append(result.Workstreams, *currentWS)
 				currentWS = nil
@@ -130,7 +130,8 @@ func Parse(content string) *ParseResult {
 // ToSlices converts parsed workstreams into slice entries.
 func ToSlices(ws []Workstream, planFile string, sliceType slice.WorkType) []slice.Slice {
 	var slices []slice.Slice
-	for _, w := range ws {
+	for i := range ws {
+		w := &ws[i]
 		id := fmt.Sprintf("phase-%d-ws-%s", w.Phase, w.Workstream)
 		s := slice.Slice{
 			ID:          id,

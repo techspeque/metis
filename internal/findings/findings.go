@@ -16,10 +16,10 @@ type Finding struct {
 	ID         string `yaml:"id"`
 	Date       string `yaml:"date"`
 	Slice      string `yaml:"slice"`
-	Severity   string `yaml:"severity"`   // P1, P2, P3
-	Category   string `yaml:"category"`   // auth, protocol, scope, tests, arch-dup, arch-fit, data, maint, security, behavior, performance
+	Severity   string `yaml:"severity"` // P1, P2, P3
+	Category   string `yaml:"category"` // auth, protocol, scope, tests, arch-dup, arch-fit, data, maint, security, behavior, performance
 	Finding    string `yaml:"finding"`
-	Status     string `yaml:"status"`     // open, resolved, promoted
+	Status     string `yaml:"status"`                // open, resolved, promoted
 	PromotedTo *int   `yaml:"promoted_to,omitempty"` // accuracy_rule index if promoted
 }
 
@@ -114,10 +114,10 @@ func (s *Store) Filter(severity, category, sliceID string) []Finding {
 
 // Stats returns aggregated statistics about findings.
 type Stats struct {
-	Total        int
-	BySeverity   map[string]int
-	ByCategory   map[string]int
-	ByAgent      map[string]AgentStats
+	Total      int
+	BySeverity map[string]int
+	ByCategory map[string]int
+	ByAgent    map[string]AgentStats
 }
 
 // AgentStats holds per-agent finding statistics.

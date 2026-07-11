@@ -118,7 +118,10 @@ func commitBrief(ctx *context, l interface{}, sliceID string) error {
 	return nil
 }
 
-func commitFlipCoded(ctx *context, l interface{ FlipCoded(string) error; Save(string) error }, sliceID string) error {
+func commitFlipCoded(ctx *context, l interface {
+	FlipCoded(string) error
+	Save(string) error
+}, sliceID string) error {
 	// This is a simplified version — the real one uses the ledger type
 	return commitFlipGeneric(ctx, sliceID, "coded")
 }

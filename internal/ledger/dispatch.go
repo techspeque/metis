@@ -6,8 +6,8 @@ import (
 
 // DispatchResult contains the outcome of finding the next active slice.
 type DispatchResult struct {
-	Slice    *slice.Slice
-	Role     slice.Role
+	Slice     *slice.Slice
+	Role      slice.Role
 	AgentSlug string
 }
 
@@ -23,9 +23,9 @@ type DispatchResult struct {
 func (l *Ledger) Next() *DispatchResult {
 	// Build a set of completed slice IDs for blocked_by resolution
 	doneIDs := make(map[string]bool)
-	for _, s := range l.Slices {
-		if s.IsDone() {
-			doneIDs[s.ID] = true
+	for i := range l.Slices {
+		if l.Slices[i].IsDone() {
+			doneIDs[l.Slices[i].ID] = true
 		}
 	}
 
@@ -87,9 +87,9 @@ func isBlocked(s *slice.Slice, doneIDs map[string]bool) bool {
 // PendingSlices returns all slices that are not yet done, in ledger order.
 func (l *Ledger) PendingSlices() []slice.Slice {
 	var result []slice.Slice
-	for _, s := range l.Slices {
-		if !s.IsDone() {
-			result = append(result, s)
+	for i := range l.Slices {
+		if !l.Slices[i].IsDone() {
+			result = append(result, l.Slices[i])
 		}
 	}
 	return result
@@ -98,9 +98,9 @@ func (l *Ledger) PendingSlices() []slice.Slice {
 // DoneSlices returns all slices that are fully done (coded && reviewed).
 func (l *Ledger) DoneSlices() []slice.Slice {
 	var result []slice.Slice
-	for _, s := range l.Slices {
-		if s.IsDone() {
-			result = append(result, s)
+	for i := range l.Slices {
+		if l.Slices[i].IsDone() {
+			result = append(result, l.Slices[i])
 		}
 	}
 	return result

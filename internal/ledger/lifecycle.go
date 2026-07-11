@@ -98,12 +98,12 @@ func (l *Ledger) Archive(archive *Archive) []string {
 	var archived []string
 	var remaining []slice.Slice
 
-	for _, s := range l.Slices {
-		if s.IsDone() {
-			archive.Slices = append(archive.Slices, s)
-			archived = append(archived, s.ID)
+	for i := range l.Slices {
+		if l.Slices[i].IsDone() {
+			archive.Slices = append(archive.Slices, l.Slices[i])
+			archived = append(archived, l.Slices[i].ID)
 		} else {
-			remaining = append(remaining, s)
+			remaining = append(remaining, l.Slices[i])
 		}
 	}
 

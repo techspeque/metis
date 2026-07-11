@@ -13,15 +13,15 @@ func (l *Ledger) Validate(agentSlugs map[string]bool) []error {
 
 	// Check for unique IDs
 	seen := make(map[string]bool)
-	for _, s := range l.Slices {
-		if s.ID == "" {
+	for i := range l.Slices {
+		if l.Slices[i].ID == "" {
 			errs = append(errs, fmt.Errorf("slice has empty ID"))
 			continue
 		}
-		if seen[s.ID] {
-			errs = append(errs, fmt.Errorf("duplicate slice ID: %s", s.ID))
+		if seen[l.Slices[i].ID] {
+			errs = append(errs, fmt.Errorf("duplicate slice ID: %s", l.Slices[i].ID))
 		}
-		seen[s.ID] = true
+		seen[l.Slices[i].ID] = true
 	}
 
 	// Validate each slice
@@ -69,9 +69,9 @@ func (l *Ledger) detectCycles() []error {
 
 	// Build adjacency map: ID -> IDs it's blocked by
 	deps := make(map[string][]string)
-	for _, s := range l.Slices {
-		if len(s.BlockedBy) > 0 {
-			deps[s.ID] = s.BlockedBy
+	for i := range l.Slices {
+		if len(l.Slices[i].BlockedBy) > 0 {
+			deps[l.Slices[i].ID] = l.Slices[i].BlockedBy
 		}
 	}
 
@@ -101,9 +101,9 @@ func (l *Ledger) detectCycles() []error {
 		return false
 	}
 
-	for _, s := range l.Slices {
-		if color[s.ID] == white {
-			visit(s.ID)
+	for i := range l.Slices {
+		if color[l.Slices[i].ID] == white {
+			visit(l.Slices[i].ID)
 		}
 	}
 
@@ -114,10 +114,10 @@ func (l *Ledger) detectCycles() []error {
 // All entries must be fully done.
 func ValidateArchive(a *Archive) []error {
 	var errs []error
-	for _, s := range a.Slices {
-		if !s.IsDone() {
+	for i := range a.Slices {
+		if !a.Slices[i].IsDone() {
 			errs = append(errs, fmt.Errorf("archive entry %s is not fully done (coded=%v, reviewed=%v)",
-				s.ID, s.Coded, s.Reviewed))
+				a.Slices[i].ID, a.Slices[i].Coded, a.Slices[i].Reviewed))
 		}
 	}
 	return errs

@@ -156,12 +156,10 @@ func filteredSections(cfg *config.Config, risk slice.Risk, repoRoot string) []st
 		sections = append(sections, sectionRouting(cfg))
 	}
 
-	sections = append(sections, sectionTesting(cfg))
-	sections = append(sections, sectionNonGoals(cfg))
+	sections = append(sections, sectionTesting(cfg), sectionNonGoals(cfg))
 
 	if risk == slice.RiskMedium || risk == slice.RiskHigh {
-		sections = append(sections, sectionAccuracyRules(cfg))
-		sections = append(sections, sectionReviewChecklist(cfg))
+		sections = append(sections, sectionAccuracyRules(cfg), sectionReviewChecklist(cfg))
 	}
 
 	if risk == slice.RiskHigh {

@@ -1,6 +1,7 @@
 package runs
 
 import (
+	"bytes"
 	"testing"
 )
 
@@ -17,7 +18,7 @@ func TestStore_WriteAndRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Read() error: %v", err)
 	}
-	if string(readData) != string(data) {
+	if !bytes.Equal(readData, data) {
 		t.Errorf("Read data = %q, want %q", string(readData), string(data))
 	}
 	if exitCode != 0 {
@@ -73,9 +74,9 @@ func TestStore_List(t *testing.T) {
 	}
 
 	// Write a few logs
-	store.Write("feat-0001", "env-check", []byte("ok"), 0)
-	store.Write("feat-0001", "verify-pre", []byte("ok"), 0)
-	store.Write("feat-0001", "verify-post", []byte("ok"), 0)
+	_ = store.Write("feat-0001", "env-check", []byte("ok"), 0)
+	_ = store.Write("feat-0001", "verify-pre", []byte("ok"), 0)
+	_ = store.Write("feat-0001", "verify-post", []byte("ok"), 0)
 
 	names, err = store.List("feat-0001")
 	if err != nil {

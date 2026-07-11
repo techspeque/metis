@@ -20,13 +20,13 @@ func testConfig() *config.Config {
 		Agents: map[string]config.Agent{
 			"opencode/opus": {Surface: "opencode", Model: "opus", Label: "opencode (Opus)"},
 		},
-		Routing:       config.RoutingConfig{High: []string{"opencode/opus"}, Review: "cross-vendor"},
-		HotPaths:      []string{"src/auth/"},
-		AccuracyRules: []string{"Do not hallucinate interfaces"},
-		NonGoals:      []string{"Frontend"},
-		Testing:       []string{"Mock at trust boundaries only"},
+		Routing:         config.RoutingConfig{High: []string{"opencode/opus"}, Review: "cross-vendor"},
+		HotPaths:        []string{"src/auth/"},
+		AccuracyRules:   []string{"Do not hallucinate interfaces"},
+		NonGoals:        []string{"Frontend"},
+		Testing:         []string{"Mock at trust boundaries only"},
 		ReviewChecklist: []string{"Behavioral correctness"},
-		Commands: config.CommandsConfig{Verify: "go test ./..."},
+		Commands:        config.CommandsConfig{Verify: "go test ./..."},
 		Commits: config.CommitsConfig{
 			Prefixes: []string{"feat", "fix"},
 			Format:   "{prefix}({slice_id}): {message}",
@@ -60,7 +60,7 @@ func TestGenerate_CreatesAllFiles(t *testing.T) {
 func TestGenerate_CLAUDEContent(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := testConfig()
-	Generate(cfg, tmp)
+	_ = Generate(cfg, tmp)
 
 	data, _ := os.ReadFile(filepath.Join(tmp, "CLAUDE.md"))
 	content := string(data)
@@ -76,7 +76,7 @@ func TestGenerate_CLAUDEContent(t *testing.T) {
 func TestGenerate_AGENTSContent(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := testConfig()
-	Generate(cfg, tmp)
+	_ = Generate(cfg, tmp)
 
 	data, _ := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
 	content := string(data)
@@ -104,7 +104,7 @@ func TestGenerate_AGENTSContent(t *testing.T) {
 func TestGenerate_OpencodeJSON(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := testConfig()
-	Generate(cfg, tmp)
+	_ = Generate(cfg, tmp)
 
 	data, _ := os.ReadFile(filepath.Join(tmp, "opencode.json"))
 	content := string(data)
@@ -120,7 +120,7 @@ func TestGenerate_OpencodeJSON(t *testing.T) {
 func TestValidate_AllPresent(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := testConfig()
-	Generate(cfg, tmp)
+	_ = Generate(cfg, tmp)
 
 	warnings := Validate(cfg, tmp)
 	if len(warnings) != 0 {
@@ -141,7 +141,7 @@ func TestValidate_MissingFiles(t *testing.T) {
 func TestValidate_Stale(t *testing.T) {
 	tmp := t.TempDir()
 	cfg := testConfig()
-	Generate(cfg, tmp)
+	_ = Generate(cfg, tmp)
 
 	// Modify config to make hash stale
 	cfg.Project.Name = "modified-project"

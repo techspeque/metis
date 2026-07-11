@@ -99,33 +99,33 @@ var addCmd = &cobra.Command{
 		}
 
 		s := slice.Slice{
-			ID:           id,
-			Title:        title,
-			Type:         wt,
-			Priority:     p,
-			Risk:         r,
-			Stage:        stage,
-			Coder:        coder,
-			Reviewer:     reviewer,
-			Plan:         plan,
-			PlanSection:  planSection,
-			BlockedBy:    blockedBy,
-			Notes:        notes,
-			Created:      time.Now().Format("2006-01-02"),
+			ID:          id,
+			Title:       title,
+			Type:        wt,
+			Priority:    p,
+			Risk:        r,
+			Stage:       stage,
+			Coder:       coder,
+			Reviewer:    reviewer,
+			Plan:        plan,
+			PlanSection: planSection,
+			BlockedBy:   blockedBy,
+			Notes:       notes,
+			Created:     time.Now().Format("2006-01-02"),
 		}
 
 		// Insert at position
 		switch {
 		case afterID != "":
-			if err := l.AddAfter(s, afterID); err != nil {
+			if err := l.AddAfter(&s, afterID); err != nil {
 				return err
 			}
 		case beforeID != "":
-			if err := l.AddBefore(s, beforeID); err != nil {
+			if err := l.AddBefore(&s, beforeID); err != nil {
 				return err
 			}
 		default:
-			if err := l.Add(s); err != nil {
+			if err := l.Add(&s); err != nil {
 				return err
 			}
 		}

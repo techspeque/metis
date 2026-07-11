@@ -11,14 +11,14 @@ import (
 
 // Dashboard holds data for the progress display.
 type Dashboard struct {
-	Total    int
-	Done     int
-	Coding   int
+	Total     int
+	Done      int
+	Coding    int
 	Reviewing int
-	Pending  int
-	Rework   int
-	Active   *slice.Slice
-	ByStage  map[string]StageProgress
+	Pending   int
+	Rework    int
+	Active    *slice.Slice
+	ByStage   map[string]StageProgress
 }
 
 // StageProgress holds progress for a single stage.
@@ -34,15 +34,15 @@ func Compute(slices []slice.Slice) *Dashboard {
 		ByStage: make(map[string]StageProgress),
 	}
 
-	for _, s := range slices {
-		stage := s.Stage
+	for i := range slices {
+		stage := slices[i].Stage
 		if stage == "" {
 			stage = "(none)"
 		}
 		sp := d.ByStage[stage]
 		sp.Total++
 
-		switch s.Status() {
+		switch slices[i].Status() {
 		case slice.StatusDone:
 			d.Done++
 			sp.Done++

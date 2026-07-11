@@ -62,7 +62,9 @@ func (s *Store) Read(sliceID, logName string) ([]byte, int, error) {
 	}
 
 	var exitCode int
-	fmt.Sscanf(string(exitData), "%d", &exitCode)
+	if _, err := fmt.Sscanf(string(exitData), "%d", &exitCode); err != nil {
+		return data, 0, fmt.Errorf("parsing exit code %s: %w", exitPath, err)
+	}
 	return data, exitCode, nil
 }
 

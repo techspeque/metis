@@ -114,30 +114,30 @@ func (l *Ledger) FindByID(id string) *slice.Slice {
 // IDs returns all slice IDs in the ledger.
 func (l *Ledger) IDs() []string {
 	ids := make([]string, len(l.Slices))
-	for i, s := range l.Slices {
-		ids[i] = s.ID
+	for i := range l.Slices {
+		ids[i] = l.Slices[i].ID
 	}
 	return ids
 }
 
 // Add appends a new slice to the ledger.
-func (l *Ledger) Add(s slice.Slice) error {
+func (l *Ledger) Add(s *slice.Slice) error {
 	if l.FindByID(s.ID) != nil {
 		return fmt.Errorf("slice ID %q already exists", s.ID)
 	}
-	l.Slices = append(l.Slices, s)
+	l.Slices = append(l.Slices, *s)
 	return nil
 }
 
 // AddAfter inserts a new slice after the given reference ID.
-func (l *Ledger) AddAfter(s slice.Slice, afterID string) error {
+func (l *Ledger) AddAfter(s *slice.Slice, afterID string) error {
 	if l.FindByID(s.ID) != nil {
 		return fmt.Errorf("slice ID %q already exists", s.ID)
 	}
-	for i, existing := range l.Slices {
-		if existing.ID == afterID {
+	for i := range l.Slices {
+		if l.Slices[i].ID == afterID {
 			// Insert after position i
-			l.Slices = append(l.Slices[:i+1], append([]slice.Slice{s}, l.Slices[i+1:]...)...)
+			l.Slices = append(l.Slices[:i+1], append([]slice.Slice{*s}, l.Slices[i+1:]...)...)
 			return nil
 		}
 	}
@@ -145,14 +145,14 @@ func (l *Ledger) AddAfter(s slice.Slice, afterID string) error {
 }
 
 // AddBefore inserts a new slice before the given reference ID.
-func (l *Ledger) AddBefore(s slice.Slice, beforeID string) error {
+func (l *Ledger) AddBefore(s *slice.Slice, beforeID string) error {
 	if l.FindByID(s.ID) != nil {
 		return fmt.Errorf("slice ID %q already exists", s.ID)
 	}
-	for i, existing := range l.Slices {
-		if existing.ID == beforeID {
+	for i := range l.Slices {
+		if l.Slices[i].ID == beforeID {
 			// Insert before position i
-			l.Slices = append(l.Slices[:i], append([]slice.Slice{s}, l.Slices[i:]...)...)
+			l.Slices = append(l.Slices[:i], append([]slice.Slice{*s}, l.Slices[i:]...)...)
 			return nil
 		}
 	}
@@ -161,8 +161,8 @@ func (l *Ledger) AddBefore(s slice.Slice, beforeID string) error {
 
 // Remove deletes a slice from the ledger by ID.
 func (l *Ledger) Remove(id string) error {
-	for i, s := range l.Slices {
-		if s.ID == id {
+	for i := range l.Slices {
+		if l.Slices[i].ID == id {
 			l.Slices = append(l.Slices[:i], l.Slices[i+1:]...)
 			return nil
 		}

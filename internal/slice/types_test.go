@@ -121,9 +121,9 @@ func TestRisk_IsValid(t *testing.T) {
 
 func TestSlice_Status(t *testing.T) {
 	tests := []struct {
-		name   string
-		slice  Slice
-		want   Status
+		name  string
+		slice Slice
+		want  Status
 	}{
 		{"pending", Slice{Coded: false, Reviewed: false}, StatusPending},
 		{"reviewing", Slice{Coded: true, Reviewed: false}, StatusReviewing},

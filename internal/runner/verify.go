@@ -81,9 +81,10 @@ func Verify(cfg *config.Config, repoRoot string, sliceID string, label string, s
 
 	// Determine log name
 	logName := "verify-latest"
-	if label == "pre" {
+	switch label {
+	case "pre":
 		logName = "verify-pre"
-	} else if label == "post" {
+	case "post":
 		logName = "verify-post"
 	}
 

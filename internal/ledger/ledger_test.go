@@ -73,6 +73,7 @@ func TestLedger_FindByID(t *testing.T) {
 	s := l.FindByID("feat-0002")
 	if s == nil {
 		t.Fatal("FindByID returned nil")
+		return
 	}
 	if s.Title != "Second" {
 		t.Errorf("Title = %q, want %q", s.Title, "Second")
@@ -88,7 +89,7 @@ func TestLedger_Add(t *testing.T) {
 	initial := len(l.Slices)
 
 	s := slice.Slice{ID: "feat-0099", Title: "New"}
-	if err := l.Add(s); err != nil {
+	if err := l.Add(&s); err != nil {
 		t.Fatalf("Add() error: %v", err)
 	}
 	if len(l.Slices) != initial+1 {
@@ -96,7 +97,7 @@ func TestLedger_Add(t *testing.T) {
 	}
 
 	// Duplicate should fail
-	if err := l.Add(s); err == nil {
+	if err := l.Add(&s); err == nil {
 		t.Error("expected error for duplicate ID")
 	}
 }
@@ -105,7 +106,7 @@ func TestLedger_AddAfter(t *testing.T) {
 	l := sampleLedger()
 	s := slice.Slice{ID: "inserted", Title: "Inserted"}
 
-	if err := l.AddAfter(s, "feat-0001"); err != nil {
+	if err := l.AddAfter(&s, "feat-0001"); err != nil {
 		t.Fatalf("AddAfter() error: %v", err)
 	}
 	if l.Slices[1].ID != "inserted" {
@@ -117,7 +118,7 @@ func TestLedger_AddBefore(t *testing.T) {
 	l := sampleLedger()
 	s := slice.Slice{ID: "inserted", Title: "Inserted"}
 
-	if err := l.AddBefore(s, "feat-0002"); err != nil {
+	if err := l.AddBefore(&s, "feat-0002"); err != nil {
 		t.Fatalf("AddBefore() error: %v", err)
 	}
 	if l.Slices[1].ID != "inserted" {
@@ -144,6 +145,7 @@ func TestNext_PriorityOrdering(t *testing.T) {
 	result := l.Next()
 	if result == nil {
 		t.Fatal("Next() returned nil")
+		return
 	}
 	if result.Slice.ID != "urgent" {
 		t.Errorf("Next() returned %q, want %q (p0 should win)", result.Slice.ID, "urgent")
@@ -167,6 +169,7 @@ func TestNext_DeclarationOrder(t *testing.T) {
 	result := l.Next()
 	if result == nil {
 		t.Fatal("Next() returned nil")
+		return
 	}
 	if result.Slice.ID != "first" {
 		t.Errorf("Next() = %q, want %q (declaration order)", result.Slice.ID, "first")
@@ -187,6 +190,7 @@ func TestNext_SkipsDone(t *testing.T) {
 	result := l.Next()
 	if result == nil {
 		t.Fatal("Next() returned nil")
+		return
 	}
 	if result.Slice.ID != "pending" {
 		t.Errorf("Next() = %q, want %q", result.Slice.ID, "pending")
@@ -206,6 +210,7 @@ func TestNext_ReviewerRole(t *testing.T) {
 	result := l.Next()
 	if result == nil {
 		t.Fatal("Next() returned nil")
+		return
 	}
 	if result.Role != slice.RoleReviewer {
 		t.Errorf("Role = %q, want Reviewer", result.Role)
@@ -233,6 +238,7 @@ func TestNext_BlockedBy(t *testing.T) {
 	result := l.Next()
 	if result == nil {
 		t.Fatal("Next() returned nil")
+		return
 	}
 	// "dep" comes first in declaration order and is unblocked
 	if result.Slice.ID != "dep" {
@@ -256,6 +262,7 @@ func TestNext_BlockedByDone(t *testing.T) {
 	result := l.Next()
 	if result == nil {
 		t.Fatal("Next() returned nil")
+		return
 	}
 	// "dep" is done, so "was-blocked" is now unblocked
 	if result.Slice.ID != "was-blocked" {
