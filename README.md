@@ -91,11 +91,33 @@ feed back into the rules. The system gets better over time.
 
 ## Install
 
+### Install script (Linux / macOS)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/techspeque/metis/main/scripts/install.sh | bash
+```
+
+The script detects your OS and architecture, downloads the latest release,
+verifies its checksum, installs to `~/.local/bin`, and adds that directory to
+your PATH in the right shell profile (bash, zsh, or fish) if it isn't there
+already. Overrides:
+
+| Variable | Effect |
+|---|---|
+| `METIS_VERSION` | Install a specific version (e.g. `v0.0.2`) instead of the latest |
+| `METIS_INSTALL_DIR` | Install somewhere other than `~/.local/bin` |
+| `METIS_NO_MODIFY_PATH=1` | Never touch shell profile files |
+
+On Windows, download the zip from the
+[latest release](https://github.com/techspeque/metis/releases/latest).
+
+### With Go
+
 ```bash
 go install github.com/techspeque/metis/cmd/metis@latest
 ```
 
-Or build from source:
+### From source
 
 ```bash
 git clone https://github.com/techspeque/metis.git
