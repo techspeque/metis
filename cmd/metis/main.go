@@ -3,6 +3,7 @@ package main
 
 import (
 	"os"
+	"runtime/debug"
 
 	"github.com/techspeque/metis/internal/cli"
 )
@@ -15,6 +16,9 @@ var (
 )
 
 func main() {
+	if bi, ok := debug.ReadBuildInfo(); ok {
+		version, commit, date = versionFromBuildInfo(bi, version, commit, date)
+	}
 	cli.SetVersionInfo(version, commit, date)
 	if err := cli.Execute(); err != nil {
 		os.Exit(1)
