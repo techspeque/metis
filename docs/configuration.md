@@ -280,3 +280,37 @@ Run `metis check --config` to validate:
 - `commits.prefixes` has at least one entry
 - `commits.format` is non-empty
 - `paths.ledger` is set
+
+---
+
+## User Configuration (`~/.metis/config.yaml`)
+
+Separate from the per-project `metis.yaml`, Metis keeps a small per-user file
+at `~/.metis/config.yaml` holding the workspace registry for the human
+persona. It is managed by the `metis workspace` commands and auto-populated
+by `metis init` — you rarely edit it by hand.
+
+```yaml
+# ~/.metis/config.yaml — user-level configuration for Metis
+active: metis
+workspaces:
+  acme-api: /Users/you/proj/acme-api
+  metis: /Users/you/proj/metis
+```
+
+| Field | Type | Meaning |
+|---|---|---|
+| `active` | string | Name of the active workspace — the fallback project for commands run outside any repo. Must be a key of `workspaces`, or empty. |
+| `workspaces` | map | Workspace name → absolute path of a directory containing `metis.yaml`. |
+
+Notes:
+
+- The file is deliberately **not** named `metis.yaml`: home is on the
+  upward-discovery path for repos under `~`, and project resolution must
+  never mistake the user config for a project.
+- A missing file means an empty registry — nothing is created until you (or
+  `metis init`) write to it.
+- Inside a repo, cwd discovery always beats the `active` selection. Agents
+  run as the same OS user as you and share this file; switching workspaces
+  must never redirect an agent session running in another repo.
+- `METIS_USER_CONFIG` overrides the file location (mainly for tests).

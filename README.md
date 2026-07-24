@@ -1,7 +1,7 @@
 # Metis
 
 [![CI](https://github.com/techspeque/metis/actions/workflows/ci.yml/badge.svg)](https://github.com/techspeque/metis/actions/workflows/ci.yml)
-[![Coverage](https://raw.githubusercontent.com/techspeque/metis/badges/coverage.svg)](https://raw.githubusercontent.com/techspeque/metis/badges/coverage.svg)
+[![Coverage](https://raw.githubusercontent.com/techspeque/metis/badges/.badges/main/coverage.svg)](https://raw.githubusercontent.com/techspeque/metis/badges/.badges/main/coverage.svg)
 [![Release](https://img.shields.io/github/v/release/techspeque/metis)](https://github.com/techspeque/metis/releases/latest)
 [![Go Report Card](https://goreportcard.com/badge/github.com/techspeque/metis)](https://goreportcard.com/report/github.com/techspeque/metis)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -136,6 +136,12 @@ your-project/
 ├── AGENTS.md               # Governance + full agent contract (generated)
 └── opencode.json           # Surface adapter (generated)
 ```
+
+Metis also keeps a per-user workspace registry at `~/.metis/config.yaml`, so
+humans working across many projects can target any registered project from
+anywhere (`metis workspace use <name>`, `metis -w <name> status`). Inside a
+repo, the repo always wins — agents are unaffected. See
+[docs/commands.md](docs/commands.md#workspaces).
 
 ## Core Principles
 

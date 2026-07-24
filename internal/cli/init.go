@@ -10,6 +10,7 @@ import (
 	"github.com/techspeque/metis/internal/config"
 	"github.com/techspeque/metis/internal/surface"
 	"github.com/techspeque/metis/internal/templates"
+	"github.com/techspeque/metis/internal/userconfig"
 )
 
 func init() {
@@ -166,6 +167,11 @@ Use --from metis.yaml for non-interactive mode.`,
 		gitignorePath := filepath.Join(repoRoot, ".gitignore")
 		appendToGitignore(gitignorePath, ".metis/runs/")
 
+		// Register this project in the user-level workspace registry so the
+		// registry populates itself through normal use. Registration failures
+		// (e.g. name collision with a different project) never fail init.
+		registerWorkspace(cfg, repoRoot)
+
 		fmt.Println("\nMetis initialized successfully!")
 		fmt.Println("  .metis/            — state directory")
 		fmt.Println("  .metis/templates/  — document templates (for agents)")
@@ -177,6 +183,28 @@ Use --from metis.yaml for non-interactive mode.`,
 		fmt.Printf("      the template in .metis/templates/plan.md\n")
 		return nil
 	},
+}
+
+// registerWorkspace adds the project to ~/.metis/config.yaml under the
+// project name (falling back to the directory basename). A name collision
+// with a different path is skipped silently — init must not fail over it.
+func registerWorkspace(cfg *config.Config, repoRoot string) {
+	name := cfg.Project.Name
+	if name == "" {
+		name = filepath.Base(repoRoot)
+	}
+
+	uc, err := userconfig.Load()
+	if err != nil {
+		return
+	}
+	if err := uc.Add(name, repoRoot); err != nil {
+		return
+	}
+	if err := uc.Save(); err != nil {
+		return
+	}
+	fmt.Printf("Registered workspace %q in the user registry\n", name)
 }
 
 func appendToGitignore(path, entry string) {

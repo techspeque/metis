@@ -11,6 +11,9 @@ var (
 	version = "dev"
 	commit  = "none"
 	date    = "unknown"
+
+	// workspaceFlag holds the value of the persistent --workspace flag.
+	workspaceFlag string
 )
 
 // SetVersionInfo sets the version, commit, and build date displayed by --version.
@@ -41,6 +44,8 @@ across any technology stack and any agent surface.`,
 
 func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("metis %s (%s) built %s\n", version, commit, date))
+	rootCmd.PersistentFlags().StringVarP(&workspaceFlag, "workspace", "w", "",
+		"Operate on a registered workspace instead of the current directory")
 }
 
 // Execute runs the root command.
