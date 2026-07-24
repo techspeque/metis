@@ -315,6 +315,57 @@ Check adapter files exist and are not stale (config changed since last generate)
 
 ---
 
+## Workspaces
+
+Workspaces are a user-level registry (`~/.metis/config.yaml`) for the human
+persona working across many projects. Agents are unaffected: inside a repo,
+upward discovery of `metis.yaml` always wins and the registry is never
+consulted.
+
+Every command resolves its target project in this order:
+
+1. `--workspace <name>` (`-w`) — global flag, explicit always wins
+2. `METIS_WORKSPACE` env var — scripting/CI override
+3. Upward discovery of `metis.yaml` from the current directory
+4. The active workspace from `~/.metis/config.yaml`
+
+When a command resolves via anything other than cwd discovery, it prints a
+provenance line to stderr: `workspace: <name> (<path>) [via --workspace]`.
+
+### `metis workspace list`
+
+List registered workspaces. The active one is marked `[active]`; entries
+whose path no longer contains a `metis.yaml` are marked `[missing]` (they
+are displayed, never auto-pruned — an unmounted volume is not a deleted
+project).
+
+### `metis workspace add <name> [path]`
+
+Register a workspace. The path defaults to the repo root discovered from the
+current directory and must contain a `metis.yaml`.
+
+### `metis workspace remove <name>`
+
+Remove a registry entry. The project itself is never touched. Removing the
+active workspace clears the active selection.
+
+### `metis workspace use <name>`
+
+Set the active workspace — the fallback project for commands run outside any
+repo.
+
+### `metis workspace current`
+
+Show the active workspace, or "none".
+
+```bash
+metis ws list                 # 'ws' is an alias for 'workspace'
+metis -w acme-api status      # operate on a registered project from anywhere
+METIS_WORKSPACE=acme-api metis next
+```
+
+---
+
 ## Initialization
 
 ### `metis init`
@@ -331,6 +382,11 @@ Creates:
 - `.metis/` directory structure (slices, briefs, plans, adr, templates, runs)
 - Surface adapters (CLAUDE.md, AGENTS.md, opencode.json, .claude/settings.json)
 - Document templates in `.metis/templates/`
+
+Also registers the project in the user-level workspace registry
+(`~/.metis/config.yaml`) under the project name, so `metis workspace list`
+populates itself through normal use. A name collision with a different
+project is skipped silently.
 
 ### `metis recon`
 
