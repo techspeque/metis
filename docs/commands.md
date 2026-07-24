@@ -388,6 +388,17 @@ Also registers the project in the user-level workspace registry
 populates itself through normal use. A name collision with a different
 project is skipped silently.
 
+### `metis version`
+
+Show the version, commit, build date, and platform. Equivalent to
+`metis --version`, plus the Go runtime and OS/arch — useful in bug reports.
+
+```
+$ metis version
+metis 0.0.2 (62f1ed9) built 2026-07-24T18:15:01Z
+go1.26.0 darwin/arm64
+```
+
 ### `metis recon`
 
 Create a reconciliation slice when the OVERVIEW has changed.
