@@ -57,6 +57,14 @@ var ruleListCmd = &cobra.Command{
 			return err
 		}
 
+		if jsonOutput() {
+			rules := ctx.cfg.AccuracyRules
+			if rules == nil {
+				rules = []string{}
+			}
+			return printJSON(cmd, rules)
+		}
+
 		if len(ctx.cfg.AccuracyRules) == 0 {
 			fmt.Println("No accuracy rules configured.")
 			return nil

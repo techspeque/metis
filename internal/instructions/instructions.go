@@ -323,7 +323,7 @@ func sectionToolingMap() string {
 | ` + "`metis brief <id> --write`" + ` | Generate brief template |
 | ` + "`metis verify --pre`" + ` | Pre-flight verification |
 | ` + "`metis verify --post`" + ` | Post-implementation verification |
-| ` + "`metis env-check`" + ` | Environment soundness check |
+| ` + "`metis verify --env`" + ` | Environment soundness check only |
 | ` + "`metis interfaces`" + ` | Regenerate API summary |
 | ` + "`metis commit -m \"...\"`" + ` | Commit with enforced format |
 | ` + "`metis commit --brief`" + ` | Commit the brief |

@@ -10,7 +10,6 @@ import (
 
 func init() {
 	instructionsCmd.Flags().String("for", "", "Generate risk-scaled instructions for a specific slice ID")
-	instructionsCmd.Flags().Bool("json", false, "Output as JSON (not yet implemented)")
 	rootCmd.AddCommand(instructionsCmd)
 
 	kickoffCmd.Flags().String("role", "", "Emit only coder or reviewer flow (coder|reviewer)")
@@ -29,6 +28,7 @@ var instructionsCmd = &cobra.Command{
 
 		forSlice, _ := cmd.Flags().GetString("for")
 
+		var content string
 		if forSlice != "" {
 			l, err := ctx.loadLedger()
 			if err != nil {
@@ -38,11 +38,15 @@ var instructionsCmd = &cobra.Command{
 			if s == nil {
 				return fmt.Errorf("slice %q not found", forSlice)
 			}
-			fmt.Println(instructions.GenerateForSlice(ctx.cfg, s, ctx.repoRoot))
+			content = instructions.GenerateForSlice(ctx.cfg, s, ctx.repoRoot)
 		} else {
-			fmt.Println(instructions.Generate(ctx.cfg, ctx.repoRoot))
+			content = instructions.Generate(ctx.cfg, ctx.repoRoot)
 		}
 
+		if jsonOutput() {
+			return printJSON(cmd, map[string]string{"for": forSlice, "content": content})
+		}
+		fmt.Println(content)
 		return nil
 	},
 }
@@ -58,7 +62,11 @@ var kickoffCmd = &cobra.Command{
 		}
 
 		role, _ := cmd.Flags().GetString("role")
-		fmt.Println(instructions.GenerateKickoff(ctx.cfg, role))
+		content := instructions.GenerateKickoff(ctx.cfg, role)
+		if jsonOutput() {
+			return printJSON(cmd, map[string]string{"role": role, "content": content})
+		}
+		fmt.Println(content)
 		return nil
 	},
 }

@@ -58,9 +58,11 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		case briefMode:
 			return commitBrief(ctx, l, sliceID)
 		case flipMode == "coded":
-			return commitFlipCoded(ctx, l, sliceID)
+			return commitFlip(ctx, sliceID, "coded", "")
 		case flipMode == "reviewed":
-			return commitFlipReviewed(ctx, l, sliceID, result.AgentSlug)
+			return commitFlip(ctx, sliceID, "reviewed", result.AgentSlug)
+		case flipMode != "":
+			return fmt.Errorf("invalid flip target: %s (use 'coded' or 'reviewed')", flipMode)
 		}
 
 		// Normal commit
@@ -118,19 +120,10 @@ func commitBrief(ctx *context, l interface{}, sliceID string) error {
 	return nil
 }
 
-func commitFlipCoded(ctx *context, l interface {
-	FlipCoded(string) error
-	Save(string) error
-}, sliceID string) error {
-	// This is a simplified version — the real one uses the ledger type
-	return commitFlipGeneric(ctx, sliceID, "coded")
-}
-
-func commitFlipReviewed(ctx *context, l interface{}, sliceID, agent string) error {
-	return commitFlipGeneric(ctx, sliceID, "reviewed")
-}
-
-func commitFlipGeneric(ctx *context, sliceID string, which string) error {
+// commitFlip flips a lifecycle flag and commits the ledger in one step. For
+// "reviewed", the dispatching agent slug is passed through so the ledger can
+// enforce cross-vendor review (reviewer != coder).
+func commitFlip(ctx *context, sliceID, which, agent string) error {
 	// Reload ledger to get the proper type
 	ledgerObj, err := ctx.loadLedger()
 	if err != nil {
@@ -143,11 +136,9 @@ func commitFlipGeneric(ctx *context, sliceID string, which string) error {
 			return err
 		}
 	case "reviewed":
-		if err := ledgerObj.FlipReviewed(sliceID, ""); err != nil {
+		if err := ledgerObj.FlipReviewed(sliceID, agent); err != nil {
 			return err
 		}
-	default:
-		return fmt.Errorf("invalid flip target: %s (use 'coded' or 'reviewed')", which)
 	}
 
 	if err := ctx.saveLedger(ledgerObj); err != nil {
