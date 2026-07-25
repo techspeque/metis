@@ -209,3 +209,28 @@ func TestGenerateKickoff_DirtyTreeResume(t *testing.T) {
 		t.Error("kickoff missing in-scope resume guidance")
 	}
 }
+
+func TestKickoff_StructuredOutputGuidance(t *testing.T) {
+	cfg := testConfig()
+	out := GenerateKickoff(cfg, "")
+
+	for _, want := range []string{
+		"metis next -o json",
+		"`agent_slug` field",
+		`"active": false`,
+		"never parse the human-readable text",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("kickoff protocol missing %q", want)
+		}
+	}
+}
+
+func TestGenerate_ToolingMapJSONNote(t *testing.T) {
+	cfg := testConfig()
+	out := Generate(cfg, "")
+
+	if !strings.Contains(out, "Every read command accepts `-o json`") {
+		t.Error("tooling map should state the -o json contract")
+	}
+}

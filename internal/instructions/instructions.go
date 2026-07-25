@@ -38,6 +38,9 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 
 	b.WriteString("# Metis Session Protocol\n\n")
 	b.WriteString("Follow these steps at the start of every session.\n\n")
+	b.WriteString("**Structured output:** every read command accepts `-o json`. Whenever a step\n")
+	b.WriteString("needs an exact value (slice ID, agent slug, role, status), read it from the\n")
+	b.WriteString("JSON field — never parse the human-readable text, which may change.\n\n")
 
 	b.WriteString("## Step 1: Establish State\n\n")
 	b.WriteString("```bash\n")
@@ -61,11 +64,14 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 	b.WriteString("   - **No:** STOP. Report to human.\n\n")
 
 	b.WriteString("## Step 2: Find Active Slice\n\n")
-	b.WriteString("```bash\nmetis next\n```\n\n")
-	b.WriteString("Trust this over any manual reading. If no slices remain, report \"backlog empty\" and stop.\n\n")
+	b.WriteString("```bash\nmetis next -o json\n```\n\n")
+	b.WriteString("Trust this over any manual reading. `\"active\": false` means the backlog is\n")
+	b.WriteString("empty — report that and stop. Otherwise use the `id`, `role`, and\n")
+	b.WriteString("`agent_slug` fields for the steps below.\n\n")
 
 	b.WriteString("## Step 3: Self-Identify\n\n")
-	b.WriteString("State identity in one line. Match against the required model slug from `metis next` output.\n")
+	b.WriteString("State identity in one line. Match your model against the `agent_slug` field\n")
+	b.WriteString("from Step 2.\n")
 	b.WriteString("- Match -> continue\n- No match -> stop, report which agent is needed\n\n")
 
 	b.WriteString("## Step 4: Read Instructions\n\n")
@@ -326,7 +332,12 @@ func sectionToolingMap() string {
 | ` + "`metis block <id>`" + ` | Block a slice during review |
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
-| ` + "`metis status`" + ` | One-line progress summary |`
+| ` + "`metis status`" + ` | One-line progress summary |
+| ` + "`metis config get <key>`" + ` | Read one config value |
+
+Every read command accepts ` + "`-o json`" + `. When you need an exact value
+(slice ID, agent slug, status), read the JSON field — never parse the
+human-readable text.`
 }
 
 func sectionOverview(cfg *config.Config, repoRoot string) string {

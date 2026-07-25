@@ -157,3 +157,19 @@ func TestValidate_Stale(t *testing.T) {
 		t.Error("expected staleness warning after config change")
 	}
 }
+
+func TestGenerate_StructuredOutputGuidance(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := testConfig()
+	_ = Generate(cfg, tmp)
+
+	claude, _ := os.ReadFile(filepath.Join(tmp, "CLAUDE.md"))
+	if !strings.Contains(string(claude), "agent_slug") || !strings.Contains(string(claude), "-o json") {
+		t.Error("CLAUDE.md should route identity matching through metis next -o json")
+	}
+
+	agents, _ := os.ReadFile(filepath.Join(tmp, "AGENTS.md"))
+	if !strings.Contains(string(agents), "never parse human-readable output") {
+		t.Error("AGENTS.md hard rules should include the structured-output rule")
+	}
+}

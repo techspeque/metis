@@ -21,6 +21,12 @@ Session start
 No pasted prompt is needed. The agent reads `AGENTS.md` (auto-loaded by all
 surfaces), which directs it to run `metis kickoff` immediately.
 
+**Structured output contract:** every read command accepts `-o json`
+(see [commands.md](commands.md#output-format)). Whenever the protocol needs
+an exact value — slice ID, agent slug, role, status — agents read it from
+the JSON field rather than parsing the human-readable text. The text output
+may change between versions; the JSON fields are the stable contract.
+
 ---
 
 ## Step 1: Establish State
@@ -59,21 +65,22 @@ Report to human. Agents never switch branches.
 ## Step 2: Find Active Slice
 
 ```bash
-metis next
+metis next -o json
 ```
 
 Trust this output over any manual YAML reading. The dispatch algorithm is
 deterministic — priority ordering, dependency resolution, and role assignment
-are handled by the tool.
+are handled by the tool. The `id`, `role`, and `agent_slug` fields drive the
+following steps.
 
-If no slices remain: report "backlog empty" and stop.
+If the output is `{"active": false}`: report "backlog empty" and stop.
 
 ---
 
 ## Step 3: Self-Identify
 
-State your model identity in one line. Compare against the "Required model"
-slug from `metis next` output.
+State your model identity in one line. Compare against the `agent_slug`
+field from Step 2.
 
 - **Match:** continue
 - **No match:** STOP. Report which agent is needed. Do not invent work.

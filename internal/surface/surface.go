@@ -72,7 +72,8 @@ func writeCLAUDE(cfg *config.Config, repoRoot string) error {
 This repository is governed by ` + "`AGENTS.md`" + `. Read it now.
 Run ` + "`metis kickoff`" + ` immediately at session start. No other action first.
 
-Identity: state your model as one of the slugs from ` + "`metis next`" + ` output.
+Identity: state your model; it must match the ` + "`agent_slug`" + ` field of
+` + "`metis next -o json`" + `.
 `
 	return os.WriteFile(filepath.Join(repoRoot, "CLAUDE.md"), []byte(content), 0o644)
 }
@@ -102,6 +103,7 @@ Do NOT skip this. Do NOT start work without following the protocol.
 10. No planning in execution — do not re-scope or invent additional work
 11. Report mismatches — if you're the wrong agent for this slice, STOP
 12. Trust the tools — do not walk YAML, compare slugs, or evaluate booleans manually
+13. Exact values come from `+"`-o json`"+` — every read command supports it; never parse human-readable output
 
 ---
 
