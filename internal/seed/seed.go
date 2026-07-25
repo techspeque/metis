@@ -26,7 +26,11 @@ type Workstream struct {
 // ParseResult holds the output of parsing a plan file.
 type ParseResult struct {
 	Workstreams []Workstream
-	Errors      []string
+	// GatePhases lists phases whose plan contains a "Phase Gate" section;
+	// each produces an auto-generated gate slice blocked by that phase's
+	// workstreams.
+	GatePhases []int
+	Errors     []string
 }
 
 // Heading forms accepted: the shipped template puts the phase in the H1
@@ -37,6 +41,7 @@ var phaseHeadingRe = regexp.MustCompile(`^#{1,3}\s+Phase\s+(\d+)\b`)
 var wsHeadingRe = regexp.MustCompile(`^#{2,3}\s+Workstream\s+(\d+\.\d+):\s*(.+)`)
 var metadataRe = regexp.MustCompile(`^-\s+\*\*(\w+):\*\*\s*(.+)`)
 var frontmatterPhaseRe = regexp.MustCompile(`^phase:\s*(\d+)\s*$`)
+var gateHeadingRe = regexp.MustCompile(`^#{2,3}\s+Phase Gate\b`)
 
 // Parse parses a structured plan file and extracts workstreams.
 func Parse(content string) *ParseResult {
@@ -70,6 +75,26 @@ func Parse(content string) *ParseResult {
 			if currentWS != nil {
 				result.Workstreams = append(result.Workstreams, *currentWS)
 				currentWS = nil
+			}
+			inTasks = false
+			inAcceptance = false
+			continue
+		}
+
+		// Phase Gate heading — becomes an auto-generated gate slice
+		if gateHeadingRe.MatchString(trimmed) {
+			if currentWS != nil {
+				result.Workstreams = append(result.Workstreams, *currentWS)
+				currentWS = nil
+			}
+			seen := false
+			for _, p := range result.GatePhases {
+				if p == currentPhase {
+					seen = true
+				}
+			}
+			if !seen {
+				result.GatePhases = append(result.GatePhases, currentPhase)
 			}
 			inTasks = false
 			inAcceptance = false
@@ -145,9 +170,14 @@ func Parse(content string) *ParseResult {
 	return result
 }
 
-// ToSlices converts parsed workstreams into slice entries.
-func ToSlices(ws []Workstream, planFile string, sliceType slice.WorkType) []slice.Slice {
+// ToSlices converts parsed workstreams (and Phase Gate sections) into slice
+// entries. Each gate slice is blocked by every workstream of its phase and
+// inherits the phase's first coder/reviewer pair.
+func ToSlices(result *ParseResult, planFile string, sliceType slice.WorkType) []slice.Slice {
+	ws := result.Workstreams
 	var slices []slice.Slice
+	byPhase := map[int][]string{}
+	firstPair := map[int][2]string{}
 	for i := range ws {
 		w := &ws[i]
 		id := fmt.Sprintf("phase-%d-ws-%s", w.Phase, w.Workstream)
@@ -164,6 +194,30 @@ func ToSlices(ws []Workstream, planFile string, sliceType slice.WorkType) []slic
 			PlanSection: fmt.Sprintf("§%s", w.Workstream),
 		}
 		slices = append(slices, s)
+		byPhase[w.Phase] = append(byPhase[w.Phase], id)
+		if _, ok := firstPair[w.Phase]; !ok {
+			firstPair[w.Phase] = [2]string{w.Coder, w.Reviewer}
+		}
+	}
+
+	for _, phase := range result.GatePhases {
+		deps, ok := byPhase[phase]
+		if !ok {
+			continue
+		}
+		pair := firstPair[phase]
+		slices = append(slices, slice.Slice{
+			ID:          fmt.Sprintf("phase-%d-gate", phase),
+			Title:       fmt.Sprintf("Phase %d gate: composed-system validation", phase),
+			Type:        slice.TypeGate,
+			Priority:    slice.PriorityP2,
+			Risk:        slice.RiskHigh,
+			Coder:       pair[0],
+			Reviewer:    pair[1],
+			Plan:        planFile,
+			PlanSection: "Phase Gate",
+			BlockedBy:   deps,
+		})
 	}
 	return slices
 }

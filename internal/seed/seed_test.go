@@ -132,7 +132,7 @@ func TestParse_NoWorkstreams(t *testing.T) {
 
 func TestToSlices(t *testing.T) {
 	result := Parse(samplePlan)
-	slices := ToSlices(result.Workstreams, ".metis/plans/impl.md", slice.TypeFeat)
+	slices := ToSlices(result, ".metis/plans/impl.md", slice.TypeFeat)
 
 	if len(slices) != 3 {
 		t.Fatalf("expected 3 slices, got %d", len(slices))
@@ -219,5 +219,48 @@ func TestParse_LegacyHeadingsStillWork(t *testing.T) {
 `)
 	if len(result.Workstreams) != 1 || result.Workstreams[0].Phase != 2 {
 		t.Fatalf("legacy headings must still parse: %+v", result.Workstreams)
+	}
+}
+
+// TestPhaseGateBecomesGateSlice pins the template's promise: a "Phase Gate"
+// section produces an auto-generated gate slice blocked by the phase's
+// workstreams.
+func TestPhaseGateBecomesGateSlice(t *testing.T) {
+	result := Parse(`# Phase 3 — Compose
+
+## Workstream 3.1: Part A
+
+- **Risk:** low
+- **Coder:** a/one
+- **Reviewer:** b/two
+
+## Workstream 3.2: Part B
+
+- **Risk:** low
+- **Coder:** a/one
+- **Reviewer:** b/two
+
+## Phase Gate
+
+Composition scenarios to validate:
+- [ ] end to end works
+`)
+	if len(result.GatePhases) != 1 || result.GatePhases[0] != 3 {
+		t.Fatalf("GatePhases = %v, want [3]", result.GatePhases)
+	}
+
+	slices := ToSlices(result, "p.md", slice.TypeFeat)
+	if len(slices) != 3 {
+		t.Fatalf("got %d slices, want 2 workstreams + 1 gate", len(slices))
+	}
+	gate := slices[2]
+	if gate.ID != "phase-3-gate" || gate.Type != slice.TypeGate {
+		t.Errorf("gate slice = %+v", gate)
+	}
+	if len(gate.BlockedBy) != 2 || gate.BlockedBy[0] != "phase-3-ws-3.1" {
+		t.Errorf("gate BlockedBy = %v", gate.BlockedBy)
+	}
+	if gate.Coder != "a/one" || gate.Reviewer != "b/two" {
+		t.Errorf("gate agents = %s/%s", gate.Coder, gate.Reviewer)
 	}
 }
