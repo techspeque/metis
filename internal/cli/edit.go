@@ -122,6 +122,7 @@ Done slices cannot be edited — 'metis reopen' them first.`,
 		}
 
 		fmt.Printf("Edited %s: %s\n", s.ID, strings.Join(changed, ", "))
+		ctx.commitStateSoft(s.ID, "edit "+strings.Join(changed, ","), ctx.ledgerPath())
 		return nil
 	},
 }

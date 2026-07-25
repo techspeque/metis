@@ -10,6 +10,7 @@ import (
 
 	"github.com/techspeque/metis/internal/brief"
 	"github.com/techspeque/metis/internal/git"
+	"github.com/techspeque/metis/internal/slice"
 )
 
 func init() {
@@ -81,6 +82,7 @@ Exit code 1 when any check fails.`,
 type auditReport struct {
 	Slice           string        `json:"slice"`
 	OK              bool          `json:"ok"`
+	Gate            bool          `json:"gate"`
 	ScopeVerifiable bool          `json:"scope_verifiable"`
 	OwnedPaths      []string      `json:"owned_paths"`
 	Commits         []auditCommit `json:"commits"`
@@ -95,6 +97,23 @@ type auditCommit struct {
 
 func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditReport {
 	report := auditReport{Slice: sliceID, OK: true, OutOfScope: []string{}}
+
+	// Gate slices validate composition, not file edits — the scope audit
+	// does not apply to them.
+	if l, err := ctx.loadLedger(); err == nil {
+		if s := l.FindByID(sliceID); s != nil && s.Type == slice.TypeGate {
+			report.Gate = true
+		}
+	}
+	if !report.Gate {
+		if archive, err := ctx.loadArchive(); err == nil {
+			for i := range archive.Slices {
+				if archive.Slices[i].ID == sliceID && archive.Slices[i].Type == slice.TypeGate {
+					report.Gate = true
+				}
+			}
+		}
+	}
 
 	// Scope contract from the committed brief.
 	briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
@@ -146,6 +165,11 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 	if len(report.OutOfScope) > 0 {
 		report.OK = false
 	}
+	// An undeclared scope is a protocol violation for normal slices — a
+	// brief without owned_paths must not pass the audit silently.
+	if !report.Gate && !report.ScopeVerifiable {
+		report.OK = false
+	}
 	if report.Commits == nil {
 		report.Commits = []auditCommit{}
 	}
@@ -165,8 +189,10 @@ func printAuditText(r *auditReport) {
 		}
 	}
 	switch {
+	case r.Gate:
+		fmt.Println("Scope: gate slice — scope audit not applicable")
 	case !r.ScopeVerifiable:
-		fmt.Println("Scope: NOT VERIFIABLE — brief declares no owned_paths")
+		fmt.Println("Scope: FAIL — brief declares no owned_paths (scope is a contract; declare it)")
 	case len(r.OutOfScope) > 0:
 		fmt.Println("Scope: VIOLATIONS — files outside the brief's owned_paths:")
 		for _, f := range r.OutOfScope {

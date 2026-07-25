@@ -207,6 +207,7 @@ commands:
 | `verify` | Yes | The verification gate — build, lint, test |
 | `env_check` | No | Environment soundness check (exit ≠ 0 means env is broken) |
 | `interfaces` | No | Regenerate API summary for anti-hallucination archaeology |
+| `timeout_seconds` | No | Bounds each command (default 600) — a hung command is killed, not waited on forever |
 
 Commands are opaque strings — Metis runs them via `sh -c` and captures output.
 Technology-agnostic: use whatever your stack needs.

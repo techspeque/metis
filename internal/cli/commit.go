@@ -55,7 +55,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		// from 'metis next'; if a higher-priority slice arrived in between,
 		// fail loudly instead of silently acting on the wrong slice.
 		if claimed, _ := cmd.Flags().GetString("slice"); claimed != "" && claimed != sliceID {
-			return fmt.Errorf("dispatch has moved on: active slice is %s, you were working %s — re-run 'metis next' and report to the human", sliceID, claimed)
+			return fmt.Errorf("slice mismatch: the active slice is %s but you passed --slice %s — if %s is what you were dispatched, dispatch has moved on; re-run 'metis next' and report to the human", sliceID, claimed, claimed)
 		}
 
 		// Handle shortcuts
@@ -79,6 +79,9 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 			}
 			if agentFlag != "" && !ctx.agentSlugs()[agentFlag] {
 				return fmt.Errorf("unknown agent slug %q (configured agents: metis config get agents)", agentFlag)
+			}
+			if ctx.allowSelfReview() {
+				agentFlag = "" // single-agent mode: skip the coder comparison
 			}
 			return commitFlip(ctx, sliceID, "reviewed", agentFlag)
 		case flipMode != "":
@@ -170,6 +173,16 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 			return err
 		}
 	case "reviewed":
+		// The review sign-off is gated on the deterministic audit: commit
+		// format and scope must pass 'metis log --validate' first.
+		commits, err := git.SliceCommits(ctx.repoRoot, sliceID)
+		if err != nil {
+			return err
+		}
+		report := auditSlice(ctx, sliceID, commits)
+		if !report.OK {
+			return fmt.Errorf("cannot flip reviewed: 'metis log %s --validate' fails — resolve the audit (or block the slice) first", sliceID)
+		}
 		if err := ledgerObj.FlipReviewed(sliceID, agent); err != nil {
 			return err
 		}

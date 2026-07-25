@@ -505,3 +505,27 @@ func TestValidate_SelfReviewPolicy(t *testing.T) {
 		t.Errorf("self-review with policy should pass, got: %v", errs)
 	}
 }
+
+// TestArchiveUnblocksDependents pins the gate-deadlock fix: archiving slices
+// must strip them from remaining blocked_by lists so dependents dispatch.
+func TestArchiveUnblocksDependents(t *testing.T) {
+	l := &Ledger{Version: 1, Slices: []slice.Slice{
+		{ID: "ws-1", Title: "a", Type: slice.TypeFeat, Priority: slice.PriorityP2, Risk: slice.RiskLow,
+			Coder: "a/one", Reviewer: "b/two", Coded: true, Reviewed: true, Created: "2026-07-26"},
+		{ID: "gate-1", Title: "g", Type: slice.TypeGate, Priority: slice.PriorityP2, Risk: slice.RiskHigh,
+			Coder: "a/one", Reviewer: "b/two", BlockedBy: []string{"ws-1"}, Created: "2026-07-26"},
+	}}
+	archive := &Archive{}
+
+	archived := l.Archive(archive)
+	if len(archived) != 1 || archived[0] != "ws-1" {
+		t.Fatalf("archived = %v", archived)
+	}
+	if len(l.Slices) != 1 || len(l.Slices[0].BlockedBy) != 0 {
+		t.Fatalf("gate still blocked after archive: %+v", l.Slices[0])
+	}
+	result := l.Next()
+	if result == nil || result.Slice.ID != "gate-1" {
+		t.Fatalf("gate must dispatch after blockers archived, got %+v", result)
+	}
+}

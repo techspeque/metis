@@ -164,7 +164,9 @@ If `metis next` assigned role = **Reviewer**:
 
 3b. **Audit scope** — `metis log <id> --validate`: deterministic check that
    every commit matches the format and every touched file falls inside the
-   brief's declared `owned_paths`. FAIL → block with category `scope`.
+   brief's declared `owned_paths` (gate slices are exempt from the scope
+   portion). FAIL → block with category `scope`. This is enforced:
+   `commit --flip reviewed` refuses while the audit fails.
 
 4. **Walk checklist** — one-line verdict per item, citing `file:line`:
    1. Behavioral correctness

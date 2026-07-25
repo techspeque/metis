@@ -100,7 +100,9 @@ type SliceCommit struct {
 // SliceCommits returns every commit whose message references the slice ID,
 // oldest first, with the files each touched.
 func SliceCommits(repoDir, sliceID string) ([]SliceCommit, error) {
-	cmd := exec.Command("git", "log", "--reverse", "--grep", sliceID, "--format=%H")
+	// Fixed-string match on the "(<id>)" token: a regex grep on the bare ID
+	// matched prefixes (ws-2.1 pulled in ws-2.11) and treated '.' as any-char.
+	cmd := exec.Command("git", "log", "--reverse", "--fixed-strings", "--grep", "("+sliceID+")", "--format=%H")
 	cmd.Dir = repoDir
 	out, err := cmd.Output()
 	if err != nil {
@@ -122,7 +124,11 @@ func SliceCommits(repoDir, sliceID string) ([]SliceCommit, error) {
 			c.Body = strings.TrimSpace(header[1])
 		}
 		if len(parts) > 1 {
-			c.Files = append(c.Files, strings.Fields(parts[1])...)
+			for _, f := range strings.Split(parts[1], "\n") {
+				if f = strings.TrimSpace(f); f != "" {
+					c.Files = append(c.Files, f)
+				}
+			}
 		}
 		commits = append(commits, c)
 	}

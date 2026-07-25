@@ -261,6 +261,24 @@ metis commit --amend                            # amend previous commit
 - Current branch must be `project.integration_branch`
 - Commit format: `{prefix}({slice_id}): {message}`
 - Prefix must be in `commits.prefixes` list
+- `--flip coded`: the slice's brief must exist and the last `verify --post` must have passed
+- `--flip reviewed`: requires `--agent <your-slug>`, validated against the slice's coder (`routing.review: self` relaxes this for single-agent projects), and the slice must pass `metis log <id> --validate` — a failing audit blocks the sign-off
+- `--slice <id>` (any mode): binds the command to the slice you were dispatched — errors if a higher-priority slice arrived since your `metis next`
+
+### `metis log <id>`
+
+Show a slice's commit history (oldest first). With `--validate`, runs the
+reviewer's deterministic audit: every subject checked for the slice ID and
+an allowed prefix, attribution lines detected, and every touched file
+compared against the brief's declared `owned_paths` (metis state files and
+the brief itself are always in scope; an unfilled scope declaration reports
+NOT VERIFIABLE). Exit 1 on any violation — CI-gatable.
+
+```bash
+metis log feat-0012                 # commit history
+metis log feat-0012 --validate      # format + scope audit
+metis log feat-0012 --validate -o json
+```
 - Attribution stripped (Co-Authored-By, Generated with, model names)
 
 ---
