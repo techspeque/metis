@@ -52,12 +52,12 @@ var workspaceListCmd = &cobra.Command{
 		rows := []workspaceRow{}
 		for _, name := range uc.Names() {
 			path := uc.Workspaces[name]
-			_, statErr := os.Stat(filepath.Join(path, "metis.yaml"))
+			_, findErr := config.FindConfigIn(path)
 			rows = append(rows, workspaceRow{
 				Name:    name,
 				Path:    path,
 				Active:  name == uc.Active,
-				Missing: statErr != nil,
+				Missing: findErr != nil,
 			})
 		}
 
@@ -89,7 +89,7 @@ var workspaceAddCmd = &cobra.Command{
 	Short: "Register a workspace",
 	Long: `Registers a workspace under the given name. The path defaults to the
 project root discovered from the current directory. The target must
-contain a metis.yaml.`,
+contain a Metis project (.metis/project.yaml).`,
 	Args: cobra.RangeArgs(1, 2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name := args[0]
@@ -110,11 +110,11 @@ contain a metis.yaml.`,
 			if err != nil {
 				return fmt.Errorf("no path given and %w", err)
 			}
-			root = filepath.Dir(cfgPath)
+			root = config.RootFromConfigPath(cfgPath)
 		}
 
-		if _, err := os.Stat(filepath.Join(root, "metis.yaml")); err != nil {
-			return fmt.Errorf("no metis.yaml found at %s — run 'metis init' there first", root)
+		if _, err := config.FindConfigIn(root); err != nil {
+			return fmt.Errorf("no %s found at %s — run 'metis init' there first", config.FileName, root)
 		}
 
 		uc, err := userconfig.Load()

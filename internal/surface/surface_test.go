@@ -173,3 +173,30 @@ func TestGenerate_StructuredOutputGuidance(t *testing.T) {
 		t.Error("AGENTS.md hard rules should include the structured-output rule")
 	}
 }
+
+// TestValidate_StaleAfterVersionChange pins that upgrading metis flags
+// previously generated adapters as stale even with an unchanged config.
+func TestValidate_StaleAfterVersionChange(t *testing.T) {
+	tmp := t.TempDir()
+	cfg := testConfig()
+	SetVersion("1.0.0")
+	t.Cleanup(func() { SetVersion("dev") })
+	if err := Generate(cfg, tmp); err != nil {
+		t.Fatal(err)
+	}
+	if warnings := Validate(cfg, tmp); len(warnings) != 0 {
+		t.Fatalf("fresh adapters should not warn: %v", warnings)
+	}
+
+	SetVersion("1.1.0")
+	warnings := Validate(cfg, tmp)
+	found := false
+	for _, w := range warnings {
+		if strings.Contains(w, "stale") {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("version change should mark adapters stale, got: %v", warnings)
+	}
+}

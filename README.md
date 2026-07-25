@@ -129,7 +129,7 @@ go build -o metis ./cmd/metis
 
 1. **Write your OVERVIEW** — the application spec describing what you're building
 2. **Initialize:** `metis init` — scaffolds config, state directory, surface adapters, templates
-3. **Configure:** edit `metis.yaml` — set overview path, agents, commands, routing
+3. **Configure:** `metis config set` — overview path, agents, commands, routing
 4. **Plan a phase:** ask an agent to create a plan from the OVERVIEW (using `.metis/templates/plan.md`)
 5. **Seed and execute:** `metis seed .metis/plans/phase-0.md` then launch agent sessions
 
@@ -144,8 +144,8 @@ After `metis init`:
 ```
 your-project/
 ├── OVERVIEW.md             # Application spec (you maintain this)
-├── metis.yaml              # Configuration (you edit this)
 ├── .metis/
+│   ├── project.yaml        # Configuration (managed via `metis config`)
 │   ├── slices.yaml         # Active ledger
 │   ├── slices-done.yaml    # Archive
 │   ├── briefs/             # Per-slice scope contracts
@@ -159,11 +159,24 @@ your-project/
 └── opencode.json           # Surface adapter (generated)
 ```
 
-Metis also keeps a per-user workspace registry at `~/.metis/config.yaml`, so
-humans working across many projects can target any registered project from
-anywhere (`metis workspace use <name>`, `metis -w <name> status`). Inside a
-repo, the repo always wins — agents are unaffected. See
-[docs/commands.md](docs/commands.md#workspaces).
+### The two configurations
+
+| File | Scope | Committed | How you change it |
+|---|---|---|---|
+| `.metis/project.yaml` | This project | yes | `metis config set` (agents and humans alike) |
+| `~/.metis/config.yaml` | You, across projects | no | `metis workspace …` commands |
+
+The project config is versioned, commented YAML — reviewable in diffs like
+any other file — but you never need to open it: `metis config view/get/set`
+is the interface, for humans, agents, and tooling alike. The user config is
+the per-user workspace registry, so humans working across many projects can
+target any registered project from anywhere (`metis workspace use <name>`,
+`metis -w <name> status`). Inside a repo, the repo always wins — agents are
+unaffected. See [docs/commands.md](docs/commands.md#workspaces).
+
+> Upgrading from ≤ v0.0.4? Projects with a root `metis.yaml` keep working
+> with a deprecation warning; `metis init` migrates the file to
+> `.metis/project.yaml` in place.
 
 ## Core Principles
 
@@ -184,7 +197,7 @@ repo, the repo always wins — agents are unaffected. See
 |---|---|
 | [docs/workflow.md](docs/workflow.md) | Full workflow guide — greenfield, extending, OVERVIEW-first, reconciliation |
 | [docs/commands.md](docs/commands.md) | Complete command reference with all flags and examples |
-| [docs/configuration.md](docs/configuration.md) | `metis.yaml` schema — every field, defaults, examples |
+| [docs/configuration.md](docs/configuration.md) | `.metis/project.yaml` schema — every field, defaults, examples |
 | [docs/protocol.md](docs/protocol.md) | Agent session protocol — kickoff, coder/reviewer flows, resume logic |
 | [docs/templates.md](docs/templates.md) | Template system — how agents use the structured document templates |
 

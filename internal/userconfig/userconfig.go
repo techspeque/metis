@@ -25,9 +25,10 @@ type UserConfig struct {
 	Workspaces map[string]string `yaml:"workspaces,omitempty"`
 }
 
-// Path returns the location of the user config file. The file is deliberately
-// not named metis.yaml: home is on the upward-discovery path for repos under
-// ~, and project resolution must never latch onto the user config.
+// Path returns the location of the user config file (~/.metis/config.yaml).
+// The name is deliberately distinct from the project config
+// (.metis/project.yaml): ~/.metis/ is on the upward-discovery path for repos
+// under ~, and project resolution must never latch onto the user config.
 func Path() (string, error) {
 	if override := os.Getenv(EnvPath); override != "" {
 		return override, nil

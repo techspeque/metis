@@ -5,11 +5,11 @@
 > without hand-editing YAML (comments are preserved). See
 > [docs/commands.md](commands.md#metis-config-view).
 
-Complete reference for `metis.yaml` — the single configuration file for a Metis project.
+Complete reference for `.metis/project.yaml` — the single configuration file for a Metis project.
 
 ## Minimal Configuration
 
-The smallest valid `metis.yaml`:
+The smallest valid `.metis/project.yaml`:
 
 ```yaml
 version: 1
@@ -290,7 +290,7 @@ Run `metis check --config` to validate:
 
 ## User Configuration (`~/.metis/config.yaml`)
 
-Separate from the per-project `metis.yaml`, Metis keeps a small per-user file
+Separate from the per-project `.metis/project.yaml`, Metis keeps a small per-user file
 at `~/.metis/config.yaml` holding the workspace registry for the human
 persona. It is managed by the `metis workspace` commands and auto-populated
 by `metis init` — you rarely edit it by hand.
@@ -306,13 +306,14 @@ workspaces:
 | Field | Type | Meaning |
 |---|---|---|
 | `active` | string | Name of the active workspace — the fallback project for commands run outside any repo. Must be a key of `workspaces`, or empty. |
-| `workspaces` | map | Workspace name → absolute path of a directory containing `metis.yaml`. |
+| `workspaces` | map | Workspace name → absolute path of a directory containing `.metis/project.yaml`. |
 
 Notes:
 
-- The file is deliberately **not** named `metis.yaml`: home is on the
-  upward-discovery path for repos under `~`, and project resolution must
-  never mistake the user config for a project.
+- The filename (`config.yaml`) is deliberately distinct from the project
+  config (`project.yaml`): `~/.metis/` is on the upward-discovery path for
+  repos under `~`, and project resolution must never mistake the user config
+  for a project.
 - A missing file means an empty registry — nothing is created until you (or
   `metis init`) write to it.
 - Inside a repo, cwd discovery always beats the `active` selection. Agents

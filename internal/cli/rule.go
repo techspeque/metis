@@ -27,7 +27,7 @@ var ruleCmd = &cobra.Command{
 
 var ruleAddCmd = &cobra.Command{
 	Use:   "add <rule text>",
-	Short: "Add a new accuracy rule to metis.yaml",
+	Short: "Add a new accuracy rule to .metis/project.yaml",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, err := loadContext()
@@ -38,7 +38,7 @@ var ruleAddCmd = &cobra.Command{
 		// Add rule to config
 		ctx.cfg.AccuracyRules = append(ctx.cfg.AccuracyRules, args[0])
 
-		// Rewrite metis.yaml
+		// Rewrite .metis/project.yaml
 		if err := writeConfig(ctx.cfgPath, ctx.cfg); err != nil {
 			return err
 		}
@@ -116,7 +116,7 @@ var rulePromoteCmd = &cobra.Command{
 	},
 }
 
-// writeConfig writes the config back to metis.yaml.
+// writeConfig writes the config back to .metis/project.yaml.
 // This is a simplified approach — it rewrites the entire file.
 func writeConfig(path string, cfg *config.Config) error {
 	data, err := yaml.Marshal(cfg)
@@ -125,7 +125,7 @@ func writeConfig(path string, cfg *config.Config) error {
 	}
 
 	// Add a header comment
-	header := "# metis.yaml — project configuration for Metis\n"
+	header := "# .metis/project.yaml — project configuration for Metis\n"
 	content := header + string(data)
 
 	// Fix any trailing issues

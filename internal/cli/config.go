@@ -19,7 +19,7 @@ func init() {
 var configCmd = &cobra.Command{
 	Use:   "config",
 	Short: "View and edit project configuration",
-	Long: `Reads and writes metis.yaml through dotted key paths.
+	Long: `Reads and writes .metis/project.yaml through dotted key paths.
 
 'view' and 'get' show the effective configuration (defaults applied).
 'set' edits the file in place, preserving comments and formatting.
@@ -92,7 +92,7 @@ var configGetCmd = &cobra.Command{
 var configSetCmd = &cobra.Command{
 	Use:   "set <key> <value>",
 	Short: "Set one configuration value (comments are preserved)",
-	Long: `Sets a value in metis.yaml by dotted key path. The edit preserves
+	Long: `Sets a value in .metis/project.yaml by dotted key path. The edit preserves
 comments and unrelated formatting. Lists take comma-separated values.
 Run 'metis check --config' afterwards to validate the full configuration.`,
 	Args: cobra.ExactArgs(2),

@@ -20,7 +20,7 @@ func init() {
 var instructionsCmd = &cobra.Command{
 	Use:   "instructions",
 	Short: "Emit the full agent contract",
-	Long:  `Generates the dynamic agent contract from metis.yaml. Use --for <id> for risk-scaled subset.`,
+	Long:  `Generates the dynamic agent contract from .metis/project.yaml. Use --for <id> for risk-scaled subset.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, err := loadContext()
 		if err != nil {
