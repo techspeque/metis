@@ -76,7 +76,7 @@ var blockCmd = &cobra.Command{
 		}
 		message := git.FormatCommitMessage(ctx.cfg, args[0], "chore",
 			fmt.Sprintf("block review (cycle %d)", s.ReviewCycles))
-		if err := git.Commit(ctx.repoRoot, message); err != nil {
+		if err := git.CommitPaths(ctx.repoRoot, message, paths...); err != nil {
 			return fmt.Errorf("committing block state: %w", err)
 		}
 		fmt.Printf("Committed: %s\n", message)

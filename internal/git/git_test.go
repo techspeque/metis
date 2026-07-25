@@ -118,3 +118,17 @@ func TestStripAttribution(t *testing.T) {
 		})
 	}
 }
+
+// TestStripAttribution_KeepsLegitimateModelWords pins that subjects merely
+// containing model/tool names as ordinary words are never stripped.
+func TestStripAttribution_KeepsLegitimateModelWords(t *testing.T) {
+	for _, msg := range []string{
+		"fix(feat-0012): reset cursor position after paste",
+		"feat(feat-0003): improve codex plan parsing",
+		"refactor(fix-0001): rename claudeAdapter to surfaceAdapter",
+	} {
+		if got := StripAttribution(msg); got != msg {
+			t.Errorf("StripAttribution(%q) = %q — legitimate subject was stripped", msg, got)
+		}
+	}
+}

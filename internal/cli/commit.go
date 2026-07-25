@@ -56,7 +56,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 
 		switch {
 		case briefMode:
-			return commitBrief(ctx, l, sliceID)
+			return commitBrief(ctx, sliceID)
 		case flipMode == "coded":
 			return commitFlip(ctx, sliceID, "coded", "")
 		case flipMode == "reviewed":
@@ -102,7 +102,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 	},
 }
 
-func commitBrief(ctx *context, l interface{}, sliceID string) error {
+func commitBrief(ctx *context, sliceID string) error {
 	briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, sliceID+".md")
 	if _, err := os.Stat(briefPath); os.IsNotExist(err) {
 		return fmt.Errorf("brief not found at %s — create it first with 'metis brief %s --write'", briefPath, sliceID)
@@ -113,7 +113,7 @@ func commitBrief(ctx *context, l interface{}, sliceID string) error {
 	}
 
 	message := git.FormatCommitMessage(ctx.cfg, sliceID, "docs", "slice brief")
-	if err := git.Commit(ctx.repoRoot, message); err != nil {
+	if err := git.CommitPaths(ctx.repoRoot, message, briefPath); err != nil {
 		return err
 	}
 	fmt.Printf("Committed brief: %s\n", message)
@@ -152,7 +152,7 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 
 	prefix := "chore"
 	message := git.FormatCommitMessage(ctx.cfg, sliceID, prefix, "flip "+which)
-	if err := git.Commit(ctx.repoRoot, message); err != nil {
+	if err := git.CommitPaths(ctx.repoRoot, message, ctx.ledgerPath()); err != nil {
 		return err
 	}
 

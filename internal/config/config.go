@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -62,6 +63,15 @@ type CommandsConfig struct {
 	Verify     string `yaml:"verify" json:"verify"`
 	EnvCheck   string `yaml:"env_check,omitempty" json:"env_check,omitempty"`
 	Interfaces string `yaml:"interfaces,omitempty" json:"interfaces,omitempty"`
+	// TimeoutSeconds bounds each configured command; 0 means the runner
+	// default (10 minutes).
+	TimeoutSeconds int `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
+}
+
+// CommandTimeout returns the configured command timeout, or 0 for the
+// runner's default.
+func (c *Config) CommandTimeout() time.Duration {
+	return time.Duration(c.Commands.TimeoutSeconds) * time.Second
 }
 
 // CommitsConfig holds the commit convention settings.

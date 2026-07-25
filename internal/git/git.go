@@ -25,6 +25,9 @@ func ValidateBranch(repoDir, expectedBranch string) error {
 	if err != nil {
 		return err
 	}
+	if branch == "HEAD" {
+		return fmt.Errorf("detached HEAD state — check out the %q branch first", expectedBranch)
+	}
 	if branch != expectedBranch {
 		return fmt.Errorf("wrong branch: on %q, expected %q", branch, expectedBranch)
 	}
@@ -56,6 +59,19 @@ func Add(repoDir string, paths ...string) error {
 // Commit creates a git commit with the given message.
 func Commit(repoDir, message string) error {
 	cmd := exec.Command("git", "commit", "-m", message)
+	cmd.Dir = repoDir
+	if out, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("git commit: %s: %w", strings.TrimSpace(string(out)), err)
+	}
+	return nil
+}
+
+// CommitPaths commits ONLY the given paths, leaving the rest of the index
+// untouched — used for metis state commits (flip, block, archive, brief) so
+// they never sweep up unrelated changes an agent happened to have staged.
+func CommitPaths(repoDir, message string, paths ...string) error {
+	args := append([]string{"commit", "-m", message, "--"}, paths...)
+	cmd := exec.Command("git", args...)
 	cmd.Dir = repoDir
 	if out, err := cmd.CombinedOutput(); err != nil {
 		return fmt.Errorf("git commit: %s: %w", strings.TrimSpace(string(out)), err)

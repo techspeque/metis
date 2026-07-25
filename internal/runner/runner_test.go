@@ -6,7 +6,7 @@ import (
 )
 
 func TestRun_Success(t *testing.T) {
-	result := Run("echo hello", "")
+	result := Run("echo hello", "", 0)
 	if result.ExitCode != 0 {
 		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
 	}
@@ -16,21 +16,21 @@ func TestRun_Success(t *testing.T) {
 }
 
 func TestRun_Failure(t *testing.T) {
-	result := Run("exit 1", "")
+	result := Run("exit 1", "", 0)
 	if result.ExitCode != 1 {
 		t.Errorf("ExitCode = %d, want 1", result.ExitCode)
 	}
 }
 
 func TestRun_SpecificExitCode(t *testing.T) {
-	result := Run("exit 42", "")
+	result := Run("exit 42", "", 0)
 	if result.ExitCode != 42 {
 		t.Errorf("ExitCode = %d, want 42", result.ExitCode)
 	}
 }
 
 func TestRun_CapturesStderr(t *testing.T) {
-	result := Run("echo err >&2", "")
+	result := Run("echo err >&2", "", 0)
 	if result.ExitCode != 0 {
 		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
 	}
@@ -40,7 +40,7 @@ func TestRun_CapturesStderr(t *testing.T) {
 }
 
 func TestRun_CombinedOutput(t *testing.T) {
-	result := Run("echo out && echo err >&2", "")
+	result := Run("echo out && echo err >&2", "", 0)
 	if result.ExitCode != 0 {
 		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
 	}
@@ -55,7 +55,7 @@ func TestRun_WorkingDir(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("pwd not available on windows")
 	}
-	result := Run("pwd", "/tmp")
+	result := Run("pwd", "/tmp", 0)
 	if result.ExitCode != 0 {
 		t.Fatalf("ExitCode = %d", result.ExitCode)
 	}

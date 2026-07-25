@@ -35,7 +35,7 @@ func EnvCheck(cfg *config.Config, repoRoot string, sliceID string, store *runs.S
 		return ExitSuccess, nil
 	}
 
-	result := Run(cfg.Commands.EnvCheck, repoRoot)
+	result := Run(cfg.Commands.EnvCheck, repoRoot, cfg.CommandTimeout())
 
 	// Store the log
 	if store != nil && sliceID != "" {
@@ -77,7 +77,7 @@ func Verify(cfg *config.Config, repoRoot string, sliceID string, label string, s
 		return ExitSuccess, nil
 	}
 
-	result := Run(cfg.Commands.Verify, repoRoot)
+	result := Run(cfg.Commands.Verify, repoRoot, cfg.CommandTimeout())
 
 	// Determine log name
 	logName := "verify-latest"
@@ -112,7 +112,7 @@ func Interfaces(cfg *config.Config, repoRoot string, sliceID string, store *runs
 		return ExitSuccess, nil
 	}
 
-	result := Run(cfg.Commands.Interfaces, repoRoot)
+	result := Run(cfg.Commands.Interfaces, repoRoot, cfg.CommandTimeout())
 
 	// Store the log
 	if store != nil && sliceID != "" {

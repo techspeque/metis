@@ -56,7 +56,7 @@ var archiveCmd = &cobra.Command{
 		}
 		message := git.FormatCommitMessage(ctx.cfg, archived[0], "chore",
 			fmt.Sprintf("archive %d slice(s)", len(archived)))
-		if err := git.Commit(ctx.repoRoot, message); err != nil {
+		if err := git.CommitPaths(ctx.repoRoot, message, ctx.ledgerPath(), ctx.archivePath()); err != nil {
 			return fmt.Errorf("committing archive state: %w", err)
 		}
 		fmt.Printf("Committed: %s\n", message)
