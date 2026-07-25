@@ -11,77 +11,77 @@ import (
 
 // Config represents the full metis.yaml configuration.
 type Config struct {
-	Version         int              `yaml:"version"`
-	Project         ProjectConfig    `yaml:"project"`
-	Agents          map[string]Agent `yaml:"agents"`
-	Routing         RoutingConfig    `yaml:"routing"`
-	HotPaths        []string         `yaml:"hot_paths,omitempty"`
-	AccuracyRules   []string         `yaml:"accuracy_rules,omitempty"`
-	NonGoals        []string         `yaml:"non_goals,omitempty"`
-	Testing         []string         `yaml:"testing,omitempty"`
-	ReviewChecklist []string         `yaml:"review_checklist,omitempty"`
-	Commands        CommandsConfig   `yaml:"commands"`
-	Commits         CommitsConfig    `yaml:"commits"`
-	Paths           PathsConfig      `yaml:"paths"`
+	Version         int              `yaml:"version" json:"version"`
+	Project         ProjectConfig    `yaml:"project" json:"project"`
+	Agents          map[string]Agent `yaml:"agents" json:"agents"`
+	Routing         RoutingConfig    `yaml:"routing" json:"routing"`
+	HotPaths        []string         `yaml:"hot_paths,omitempty" json:"hot_paths,omitempty"`
+	AccuracyRules   []string         `yaml:"accuracy_rules,omitempty" json:"accuracy_rules,omitempty"`
+	NonGoals        []string         `yaml:"non_goals,omitempty" json:"non_goals,omitempty"`
+	Testing         []string         `yaml:"testing,omitempty" json:"testing,omitempty"`
+	ReviewChecklist []string         `yaml:"review_checklist,omitempty" json:"review_checklist,omitempty"`
+	Commands        CommandsConfig   `yaml:"commands" json:"commands"`
+	Commits         CommitsConfig    `yaml:"commits" json:"commits"`
+	Paths           PathsConfig      `yaml:"paths" json:"paths"`
 }
 
 // ProjectConfig holds project-level settings.
 type ProjectConfig struct {
-	Name              string           `yaml:"name"`
-	IntegrationBranch string           `yaml:"integration_branch"`
-	ReleaseBranch     string           `yaml:"release_branch"`
-	Overview          string           `yaml:"overview,omitempty"`
-	Technology        TechnologyConfig `yaml:"technology,omitempty"`
+	Name              string           `yaml:"name" json:"name"`
+	IntegrationBranch string           `yaml:"integration_branch" json:"integration_branch"`
+	ReleaseBranch     string           `yaml:"release_branch" json:"release_branch"`
+	Overview          string           `yaml:"overview,omitempty" json:"overview,omitempty"`
+	Technology        TechnologyConfig `yaml:"technology,omitempty" json:"technology,omitempty"`
 }
 
 // TechnologyConfig holds informational technology details.
 type TechnologyConfig struct {
-	Language    string `yaml:"language,omitempty"`
-	BuildSystem string `yaml:"build_system,omitempty"`
-	TestRunner  string `yaml:"test_runner,omitempty"`
-	Linter      string `yaml:"linter,omitempty"`
+	Language    string `yaml:"language,omitempty" json:"language,omitempty"`
+	BuildSystem string `yaml:"build_system,omitempty" json:"build_system,omitempty"`
+	TestRunner  string `yaml:"test_runner,omitempty" json:"test_runner,omitempty"`
+	Linter      string `yaml:"linter,omitempty" json:"linter,omitempty"`
 }
 
 // Agent describes one configured agent identity.
 type Agent struct {
-	Surface string `yaml:"surface"`
-	Model   string `yaml:"model"`
-	Label   string `yaml:"label"`
+	Surface string `yaml:"surface" json:"surface"`
+	Model   string `yaml:"model" json:"model"`
+	Label   string `yaml:"label" json:"label"`
 }
 
 // RoutingConfig determines which agents handle which risk levels.
 type RoutingConfig struct {
-	High   []string `yaml:"high,omitempty"`
-	Medium []string `yaml:"medium,omitempty"`
-	Low    []string `yaml:"low,omitempty"`
-	Review string   `yaml:"review"`
+	High   []string `yaml:"high,omitempty" json:"high,omitempty"`
+	Medium []string `yaml:"medium,omitempty" json:"medium,omitempty"`
+	Low    []string `yaml:"low,omitempty" json:"low,omitempty"`
+	Review string   `yaml:"review" json:"review"`
 }
 
 // CommandsConfig holds the technology-specific commands Metis wraps.
 type CommandsConfig struct {
-	Verify     string `yaml:"verify"`
-	EnvCheck   string `yaml:"env_check,omitempty"`
-	Interfaces string `yaml:"interfaces,omitempty"`
+	Verify     string `yaml:"verify" json:"verify"`
+	EnvCheck   string `yaml:"env_check,omitempty" json:"env_check,omitempty"`
+	Interfaces string `yaml:"interfaces,omitempty" json:"interfaces,omitempty"`
 }
 
 // CommitsConfig holds the commit convention settings.
 type CommitsConfig struct {
-	Prefixes       []string `yaml:"prefixes"`
-	RequireSliceID bool     `yaml:"require_slice_id"`
-	NoAttribution  bool     `yaml:"no_attribution"`
-	Format         string   `yaml:"format"`
+	Prefixes       []string `yaml:"prefixes" json:"prefixes"`
+	RequireSliceID bool     `yaml:"require_slice_id" json:"require_slice_id"`
+	NoAttribution  bool     `yaml:"no_attribution" json:"no_attribution"`
+	Format         string   `yaml:"format" json:"format"`
 }
 
 // PathsConfig holds the locations of Metis state files.
 type PathsConfig struct {
-	Ledger     string `yaml:"ledger"`
-	Archive    string `yaml:"archive"`
-	Briefs     string `yaml:"briefs"`
-	Plans      string `yaml:"plans"`
-	ADR        string `yaml:"adr"`
-	Findings   string `yaml:"findings"`
-	Runs       string `yaml:"runs"`
-	Interfaces string `yaml:"interfaces"`
+	Ledger     string `yaml:"ledger" json:"ledger"`
+	Archive    string `yaml:"archive" json:"archive"`
+	Briefs     string `yaml:"briefs" json:"briefs"`
+	Plans      string `yaml:"plans" json:"plans"`
+	ADR        string `yaml:"adr" json:"adr"`
+	Findings   string `yaml:"findings" json:"findings"`
+	Runs       string `yaml:"runs" json:"runs"`
+	Interfaces string `yaml:"interfaces" json:"interfaces"`
 }
 
 // DefaultConfig returns a Config with all default values applied.

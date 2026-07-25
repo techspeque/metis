@@ -1,5 +1,10 @@
 # Configuration Reference
 
+> Tip: `metis config view` shows the effective configuration,
+> `metis config get/set <dotted.key>` reads and writes individual values
+> without hand-editing YAML (comments are preserved). See
+> [docs/commands.md](commands.md#metis-config-view).
+
 Complete reference for `metis.yaml` — the single configuration file for a Metis project.
 
 ## Minimal Configuration
