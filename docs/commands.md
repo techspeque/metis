@@ -316,7 +316,7 @@ feat-0001 | Coder | opencode/opus | 14/42 done (33%)
 
 ---
 
-## Rules & Surface Adapters
+## Configuration, Rules & Surface Adapters
 
 ### `metis rule add "..."`
 
@@ -329,6 +329,41 @@ Show all accuracy rules (numbered).
 ### `metis rule promote <finding-id>`
 
 Promote a review finding to a permanent accuracy rule.
+
+### `metis config view`
+
+Show the full effective configuration (defaults applied) as YAML, with a
+header naming the source file. With `-o json`, emits the same as JSON.
+
+### `metis config get <key>`
+
+Show one effective value by dotted key path:
+
+```bash
+metis config get project.name
+metis config get agents.claude-code/opus.model
+metis config get commits.prefixes
+```
+
+Scalars print raw (script-friendly); lists and sections print as YAML.
+
+### `metis config set <key> <value>`
+
+Set one value in `metis.yaml` by dotted key path. The edit goes through the
+YAML node tree, so **comments and unrelated formatting are preserved**.
+Unknown keys are rejected with the list of valid keys at that level; values
+are type-checked against the schema (bools, ints, strings, string lists).
+Lists take comma-separated values; missing intermediate sections are created.
+
+```bash
+metis config set commands.verify "go test ./..."
+metis config set commits.require_slice_id true
+metis config set routing.high claude-code/opus,opencode/opus
+metis config set agents.codex.model gpt-5   # creates the agents.codex entry
+```
+
+`set` guarantees the result still parses; run `metis check --config` to
+validate the full configuration semantically.
 
 ### `metis surface generate`
 
