@@ -2,12 +2,38 @@
 
 Complete reference for all Metis CLI commands.
 
+## Output Format
+
+Every read command supports structured output via the global `--output`
+(`-o`) flag or the `METIS_OUTPUT` env var:
+
+```bash
+metis status --output json
+metis next -o json
+METIS_OUTPUT=json metis list
+```
+
+Resolution order: `--output` flag → `METIS_OUTPUT` → plain text. The format
+is deliberately **not** configurable in `metis.yaml`: output shape is a
+property of the consumer (human, agent, or tool), not the project — several
+consumers read the same repo at the same time.
+
+JSON is emitted on stdout; exit codes are unchanged. Commands with JSON
+support: `status`, `next`, `list`, `show`, `progress`, `findings`, `check`,
+`version`, `workspace list`, `workspace current`.
+
+**For programmatic consumers (agents, editors, scripts): always pass
+`--output json` explicitly and parse fields from it — never parse the
+human-readable text, which may change between versions.**
+
+---
+
 ## Dispatch
 
 | Command | Purpose |
 |---|---|
 | `metis next` | Find the active slice, role, and required agent |
-| `metis next --json` | Same, as structured JSON |
+| `metis next -o json` | Same, as structured JSON (`--json` is a deprecated alias) |
 | `metis next --quiet` | Print only the slice ID (for scripting) |
 | `metis status` | One-line summary: `slice-id | Role | agent | progress` |
 

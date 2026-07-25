@@ -30,6 +30,10 @@ var showCmd = &cobra.Command{
 			return fmt.Errorf("slice %q not found", args[0])
 		}
 
+		if jsonOutput() {
+			return printJSON(cmd, listRow{Slice: *s, Status: string(s.Status())})
+		}
+
 		fmt.Printf("ID:            %s\n", s.ID)
 		fmt.Printf("Title:         %s\n", s.Title)
 		fmt.Printf("Type:          %s\n", s.Type)
