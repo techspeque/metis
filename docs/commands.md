@@ -173,6 +173,10 @@ metis block feat-0001 \
 **Categories:** `auth`, `protocol`, `scope`, `tests`, `arch-dup`, `arch-fit`,
 `data`, `maint`, `security`, `behavior`, `performance`
 
+Blocking is atomic: the ledger and findings changes are committed in the
+same step (`chore(<id>): block review (cycle N)`), so a block never leaves
+the tree dirty between sessions.
+
 ### `metis skip <id> --reason "..."`
 
 Mark a slice as done without implementation (effectively removes from queue).
@@ -184,6 +188,8 @@ Reset a slice to uncoded/unreviewed for re-implementation.
 ### `metis archive`
 
 Move all fully-done slices (`coded && reviewed`) to `.metis/slices-done.yaml`.
+Atomic: the ledger and archive changes are committed in the same step, so
+the protocol ends with a clean tree.
 
 ---
 

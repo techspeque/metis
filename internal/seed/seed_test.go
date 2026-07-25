@@ -1,9 +1,12 @@
 package seed
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/techspeque/metis/internal/slice"
+	"github.com/techspeque/metis/internal/templates"
 )
 
 const samplePlan = `## Phase 1 — Foundation
@@ -162,5 +165,59 @@ func TestToSlices(t *testing.T) {
 	}
 	if s2.Stage != "beta" {
 		t.Errorf("slice[2] Stage = %q, want beta", s2.Stage)
+	}
+}
+
+// TestParse_ShippedTemplateRoundTrip pins the contract between the plan
+// template metis hands to planning agents and this parser: the template,
+// filled in the way an agent would fill it, MUST seed. This is the
+// regression guard for the template/parser format mismatch.
+func TestParse_ShippedTemplateRoundTrip(t *testing.T) {
+	filled := templates.PlanTemplate
+	for old, new := range map[string]string{
+		"<N.1>":               "1.1",
+		"<N.2>":               "1.2",
+		"phase: <N>":          "phase: 1",
+		"low | medium | high": "low",
+		"<agent-slug — see `metis config get agents -o json`>": "a/one",
+		"<agent-slug, must differ from coder>":                 "b/two",
+		"<agent-slug>":                                         "b/two",
+	} {
+		filled = strings.ReplaceAll(filled, old, new)
+	}
+	// Any placeholder an agent replaces with free text.
+	filled = regexp.MustCompile(`<[^>\n]*>`).ReplaceAllString(filled, "x")
+
+	result := Parse(filled)
+
+	if len(result.Workstreams) != 2 {
+		t.Fatalf("shipped template must parse: got %d workstreams, want 2\nerrors: %v",
+			len(result.Workstreams), result.Errors)
+	}
+	ws := result.Workstreams[0]
+	if ws.Phase != 1 {
+		t.Errorf("phase from frontmatter = %d, want 1", ws.Phase)
+	}
+	if ws.Workstream != "1.1" || result.Workstreams[1].Workstream != "1.2" {
+		t.Errorf("workstream numbers = %s, %s", ws.Workstream, result.Workstreams[1].Workstream)
+	}
+	if string(ws.Risk) != "low" || ws.Coder != "a/one" || ws.Reviewer != "b/two" {
+		t.Errorf("metadata not parsed: %+v", ws)
+	}
+}
+
+// TestParse_LegacyHeadingsStillWork pins backward compatibility with plans
+// using "## Phase N" + "### Workstream N.M:" headings.
+func TestParse_LegacyHeadingsStillWork(t *testing.T) {
+	result := Parse(`## Phase 2
+
+### Workstream 2.1: Legacy style
+
+- **Risk:** high
+- **Coder:** a/one
+- **Reviewer:** b/two
+`)
+	if len(result.Workstreams) != 1 || result.Workstreams[0].Phase != 2 {
+		t.Fatalf("legacy headings must still parse: %+v", result.Workstreams)
 	}
 }

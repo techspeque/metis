@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/techspeque/metis/internal/findings"
+	"github.com/techspeque/metis/internal/git"
 )
 
 func init() {
@@ -62,6 +63,23 @@ var blockCmd = &cobra.Command{
 
 			fmt.Printf("Finding %s recorded: [%s/%s] %s\n", id, severity, category, findingText)
 		}
+
+		// State transitions are atomic: commit the ledger and findings so
+		// the block never leaves the tree dirty between sessions.
+		s = l.FindByID(args[0])
+		paths := []string{ctx.ledgerPath()}
+		if findingText != "" {
+			paths = append(paths, filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Findings))
+		}
+		if err := git.Add(ctx.repoRoot, paths...); err != nil {
+			return fmt.Errorf("staging block state: %w", err)
+		}
+		message := git.FormatCommitMessage(ctx.cfg, args[0], "chore",
+			fmt.Sprintf("block review (cycle %d)", s.ReviewCycles))
+		if err := git.Commit(ctx.repoRoot, message); err != nil {
+			return fmt.Errorf("committing block state: %w", err)
+		}
+		fmt.Printf("Committed: %s\n", message)
 
 		return nil
 	},

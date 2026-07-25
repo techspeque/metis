@@ -40,6 +40,9 @@ var rootCmd = &cobra.Command{
 It enforces disciplined, bounded, independently-reviewed units of work
 across any technology stack and any agent surface.`,
 	Version: version,
+	// Runtime errors should not bury the error line under the flag help —
+	// especially for agents, where the one line is the signal.
+	SilenceUsage: true,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 		return validateOutputFormat()
 	},

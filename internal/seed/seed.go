@@ -29,9 +29,14 @@ type ParseResult struct {
 	Errors      []string
 }
 
-var phaseHeadingRe = regexp.MustCompile(`^##\s+Phase\s+(\d+)`)
-var wsHeadingRe = regexp.MustCompile(`^###\s+Workstream\s+(\d+\.\d+):\s*(.+)`)
+// Heading forms accepted: the shipped template puts the phase in the H1
+// ("# Phase 0 — Foundation") or frontmatter ("phase: 0") and workstreams at
+// H2 ("## Workstream 0.1: Title"); older hand-written plans used "## Phase 0"
+// with H3 workstreams. All of these parse.
+var phaseHeadingRe = regexp.MustCompile(`^#{1,3}\s+Phase\s+(\d+)\b`)
+var wsHeadingRe = regexp.MustCompile(`^#{2,3}\s+Workstream\s+(\d+\.\d+):\s*(.+)`)
 var metadataRe = regexp.MustCompile(`^-\s+\*\*(\w+):\*\*\s*(.+)`)
+var frontmatterPhaseRe = regexp.MustCompile(`^phase:\s*(\d+)\s*$`)
 
 // Parse parses a structured plan file and extracts workstreams.
 func Parse(content string) *ParseResult {
@@ -42,9 +47,22 @@ func Parse(content string) *ParseResult {
 	var currentWS *Workstream
 	inTasks := false
 	inAcceptance := false
+	inFrontmatter := false
 
-	for _, line := range lines {
+	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Frontmatter phase ("phase: N" between the leading --- fences)
+		if trimmed == "---" && (i == 0 || inFrontmatter) {
+			inFrontmatter = i == 0
+			continue
+		}
+		if inFrontmatter {
+			if m := frontmatterPhaseRe.FindStringSubmatch(trimmed); m != nil {
+				_, _ = fmt.Sscanf(m[1], "%d", &currentPhase)
+			}
+			continue
+		}
 
 		// Phase heading
 		if m := phaseHeadingRe.FindStringSubmatch(trimmed); m != nil {

@@ -5,6 +5,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/techspeque/metis/internal/git"
 )
 
 func init() {
@@ -44,6 +46,18 @@ var archiveCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Archived %d slice(s): %s\n", len(archived), strings.Join(archived, ", "))
+
+		// State transitions are atomic: commit the ledger and archive so
+		// the protocol ends with a clean tree.
+		if err := git.Add(ctx.repoRoot, ctx.ledgerPath(), ctx.archivePath()); err != nil {
+			return fmt.Errorf("staging archive state: %w", err)
+		}
+		message := git.FormatCommitMessage(ctx.cfg, archived[0], "chore",
+			fmt.Sprintf("archive %d slice(s)", len(archived)))
+		if err := git.Commit(ctx.repoRoot, message); err != nil {
+			return fmt.Errorf("committing archive state: %w", err)
+		}
+		fmt.Printf("Committed: %s\n", message)
 		return nil
 	},
 }
