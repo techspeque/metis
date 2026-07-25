@@ -96,6 +96,25 @@ metis add gate --title "Phase 2 composition validation" \
   --coder claude-code/opus --reviewer opencode/opus --id phase-2-gate
 ```
 
+### `metis edit <id>`
+
+Edit fields of an existing slice. Only the flags you pass change; everything
+else is untouched. Used during reconciliation to update slices affected by
+OVERVIEW changes.
+
+```bash
+metis edit feat-0001 --title "Sharper title" --risk high
+metis edit feat-0002 --priority p1 --blocked-by feat-0001
+metis edit feat-0003 --coder opencode/opus --reviewer claude-code/opus
+```
+
+Flags: `--title`, `--risk`, `--priority`, `--stage`, `--coder`, `--reviewer`,
+`--plan`, `--plan-section`, `--blocked-by` (replaces the list), `--notes`.
+
+Guard rails: done slices are immutable (`metis reopen` first), `blocked-by`
+entries must exist and cannot self-reference, coder and reviewer must differ,
+a plan requires a plan section.
+
 ### `metis list`
 
 List slices with optional filters.
