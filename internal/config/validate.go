@@ -19,7 +19,7 @@ func (c *Config) Validate() []error {
 
 	// At least one agent must be defined
 	if len(c.Agents) == 0 {
-		errs = append(errs, fmt.Errorf("at least one agent must be defined in agents"))
+		errs = append(errs, fmt.Errorf("at least one agent must be defined — e.g. metis config set agents.claude-code/opus.surface claude-code (then .model and .label; see docs/configuration.md#agents)"))
 	}
 
 	// Validate agent entries

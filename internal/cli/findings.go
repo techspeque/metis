@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/techspeque/metis/internal/findings"
+	"github.com/techspeque/metis/internal/slice"
 )
 
 func init() {
@@ -15,6 +16,45 @@ func init() {
 	findingsCmd.Flags().String("slice", "", "Filter by slice ID")
 	findingsCmd.Flags().Bool("stats", false, "Show summary statistics")
 	rootCmd.AddCommand(findingsCmd)
+}
+
+// fillAgentStats joins findings with the ledger and archive to produce the
+// per-coder routing evidence: slices owned, review blocks received, and
+// first-pass completions (done with zero review cycles).
+func fillAgentStats(ctx *context, store *findings.Store, stats *findings.Stats) {
+	l, err := ctx.loadLedger()
+	if err != nil {
+		return
+	}
+	archive, err := ctx.loadArchive()
+	if err != nil {
+		return
+	}
+
+	sliceCoder := map[string]string{}
+	agg := map[string]findings.AgentStats{}
+	all := append(append([]slice.Slice{}, l.Slices...), archive.Slices...)
+	for i := range all {
+		s := &all[i]
+		if s.Coder == "" {
+			continue
+		}
+		sliceCoder[s.ID] = s.Coder
+		as := agg[s.Coder]
+		as.Slices++
+		if s.IsDone() && s.ReviewCycles == 0 {
+			as.FirstPass++
+		}
+		agg[s.Coder] = as
+	}
+	for _, f := range store.Findings {
+		if coder, ok := sliceCoder[f.Slice]; ok {
+			as := agg[coder]
+			as.Blocks++
+			agg[coder] = as
+		}
+	}
+	stats.ByAgent = agg
 }
 
 var findingsCmd = &cobra.Command{
@@ -35,6 +75,7 @@ var findingsCmd = &cobra.Command{
 		showStats, _ := cmd.Flags().GetBool("stats")
 		if showStats {
 			stats := store.GetStats()
+			fillAgentStats(ctx, store, &stats)
 			if jsonOutput() {
 				return printJSON(cmd, stats)
 			}
@@ -49,6 +90,17 @@ var findingsCmd = &cobra.Command{
 				fmt.Println("\nBy Category:")
 				for cat, count := range stats.ByCategory {
 					fmt.Printf("  %-12s %d\n", cat, count)
+				}
+			}
+			if len(stats.ByAgent) > 0 {
+				fmt.Println("\nBy Agent (routing evidence):")
+				fmt.Printf("  %-24s %7s %7s %10s\n", "coder", "slices", "blocks", "first-pass")
+				for agent, as := range stats.ByAgent {
+					rate := "-"
+					if done := as.FirstPass + (as.Slices - as.FirstPass); done > 0 && as.Slices > 0 {
+						rate = fmt.Sprintf("%d%%", as.FirstPass*100/as.Slices)
+					}
+					fmt.Printf("  %-24s %7d %7d %10s\n", agent, as.Slices, as.Blocks, rate)
 				}
 			}
 			return nil

@@ -1,6 +1,8 @@
 # Workflow Guide
 
-How to use Metis from first idea to shipping code.
+> **Audience:** human developers. This is your guide from first idea to
+> shipping code. What agents do inside each session is
+> [protocol.md](protocol.md); the full flag reference is [cli.md](cli.md).
 
 ## Two Regimes
 
@@ -53,7 +55,15 @@ Use the template at `.metis/templates/overview.md` for structure guidance.
 
 ```bash
 metis init
-# Configure via metis config set: set project.overview, agents, commands, hot_paths, routing
+
+# Configure via the CLI — no YAML editing needed:
+metis config set project.overview OVERVIEW.md
+metis config set commands.verify "go test ./..."
+metis config set agents.claude-code/opus.surface claude-code
+metis config set agents.claude-code/opus.model opus
+metis config set agents.claude-code/opus.label "Claude Code (Opus)"
+metis config set routing.review cross-vendor
+
 metis surface generate
 ```
 
@@ -63,12 +73,21 @@ Ask a coding agent to read the OVERVIEW and produce:
 - A structured plan file (`.metis/plans/phase-0-plan.md`) — use `.metis/templates/plan.md` as the format
 - ADRs for binding decisions (`.metis/adr/0001-*.md`) — use `.metis/templates/adr.md` as the format
 
-The plan file follows the workstream format that `metis seed` can parse:
+The plan file follows the workstream format that `metis seed` parses — the
+same shape as the shipped template (`.metis/templates/plan.md`):
 
 ```markdown
-## Phase 0 — Foundation
+---
+type: plan
+phase: 0
+title: Foundation
+status: approved
+---
 
-### Workstream 0.1: Project scaffold
+# Phase 0 — Foundation
+
+## Workstream 0.1: Project scaffold
+
 - **Risk:** high
 - **Coder:** claude-code/opus
 - **Reviewer:** opencode/opus
@@ -82,6 +101,9 @@ Acceptance criteria:
 - [ ] Project compiles
 - [ ] metis verify passes
 ```
+
+The phase number comes from the frontmatter (or a `# Phase N` heading);
+workstream headings work at `##` or `###` depth.
 
 ### Step 4: Seed the ledger
 

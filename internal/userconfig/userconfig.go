@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/techspeque/metis/internal/fsutil"
 )
 
 // EnvPath overrides the user config location when set (used by tests and
@@ -83,7 +85,7 @@ func (uc *UserConfig) Save() error {
 
 	header := "# ~/.metis/config.yaml — user-level configuration for Metis\n"
 	content := header + strings.TrimRight(string(data), "\n") + "\n"
-	return os.WriteFile(path, []byte(content), 0o644)
+	return fsutil.WriteFileAtomic(path, []byte(content), 0o644)
 }
 
 // Add registers a workspace. The path must be absolute; the name must not

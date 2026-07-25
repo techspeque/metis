@@ -1,7 +1,9 @@
 # Agent Session Protocol
 
-The complete protocol every agent follows from session start. This is what
-`metis kickoff` generates dynamically from your configuration.
+> **Audience:** agents — and humans who want to understand exactly what
+> agents do. This is what `metis kickoff` generates dynamically from your
+> configuration; agents receive it live, so the binary is always the
+> authority. The human-side guide is [workflow.md](workflow.md).
 
 ## Overview
 
@@ -143,7 +145,7 @@ If `metis next` assigned role = **Coder**:
 
 5. **Regenerate interfaces** — `metis interfaces` (if you changed public API)
 
-6. **Flip** — `metis commit --flip coded`
+6. **Flip** — `metis commit --flip coded --slice <id>` — binding the flip to the slice from Step 2 makes it error loudly if dispatch moved on (e.g. a p0 arrived) instead of flipping the wrong slice
 
 7. **Report** — slice ID, files changed, verify result, what's next
 
@@ -153,12 +155,16 @@ If `metis next` assigned role = **Coder**:
 
 If `metis next` assigned role = **Reviewer**:
 
-1. **Locate commits** — `git log --oneline --grep "<slice-id>"`
+1. **Locate commits** — `metis log <id>`
 
 2. **Read brief** — `metis brief <id>` (reads the committed brief)
 
 3. **Independent verify** — `metis verify --post`
    (You MUST verify independently — stored logs are evidence, not proof)
+
+3b. **Audit scope** — `metis log <id> --validate`: deterministic check that
+   every commit matches the format and every touched file falls inside the
+   brief's declared `owned_paths`. FAIL → block with category `scope`.
 
 4. **Walk checklist** — one-line verdict per item, citing `file:line`:
    1. Behavioral correctness
@@ -169,8 +175,11 @@ If `metis next` assigned role = **Reviewer**:
    6. Maintainability
 
 5. **Verdict:**
-   - **Pass:** `metis commit --flip reviewed` then `metis archive`
+   - **Pass:** `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`
    - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."`
+
+   Both paths are atomic — `block` and `archive` commit the ledger and
+   findings changes themselves, so the session always ends with a clean tree.
 
 6. **Report** — slice ID, verdict, findings (if any), what's next
 
@@ -210,6 +219,7 @@ These rules are non-negotiable and embedded in `AGENTS.md`:
 10. No planning in execution — do not re-scope or invent additional work
 11. Report mismatches — if you're the wrong agent for this slice, STOP
 12. Trust the tools — do not walk YAML, compare slugs, or evaluate booleans manually
+13. Exact values come from `-o json` — every read command supports it; never parse human-readable output
 
 ---
 

@@ -3,8 +3,13 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/techspeque/metis/internal/git"
+	"github.com/techspeque/metis/internal/ledger"
+	"github.com/techspeque/metis/internal/surface"
 )
 
 func init() {
@@ -57,7 +62,10 @@ var checkCmd = &cobra.Command{
 				return err
 			}
 
-			errs := l.Validate(ctx.agentSlugs())
+			errs := l.Validate(ctx.agentSlugs(), ctx.allowSelfReview())
+			if archive, aerr := ctx.loadArchive(); aerr == nil {
+				errs = append(errs, ledger.ValidateArchive(archive)...)
+			}
 			section := &checkSection{OK: len(errs) == 0, Errors: []string{}, Slices: len(l.Slices)}
 			for _, e := range errs {
 				section.Errors = append(section.Errors, e.Error())
@@ -79,6 +87,21 @@ var checkCmd = &cobra.Command{
 		result.OK = len(allErrors) == 0
 		if result.OK {
 			result.Overview = ctx.checkOverviewDrift()
+
+			// The first agent session hard-stops on the wrong branch; warn
+			// the human before that happens.
+			if !jsonOutput() {
+				for _, w := range surface.Validate(ctx.cfg, ctx.repoRoot) {
+					fmt.Printf("WARNING: %s\n", w)
+				}
+				if branch, err := git.CurrentBranch(ctx.repoRoot); err == nil && branch != ctx.cfg.Project.IntegrationBranch {
+					fmt.Printf("WARNING: current branch is %q but agents only work on %q — git checkout -b %s\n",
+						branch, ctx.cfg.Project.IntegrationBranch, ctx.cfg.Project.IntegrationBranch)
+				}
+				if ctx.cfg.Commands.Verify == "" || strings.Contains(ctx.cfg.Commands.Verify, "no verify configured") {
+					fmt.Println("WARNING: commands.verify is a placeholder — verification proves nothing until you set it")
+				}
+			}
 		}
 
 		if jsonOutput() {

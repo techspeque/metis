@@ -66,7 +66,32 @@ var seedCmd = &cobra.Command{
 			return fmt.Errorf("invalid type %q", typeStr)
 		}
 
-		slices := seed.ToSlices(result.Workstreams, planFile, wt)
+		slices := seed.ToSlices(result, planFile, wt)
+
+		// Validate at write time — seeding must never produce slices that
+		// 'metis check' rejects one command later.
+		slugs := ctx.agentSlugs()
+		var problems []string
+		for _, s := range slices {
+			switch {
+			case s.Coder == "":
+				problems = append(problems, fmt.Sprintf("%s: no coder declared", s.ID))
+			case !slugs[s.Coder]:
+				problems = append(problems, fmt.Sprintf("%s: unknown coder %q (configured: metis config get agents)", s.ID, s.Coder))
+			}
+			switch {
+			case s.Reviewer == "":
+				problems = append(problems, fmt.Sprintf("%s: no reviewer declared", s.ID))
+			case !slugs[s.Reviewer]:
+				problems = append(problems, fmt.Sprintf("%s: unknown reviewer %q", s.ID, s.Reviewer))
+			}
+			if !ctx.allowSelfReview() && s.Coder != "" && s.Coder == s.Reviewer {
+				problems = append(problems, fmt.Sprintf("%s: coder and reviewer are both %q (cross-vendor review)", s.ID, s.Coder))
+			}
+			if !s.Risk.IsValid() {
+				problems = append(problems, fmt.Sprintf("%s: invalid risk %q", s.ID, s.Risk))
+			}
+		}
 
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
 		if dryRun {
@@ -76,7 +101,17 @@ var seedCmd = &cobra.Command{
 					s.ID, s.Risk, s.Stage, s.Coder, s.Reviewer)
 				fmt.Printf("  %s\n\n", s.Title)
 			}
+			for _, p := range problems {
+				fmt.Printf("WARNING: %s\n", p)
+			}
 			return nil
+		}
+
+		if len(problems) > 0 {
+			for _, p := range problems {
+				fmt.Fprintf(os.Stderr, "  - %s\n", p)
+			}
+			return fmt.Errorf("plan produces %d invalid slice(s) — fix the plan (or agents config) and re-seed", len(problems))
 		}
 
 		// Load ledger

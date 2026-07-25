@@ -191,7 +191,7 @@ func (s *Slice) IsDone() bool {
 }
 
 // Validate checks the slice for structural errors and returns all found.
-func (s *Slice) Validate() []error {
+func (s *Slice) Validate(allowSelfReview bool) []error {
 	var errs []error
 
 	if s.ID == "" {
@@ -215,8 +215,8 @@ func (s *Slice) Validate() []error {
 	if s.Reviewer == "" {
 		errs = append(errs, fmt.Errorf("%s: reviewer is empty", s.ID))
 	}
-	if s.Coder != "" && s.Reviewer != "" && s.Coder == s.Reviewer {
-		errs = append(errs, fmt.Errorf("%s: coder and reviewer are the same (%s)", s.ID, s.Coder))
+	if !allowSelfReview && s.Coder != "" && s.Reviewer != "" && s.Coder == s.Reviewer {
+		errs = append(errs, fmt.Errorf("%s: coder and reviewer are the same (%s) — set routing.review to \"self\" to allow single-agent projects", s.ID, s.Coder))
 	}
 	if s.Plan != "" && s.PlanSection == "" {
 		errs = append(errs, fmt.Errorf("%s: plan is set but plan_section is missing", s.ID))

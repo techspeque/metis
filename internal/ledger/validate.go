@@ -8,7 +8,7 @@ import (
 
 // Validate checks the ledger for structural errors.
 // agentSlugs is the set of valid agent slugs from the config (can be nil to skip slug checks).
-func (l *Ledger) Validate(agentSlugs map[string]bool) []error {
+func (l *Ledger) Validate(agentSlugs map[string]bool, allowSelfReview bool) []error {
 	var errs []error
 
 	// Check for unique IDs
@@ -29,7 +29,7 @@ func (l *Ledger) Validate(agentSlugs map[string]bool) []error {
 		s := &l.Slices[i]
 
 		// Delegate structural validation to slice
-		sliceErrs := s.Validate()
+		sliceErrs := s.Validate(allowSelfReview)
 		errs = append(errs, sliceErrs...)
 
 		// Check agent slugs against config if provided

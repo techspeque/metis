@@ -1,9 +1,12 @@
 package seed
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/techspeque/metis/internal/slice"
+	"github.com/techspeque/metis/internal/templates"
 )
 
 const samplePlan = `## Phase 1 — Foundation
@@ -129,7 +132,7 @@ func TestParse_NoWorkstreams(t *testing.T) {
 
 func TestToSlices(t *testing.T) {
 	result := Parse(samplePlan)
-	slices := ToSlices(result.Workstreams, ".metis/plans/impl.md", slice.TypeFeat)
+	slices := ToSlices(result, ".metis/plans/impl.md", slice.TypeFeat)
 
 	if len(slices) != 3 {
 		t.Fatalf("expected 3 slices, got %d", len(slices))
@@ -162,5 +165,102 @@ func TestToSlices(t *testing.T) {
 	}
 	if s2.Stage != "beta" {
 		t.Errorf("slice[2] Stage = %q, want beta", s2.Stage)
+	}
+}
+
+// TestParse_ShippedTemplateRoundTrip pins the contract between the plan
+// template metis hands to planning agents and this parser: the template,
+// filled in the way an agent would fill it, MUST seed. This is the
+// regression guard for the template/parser format mismatch.
+func TestParse_ShippedTemplateRoundTrip(t *testing.T) {
+	filled := templates.PlanTemplate
+	for old, new := range map[string]string{
+		"<N.1>":               "1.1",
+		"<N.2>":               "1.2",
+		"phase: <N>":          "phase: 1",
+		"low | medium | high": "low",
+		"<agent-slug — see `metis config get agents -o json`>": "a/one",
+		"<agent-slug, must differ from coder>":                 "b/two",
+		"<agent-slug>":                                         "b/two",
+	} {
+		filled = strings.ReplaceAll(filled, old, new)
+	}
+	// Any placeholder an agent replaces with free text.
+	filled = regexp.MustCompile(`<[^>\n]*>`).ReplaceAllString(filled, "x")
+
+	result := Parse(filled)
+
+	if len(result.Workstreams) != 2 {
+		t.Fatalf("shipped template must parse: got %d workstreams, want 2\nerrors: %v",
+			len(result.Workstreams), result.Errors)
+	}
+	ws := result.Workstreams[0]
+	if ws.Phase != 1 {
+		t.Errorf("phase from frontmatter = %d, want 1", ws.Phase)
+	}
+	if ws.Workstream != "1.1" || result.Workstreams[1].Workstream != "1.2" {
+		t.Errorf("workstream numbers = %s, %s", ws.Workstream, result.Workstreams[1].Workstream)
+	}
+	if string(ws.Risk) != "low" || ws.Coder != "a/one" || ws.Reviewer != "b/two" {
+		t.Errorf("metadata not parsed: %+v", ws)
+	}
+}
+
+// TestParse_LegacyHeadingsStillWork pins backward compatibility with plans
+// using "## Phase N" + "### Workstream N.M:" headings.
+func TestParse_LegacyHeadingsStillWork(t *testing.T) {
+	result := Parse(`## Phase 2
+
+### Workstream 2.1: Legacy style
+
+- **Risk:** high
+- **Coder:** a/one
+- **Reviewer:** b/two
+`)
+	if len(result.Workstreams) != 1 || result.Workstreams[0].Phase != 2 {
+		t.Fatalf("legacy headings must still parse: %+v", result.Workstreams)
+	}
+}
+
+// TestPhaseGateBecomesGateSlice pins the template's promise: a "Phase Gate"
+// section produces an auto-generated gate slice blocked by the phase's
+// workstreams.
+func TestPhaseGateBecomesGateSlice(t *testing.T) {
+	result := Parse(`# Phase 3 — Compose
+
+## Workstream 3.1: Part A
+
+- **Risk:** low
+- **Coder:** a/one
+- **Reviewer:** b/two
+
+## Workstream 3.2: Part B
+
+- **Risk:** low
+- **Coder:** a/one
+- **Reviewer:** b/two
+
+## Phase Gate
+
+Composition scenarios to validate:
+- [ ] end to end works
+`)
+	if len(result.GatePhases) != 1 || result.GatePhases[0] != 3 {
+		t.Fatalf("GatePhases = %v, want [3]", result.GatePhases)
+	}
+
+	slices := ToSlices(result, "p.md", slice.TypeFeat)
+	if len(slices) != 3 {
+		t.Fatalf("got %d slices, want 2 workstreams + 1 gate", len(slices))
+	}
+	gate := slices[2]
+	if gate.ID != "phase-3-gate" || gate.Type != slice.TypeGate {
+		t.Errorf("gate slice = %+v", gate)
+	}
+	if len(gate.BlockedBy) != 2 || gate.BlockedBy[0] != "phase-3-ws-3.1" {
+		t.Errorf("gate BlockedBy = %v", gate.BlockedBy)
+	}
+	if gate.Coder != "a/one" || gate.Reviewer != "b/two" {
+		t.Errorf("gate agents = %s/%s", gate.Coder, gate.Reviewer)
 	}
 }

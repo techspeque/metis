@@ -68,6 +68,24 @@ The human retains what humans are good at: planning, architecture, priorities,
 judgment calls. Agents do what agents are good at: writing code fast, within
 declared bounds, subject to independent review.
 
+## Two Personas, One Binary
+
+Metis serves two users with deliberately different experiences:
+
+| | **Human developer** | **Agent** |
+|---|---|---|
+| Works across | many projects (workspace registry, `-w` flag) | the current repo only |
+| Entry point | `metis init`, then planning | `metis kickoff`, every session |
+| Reads | dashboards (`status`, `progress`, `findings`) | `-o json` fields, never formatted text |
+| Changes config | `metis config set` | reads via `metis config get` |
+| Owns | OVERVIEW, plans, priorities, releases | one slice at a time, within a committed brief |
+| Guide | [docs/workflow.md](docs/workflow.md) | [docs/protocol.md](docs/protocol.md) |
+
+The boundary is enforced, not aspirational: agents resolve the project from
+their working directory (the workspace registry can never redirect them),
+every value an agent needs is a JSON field, and every state transition an
+agent makes is an atomic commit.
+
 ## How It Works
 
 ```
@@ -127,13 +145,35 @@ go build -o metis ./cmd/metis
 
 ## Quick Start
 
-1. **Write your OVERVIEW** — the application spec describing what you're building
-2. **Initialize:** `metis init` — scaffolds config, state directory, surface adapters, templates
-3. **Configure:** `metis config set` — overview path, agents, commands, routing
-4. **Plan a phase:** ask an agent to create a plan from the OVERVIEW (using `.metis/templates/plan.md`)
-5. **Seed and execute:** `metis seed .metis/plans/phase-0.md` then launch agent sessions
+```bash
+# 1. Initialize (scaffolds .metis/, adapters, and templates)
+git init my-project && cd my-project
+metis init
 
-Each agent session runs `metis kickoff` and the protocol handles everything from there.
+# 2. Agents only work on the integration branch — create it
+git checkout -b dev
+
+# 3. Configure — no YAML editing; at least two agents for cross-vendor
+#    review (or 'metis config set routing.review self' for single-agent)
+metis config set project.overview OVERVIEW.md
+metis config set commands.verify "go test ./..."
+metis config set agents.claude-code/opus.surface claude-code
+metis config set agents.claude-code/opus.model opus
+metis config set agents.claude-code/opus.label "Claude Code (Opus)"
+metis config set agents.opencode/opus.surface opencode
+metis config set agents.opencode/opus.model opus
+metis config set agents.opencode/opus.label "opencode (Opus)"
+metis surface generate   # refresh adapters after config changes
+metis check              # green = ready
+
+# 4. Write OVERVIEW.md (structure: .metis/templates/overview.md), then ask
+#    an agent to plan Phase 0 using .metis/templates/plan.md, and seed it
+metis seed .metis/plans/phase-0.md --dry-run
+metis seed .metis/plans/phase-0.md
+```
+
+Each agent session runs `metis kickoff` and the protocol handles everything
+from there.
 
 See [docs/workflow.md](docs/workflow.md) for the full workflow guide.
 
@@ -193,13 +233,14 @@ unaffected. See [docs/commands.md](docs/commands.md#workspaces).
 
 ## Documentation
 
-| Document | Content |
-|---|---|
-| [docs/workflow.md](docs/workflow.md) | Full workflow guide — greenfield, extending, OVERVIEW-first, reconciliation |
-| [docs/commands.md](docs/commands.md) | Complete command reference with all flags and examples |
-| [docs/configuration.md](docs/configuration.md) | `.metis/project.yaml` schema — every field, defaults, examples |
-| [docs/protocol.md](docs/protocol.md) | Agent session protocol — kickoff, coder/reviewer flows, resume logic |
-| [docs/templates.md](docs/templates.md) | Template system — how agents use the structured document templates |
+| Document | Audience | Content |
+|---|---|---|
+| [docs/workflow.md](docs/workflow.md) | Human | Workflow guide — greenfield, extending, reconciliation |
+| [docs/protocol.md](docs/protocol.md) | Agent | Session protocol — kickoff, coder/reviewer flows, hard rules |
+| [docs/cli.md](docs/cli.md) | Both | Full CLI reference — every command, flag, and who uses it |
+| [docs/commands.md](docs/commands.md) | Both | Task-oriented command guide with examples |
+| [docs/configuration.md](docs/configuration.md) | Human | `.metis/project.yaml` schema — every field, defaults, examples |
+| [docs/templates.md](docs/templates.md) | Agent | Template system — the structured document formats |
 
 ## License
 

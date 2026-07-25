@@ -1,5 +1,8 @@
 # Configuration Reference
 
+> **Audience:** human developers — configuration is human-owned; agents
+> only read it (`metis config get`).
+
 > Tip: `metis config view` shows the effective configuration,
 > `metis config get/set <dotted.key>` reads and writes individual values
 > without hand-editing YAML (comments are preserved). See
@@ -106,8 +109,10 @@ routing:
 
 All slugs in routing lists must exist in the `agents` map.
 
-`review: cross-vendor` means the reviewer must be a different agent than the
-coder. This is enforced during ledger validation.
+Cross-vendor review (reviewer ≠ coder) is enforced at validation, seed, and
+flip time; `metis commit --flip reviewed --agent <slug>` checks the caller's
+stated identity against the slice's coder. Set `review: self` to opt into
+single-agent projects, where coder and reviewer may be the same slug.
 
 ---
 
@@ -121,8 +126,10 @@ hot_paths:
   - src/crypto/
 ```
 
-Paths where a mistake is expensive. Any slice touching these paths is
-auto-escalated to `risk: high` and gets full-depth reading in the instructions.
+Paths where a mistake is expensive. They are included in agent instructions
+as mandatory-caution zones, and `metis log --validate` makes any touch
+visible to the reviewer. (Automatic risk escalation is planned; today the
+risk level comes from the plan/slice declaration.)
 
 ---
 

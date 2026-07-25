@@ -22,7 +22,9 @@ var initCmd = &cobra.Command{
 	Use:   "init",
 	Short: "Initialize a new Metis project",
 	Long: `Sets up the .metis/ directory structure and generates surface adapters.
-Use --from .metis/project.yaml for non-interactive mode.`,
+Non-interactive; configure afterwards with 'metis config set' (the Next
+steps it prints are copy-pasteable). Use --from <config> to scaffold from
+an existing configuration file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		from, _ := cmd.Flags().GetString("from")
 
@@ -181,9 +183,10 @@ Use --from .metis/project.yaml for non-interactive mode.`,
 			return fmt.Errorf("writing templates: %w", err)
 		}
 
-		// Add .metis/runs/ to .gitignore if not already there
+		// Ignore transient state: verification logs and the process lock
 		gitignorePath := filepath.Join(repoRoot, ".gitignore")
 		appendToGitignore(gitignorePath, ".metis/runs/")
+		appendToGitignore(gitignorePath, ".metis/.lock")
 
 		// Register this project in the user-level workspace registry so the
 		// registry populates itself through normal use. Registration failures
@@ -196,9 +199,17 @@ Use --from .metis/project.yaml for non-interactive mode.`,
 		fmt.Println("  CLAUDE.md          — Claude Code adapter (points to AGENTS.md)")
 		fmt.Println("  AGENTS.md          — governance + full agent contract")
 		fmt.Println("  opencode.json      — opencode adapter")
-		fmt.Printf("\nNext: write your OVERVIEW.md, set project.overview in .metis/project.yaml,\n")
-		fmt.Printf("      add agents, then ask an agent to plan Phase 0 using\n")
-		fmt.Printf("      the template in .metis/templates/plan.md\n")
+		fmt.Println("\nNext steps (copy-paste, adjust slugs/commands to taste):")
+		fmt.Println("  git checkout -b " + cfg.Project.IntegrationBranch + "   # agents only work on the integration branch")
+		fmt.Println("  metis config set project.overview OVERVIEW.md")
+		fmt.Println("  metis config set commands.verify \"go test ./...\"")
+		fmt.Println("  metis config set agents.claude-code/opus.surface claude-code")
+		fmt.Println("  metis config set agents.claude-code/opus.model opus")
+		fmt.Println("  metis config set agents.claude-code/opus.label \"Claude Code (Opus)\"")
+		fmt.Println("  metis surface generate   # regenerate adapters after config changes")
+		fmt.Println("  metis check              # green means ready to plan")
+		fmt.Println("\nThen write OVERVIEW.md and ask an agent to plan Phase 0 using")
+		fmt.Println("the template in .metis/templates/plan.md — seed it with 'metis seed'.")
 		return nil
 	},
 }

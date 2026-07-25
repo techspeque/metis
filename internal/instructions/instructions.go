@@ -76,7 +76,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 
 	b.WriteString("## Step 4: Read Instructions\n\n")
 	b.WriteString("```bash\nmetis instructions --for <slice-id>\n```\n\n")
-	b.WriteString("Read the output. This is the risk-scaled contract plus contextual archaeology.\n\n")
+	b.WriteString("Read the output. This is the risk-scaled contract plus the project overview.\n\n")
 
 	b.WriteString("## Step 5: Pre-flight Verification\n\n")
 	b.WriteString("```bash\nmetis verify --pre\n```\n\n")
@@ -90,20 +90,21 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("2. **Write brief** — `metis brief <id> --write`, edit it, `metis commit --brief`\n")
 		b.WriteString("3. **Implement** — within declared scope only\n")
 		b.WriteString("4. **Verify** — `metis verify --post`\n")
-		b.WriteString("5. **Flip** — `metis commit --flip coded`\n")
+		b.WriteString("5. **Flip** — `metis commit --flip coded --slice <id>` (the id from Step 2)\n")
 		b.WriteString("6. **Report** — slice ID, files changed, verify result, what's next\n\n")
 	}
 
 	if role == "" || role == "reviewer" {
 		b.WriteString("## Step 6b: Reviewer Flow\n\n")
-		b.WriteString("1. **Locate commits** — `git log --oneline --grep \"<slice-id>\"`\n")
+		b.WriteString("1. **Locate commits** — `metis log <id>`\n")
 		b.WriteString("2. **Read brief** — `metis brief <id>`\n")
 		b.WriteString("3. **Independent verify** — `metis verify --post`\n")
-		b.WriteString("4. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
-		b.WriteString("5. **Verdict:**\n")
-		b.WriteString("   - Pass -> `metis commit --flip reviewed` then `metis archive`\n")
+		b.WriteString("4. **Audit scope** — `metis log <id> --validate` (format + files vs brief scope; FAIL -> block)\n")
+		b.WriteString("5. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
+		b.WriteString("6. **Verdict:**\n")
+		b.WriteString("   - Pass -> `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
-		b.WriteString("6. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
+		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
 	}
 
 	return strings.TrimSpace(b.String())
@@ -222,7 +223,7 @@ func sectionHotPaths(cfg *config.Config) string {
 		return "## Hot-Path Zones\n\n(None configured)"
 	}
 	var b strings.Builder
-	b.WriteString("## Hot-Path Zones\n\nAny slice touching these paths is risk: high and gets full-depth reading:\n")
+	b.WriteString("## Hot-Path Zones\n\nMistakes here are expensive. Treat any work touching these paths as high\nrisk: read surrounding code fully before editing, and declare the touch in\nyour brief — `metis log --validate` will surface it to the reviewer:\n")
 	for _, p := range cfg.HotPaths {
 		fmt.Fprintf(&b, "- %s\n", p)
 	}
@@ -328,11 +329,12 @@ func sectionToolingMap() string {
 | ` + "`metis commit -m \"...\"`" + ` | Commit with enforced format |
 | ` + "`metis commit --brief`" + ` | Commit the brief |
 | ` + "`metis commit --flip coded`" + ` | Flip coded and commit |
-| ` + "`metis commit --flip reviewed`" + ` | Flip reviewed and commit |
+| ` + "`metis commit --flip reviewed --agent <slug>`" + ` | Flip reviewed and commit (identity required) |
 | ` + "`metis block <id>`" + ` | Block a slice during review |
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
 | ` + "`metis status`" + ` | One-line progress summary |
+| ` + "`metis log <id> --validate`" + ` | Audit slice commits: format + scope vs brief |
 | ` + "`metis config get <key>`" + ` | Read one config value |
 
 Every read command accepts ` + "`-o json`" + `. When you need an exact value

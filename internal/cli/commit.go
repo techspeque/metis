@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/techspeque/metis/internal/git"
-	"github.com/techspeque/metis/internal/slice"
+	"github.com/techspeque/metis/internal/runs"
 )
 
 func init() {
@@ -17,6 +17,8 @@ func init() {
 	commitCmd.Flags().Bool("brief", false, "Shortcut: add and commit the brief file")
 	commitCmd.Flags().String("flip", "", "Shortcut: flip coded or reviewed and commit (coded|reviewed)")
 	commitCmd.Flags().Bool("amend", false, "Amend the previous commit")
+	commitCmd.Flags().String("agent", "", "Your agent slug (required with --flip reviewed for cross-vendor validation)")
+	commitCmd.Flags().String("slice", "", "The slice ID you were dispatched (errors if dispatch has moved on)")
 	rootCmd.AddCommand(commitCmd)
 }
 
@@ -49,18 +51,36 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		sliceID := result.Slice.ID
 		sliceType := result.Slice.Type
 
+		// Bind to the dispatched slice: an agent passes the ID it received
+		// from 'metis next'; if a higher-priority slice arrived in between,
+		// fail loudly instead of silently acting on the wrong slice.
+		if claimed, _ := cmd.Flags().GetString("slice"); claimed != "" && claimed != sliceID {
+			return fmt.Errorf("dispatch has moved on: active slice is %s, you were working %s — re-run 'metis next' and report to the human", sliceID, claimed)
+		}
+
 		// Handle shortcuts
 		briefMode, _ := cmd.Flags().GetBool("brief")
 		flipMode, _ := cmd.Flags().GetString("flip")
 		amend, _ := cmd.Flags().GetBool("amend")
 
+		agentFlag, _ := cmd.Flags().GetString("agent")
+
 		switch {
 		case briefMode:
-			return commitBrief(ctx, l, sliceID)
+			return commitBrief(ctx, sliceID)
 		case flipMode == "coded":
 			return commitFlip(ctx, sliceID, "coded", "")
 		case flipMode == "reviewed":
-			return commitFlip(ctx, sliceID, "reviewed", result.AgentSlug)
+			// Cross-vendor review needs the caller's identity — the slug
+			// the reviewer stated at self-identification. Without it the
+			// check would just compare two ledger fields to each other.
+			if agentFlag == "" && !ctx.allowSelfReview() {
+				return fmt.Errorf("identify yourself: metis commit --flip reviewed --agent <your-slug> (the slug you matched in the session protocol)")
+			}
+			if agentFlag != "" && !ctx.agentSlugs()[agentFlag] {
+				return fmt.Errorf("unknown agent slug %q (configured agents: metis config get agents)", agentFlag)
+			}
+			return commitFlip(ctx, sliceID, "reviewed", agentFlag)
 		case flipMode != "":
 			return fmt.Errorf("invalid flip target: %s (use 'coded' or 'reviewed')", flipMode)
 		}
@@ -102,7 +122,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 	},
 }
 
-func commitBrief(ctx *context, l interface{}, sliceID string) error {
+func commitBrief(ctx *context, sliceID string) error {
 	briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, sliceID+".md")
 	if _, err := os.Stat(briefPath); os.IsNotExist(err) {
 		return fmt.Errorf("brief not found at %s — create it first with 'metis brief %s --write'", briefPath, sliceID)
@@ -113,7 +133,7 @@ func commitBrief(ctx *context, l interface{}, sliceID string) error {
 	}
 
 	message := git.FormatCommitMessage(ctx.cfg, sliceID, "docs", "slice brief")
-	if err := git.Commit(ctx.repoRoot, message); err != nil {
+	if err := git.CommitPaths(ctx.repoRoot, message, briefPath); err != nil {
 		return err
 	}
 	fmt.Printf("Committed brief: %s\n", message)
@@ -132,6 +152,20 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 
 	switch which {
 	case "coded":
+		// Deterministic preconditions, not honor system: the brief must be
+		// committed and the post-implementation verify must have passed.
+		briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, sliceID+".md")
+		if _, err := os.Stat(briefPath); os.IsNotExist(err) {
+			return fmt.Errorf("cannot flip coded: no brief at %s — 'metis brief %s --write', edit it, 'metis commit --brief'", briefPath, sliceID)
+		}
+		store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))
+		_, exitCode, err := store.Read(sliceID, "verify-post")
+		if err != nil {
+			return fmt.Errorf("cannot flip coded: no verify-post run recorded for %s — run 'metis verify --post' first", sliceID)
+		}
+		if exitCode != 0 {
+			return fmt.Errorf("cannot flip coded: last 'metis verify --post' for %s exited %d — fix and re-verify", sliceID, exitCode)
+		}
 		if err := ledgerObj.FlipCoded(sliceID); err != nil {
 			return err
 		}
@@ -152,13 +186,10 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 
 	prefix := "chore"
 	message := git.FormatCommitMessage(ctx.cfg, sliceID, prefix, "flip "+which)
-	if err := git.Commit(ctx.repoRoot, message); err != nil {
+	if err := git.CommitPaths(ctx.repoRoot, message, ctx.ledgerPath()); err != nil {
 		return err
 	}
 
 	fmt.Printf("Committed: %s\n", message)
 	return nil
 }
-
-// unused but required for the interface approach — simplified for now
-var _ slice.WorkType
