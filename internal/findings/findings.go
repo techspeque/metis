@@ -13,14 +13,14 @@ import (
 
 // Finding represents a single review finding.
 type Finding struct {
-	ID         string `yaml:"id"`
-	Date       string `yaml:"date"`
-	Slice      string `yaml:"slice"`
-	Severity   string `yaml:"severity"` // P1, P2, P3
-	Category   string `yaml:"category"` // auth, protocol, scope, tests, arch-dup, arch-fit, data, maint, security, behavior, performance
-	Finding    string `yaml:"finding"`
-	Status     string `yaml:"status"`                // open, resolved, promoted
-	PromotedTo *int   `yaml:"promoted_to,omitempty"` // accuracy_rule index if promoted
+	ID         string `yaml:"id" json:"id"`
+	Date       string `yaml:"date" json:"date"`
+	Slice      string `yaml:"slice" json:"slice"`
+	Severity   string `yaml:"severity" json:"severity"` // P1, P2, P3
+	Category   string `yaml:"category" json:"category"` // auth, protocol, scope, tests, arch-dup, arch-fit, data, maint, security, behavior, performance
+	Finding    string `yaml:"finding" json:"finding"`
+	Status     string `yaml:"status" json:"status"`                               // open, resolved, promoted
+	PromotedTo *int   `yaml:"promoted_to,omitempty" json:"promoted_to,omitempty"` // accuracy_rule index if promoted
 }
 
 // Store holds all findings.
@@ -114,17 +114,17 @@ func (s *Store) Filter(severity, category, sliceID string) []Finding {
 
 // Stats returns aggregated statistics about findings.
 type Stats struct {
-	Total      int
-	BySeverity map[string]int
-	ByCategory map[string]int
-	ByAgent    map[string]AgentStats
+	Total      int                   `json:"total"`
+	BySeverity map[string]int        `json:"by_severity,omitempty"`
+	ByCategory map[string]int        `json:"by_category,omitempty"`
+	ByAgent    map[string]AgentStats `json:"by_agent,omitempty"`
 }
 
 // AgentStats holds per-agent finding statistics.
 type AgentStats struct {
-	Slices    int
-	Blocks    int
-	FirstPass int // slices with 0 blocks
+	Slices    int `json:"slices"`
+	Blocks    int `json:"blocks"`
+	FirstPass int `json:"first_pass"` // slices with 0 blocks
 }
 
 // GetStats computes aggregate statistics.

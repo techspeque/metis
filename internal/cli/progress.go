@@ -35,6 +35,10 @@ var progressCmd = &cobra.Command{
 		allSlices := append(archive.Slices, l.Slices...)
 		d := progress.Compute(allSlices)
 
+		if jsonOutput() {
+			return printJSON(cmd, d)
+		}
+
 		fmt.Print(d.Render())
 		return nil
 	},

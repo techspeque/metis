@@ -4,6 +4,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/techspeque/metis/internal/slice"
 )
 
 func init() {
@@ -31,15 +33,7 @@ var listCmd = &cobra.Command{
 		filterPri, _ := cmd.Flags().GetString("priority")
 		filterStatus, _ := cmd.Flags().GetString("status")
 
-		if len(l.Slices) == 0 {
-			fmt.Println("No slices in the ledger.")
-			return nil
-		}
-
-		fmt.Printf("%-20s %-8s %-4s %-8s %-10s %s\n",
-			"ID", "Type", "Pri", "Risk", "Status", "Title")
-		fmt.Println("─────────────────────────────────────────────────────────────────────────────")
-
+		var matched []listRow
 		for _, s := range l.Slices {
 			status := s.Status()
 
@@ -54,15 +48,41 @@ var listCmd = &cobra.Command{
 				continue
 			}
 
-			title := s.Title
+			matched = append(matched, listRow{Slice: s, Status: string(status)})
+		}
+
+		if jsonOutput() {
+			if matched == nil {
+				matched = []listRow{}
+			}
+			return printJSON(cmd, matched)
+		}
+
+		if len(l.Slices) == 0 {
+			fmt.Println("No slices in the ledger.")
+			return nil
+		}
+
+		fmt.Printf("%-20s %-8s %-4s %-8s %-10s %s\n",
+			"ID", "Type", "Pri", "Risk", "Status", "Title")
+		fmt.Println("─────────────────────────────────────────────────────────────────────────────")
+
+		for _, row := range matched {
+			title := row.Title
 			if len(title) > 40 {
 				title = title[:37] + "..."
 			}
 
 			fmt.Printf("%-20s %-8s %-4s %-8s %-10s %s\n",
-				s.ID, s.Type, s.Priority, s.Risk, status, title)
+				row.ID, row.Type, row.Priority, row.Risk, row.Status, title)
 		}
 
 		return nil
 	},
+}
+
+// listRow is a ledger slice plus its computed lifecycle status.
+type listRow struct {
+	slice.Slice
+	Status string `json:"status"`
 }

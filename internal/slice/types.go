@@ -140,22 +140,22 @@ func (r Risk) IsValid() bool {
 
 // Slice is the fundamental unit of work in Metis.
 type Slice struct {
-	ID           string   `yaml:"id"`
-	Title        string   `yaml:"title"`
-	Type         WorkType `yaml:"type"`
-	Priority     Priority `yaml:"priority"`
-	Risk         Risk     `yaml:"risk"`
-	Stage        string   `yaml:"stage,omitempty"`
-	Coder        string   `yaml:"coder"`
-	Reviewer     string   `yaml:"reviewer"`
-	Plan         string   `yaml:"plan,omitempty"`
-	PlanSection  string   `yaml:"plan_section,omitempty"`
-	Coded        bool     `yaml:"coded"`
-	Reviewed     bool     `yaml:"reviewed"`
-	ReviewCycles int      `yaml:"review_cycles"`
-	BlockedBy    []string `yaml:"blocked_by,omitempty"`
-	Notes        string   `yaml:"notes,omitempty"`
-	Created      string   `yaml:"created"`
+	ID           string   `yaml:"id" json:"id"`
+	Title        string   `yaml:"title" json:"title"`
+	Type         WorkType `yaml:"type" json:"type"`
+	Priority     Priority `yaml:"priority" json:"priority"`
+	Risk         Risk     `yaml:"risk" json:"risk"`
+	Stage        string   `yaml:"stage,omitempty" json:"stage,omitempty"`
+	Coder        string   `yaml:"coder" json:"coder"`
+	Reviewer     string   `yaml:"reviewer" json:"reviewer"`
+	Plan         string   `yaml:"plan,omitempty" json:"plan,omitempty"`
+	PlanSection  string   `yaml:"plan_section,omitempty" json:"plan_section,omitempty"`
+	Coded        bool     `yaml:"coded" json:"coded"`
+	Reviewed     bool     `yaml:"reviewed" json:"reviewed"`
+	ReviewCycles int      `yaml:"review_cycles" json:"review_cycles"`
+	BlockedBy    []string `yaml:"blocked_by,omitempty" json:"blocked_by,omitempty"`
+	Notes        string   `yaml:"notes,omitempty" json:"notes,omitempty"`
+	Created      string   `yaml:"created" json:"created"`
 }
 
 // Status returns the computed lifecycle status of the slice.

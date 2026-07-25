@@ -37,6 +37,9 @@ var rootCmd = &cobra.Command{
 It enforces disciplined, bounded, independently-reviewed units of work
 across any technology stack and any agent surface.`,
 	Version: version,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		return validateOutputFormat()
+	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return cmd.Help()
 	},
@@ -46,6 +49,8 @@ func init() {
 	rootCmd.SetVersionTemplate(fmt.Sprintf("metis %s (%s) built %s\n", version, commit, date))
 	rootCmd.PersistentFlags().StringVarP(&workspaceFlag, "workspace", "w", "",
 		"Operate on a registered workspace instead of the current directory")
+	rootCmd.PersistentFlags().StringVarP(&outputFlag, "output", "o", "",
+		"Output format: text or json (env: METIS_OUTPUT)")
 }
 
 // Execute runs the root command.

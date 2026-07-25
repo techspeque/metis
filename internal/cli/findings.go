@@ -35,6 +35,9 @@ var findingsCmd = &cobra.Command{
 		showStats, _ := cmd.Flags().GetBool("stats")
 		if showStats {
 			stats := store.GetStats()
+			if jsonOutput() {
+				return printJSON(cmd, stats)
+			}
 			fmt.Printf("Total findings: %d\n\n", stats.Total)
 			if len(stats.BySeverity) > 0 {
 				fmt.Println("By Severity:")
@@ -56,6 +59,14 @@ var findingsCmd = &cobra.Command{
 		sliceID, _ := cmd.Flags().GetString("slice")
 
 		results := store.Filter(severity, category, sliceID)
+
+		if jsonOutput() {
+			if results == nil {
+				results = []findings.Finding{}
+			}
+			return printJSON(cmd, results)
+		}
+
 		if len(results) == 0 {
 			fmt.Println("No findings.")
 			return nil

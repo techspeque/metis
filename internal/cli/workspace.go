@@ -32,6 +32,14 @@ sets the fallback project for commands run outside any repo, and the
 the repo itself always wins — the active workspace is never consulted.`,
 }
 
+// workspaceRow is the JSON shape of a workspace registry entry.
+type workspaceRow struct {
+	Name    string `json:"name"`
+	Path    string `json:"path"`
+	Active  bool   `json:"active"`
+	Missing bool   `json:"missing,omitempty"`
+}
+
 var workspaceListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List registered workspaces",
@@ -41,21 +49,36 @@ var workspaceListCmd = &cobra.Command{
 			return err
 		}
 
-		if len(uc.Workspaces) == 0 {
+		rows := []workspaceRow{}
+		for _, name := range uc.Names() {
+			path := uc.Workspaces[name]
+			_, statErr := os.Stat(filepath.Join(path, "metis.yaml"))
+			rows = append(rows, workspaceRow{
+				Name:    name,
+				Path:    path,
+				Active:  name == uc.Active,
+				Missing: statErr != nil,
+			})
+		}
+
+		if jsonOutput() {
+			return printJSON(cmd, rows)
+		}
+
+		if len(rows) == 0 {
 			fmt.Println("No workspaces registered. Run 'metis workspace add <name> [path]' or 'metis init'.")
 			return nil
 		}
 
-		for _, name := range uc.Names() {
-			path := uc.Workspaces[name]
+		for _, row := range rows {
 			markers := ""
-			if name == uc.Active {
+			if row.Active {
 				markers += " [active]"
 			}
-			if _, err := os.Stat(filepath.Join(path, "metis.yaml")); err != nil {
+			if row.Missing {
 				markers += " [missing]"
 			}
-			fmt.Printf("  %-20s %s%s\n", name, path, markers)
+			fmt.Printf("  %-20s %s%s\n", row.Name, row.Path, markers)
 		}
 		return nil
 	},
@@ -163,6 +186,16 @@ var workspaceCurrentCmd = &cobra.Command{
 		uc, err := userconfig.Load()
 		if err != nil {
 			return err
+		}
+		if jsonOutput() {
+			if uc.Active == "" {
+				return printJSON(cmd, nil)
+			}
+			return printJSON(cmd, workspaceRow{
+				Name:   uc.Active,
+				Path:   uc.Workspaces[uc.Active],
+				Active: true,
+			})
 		}
 		if uc.Active == "" {
 			fmt.Println("No active workspace.")

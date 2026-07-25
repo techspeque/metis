@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/spf13/cobra"
@@ -15,6 +14,7 @@ var nextQuiet bool
 
 func init() {
 	nextCmd.Flags().BoolVar(&nextJSON, "json", false, "Output as JSON")
+	_ = nextCmd.Flags().MarkDeprecated("json", "use --output json")
 	nextCmd.Flags().BoolVar(&nextQuiet, "quiet", false, "Print only the slice ID")
 	rootCmd.AddCommand(nextCmd)
 }
@@ -39,6 +39,9 @@ var nextCmd = &cobra.Command{
 			if nextQuiet {
 				return nil
 			}
+			if nextJSON || jsonOutput() {
+				return printJSON(cmd, map[string]bool{"active": false})
+			}
 			fmt.Println("No active slices. The backlog is empty.")
 			return nil
 		}
@@ -48,8 +51,8 @@ var nextCmd = &cobra.Command{
 			return nil
 		}
 
-		if nextJSON {
-			return printNextJSON(result, ctx)
+		if nextJSON || jsonOutput() {
+			return printNextJSON(cmd, result, ctx)
 		}
 
 		return printNextText(result, ctx)
@@ -91,6 +94,7 @@ func printNextText(result *ledger.DispatchResult, ctx *context) error {
 }
 
 type nextJSONOutput struct {
+	Active       bool   `json:"active"`
 	ID           string `json:"id"`
 	Title        string `json:"title"`
 	Type         string `json:"type"`
@@ -106,7 +110,7 @@ type nextJSONOutput struct {
 	ReadingRule  string `json:"reading_rule"`
 }
 
-func printNextJSON(result *ledger.DispatchResult, ctx *context) error {
+func printNextJSON(cmd *cobra.Command, result *ledger.DispatchResult, ctx *context) error {
 	s := result.Slice
 	agent, ok := ctx.cfg.Agents[result.AgentSlug]
 	agentLabel := result.AgentSlug
@@ -115,6 +119,7 @@ func printNextJSON(result *ledger.DispatchResult, ctx *context) error {
 	}
 
 	out := nextJSONOutput{
+		Active:       true,
 		ID:           s.ID,
 		Title:        s.Title,
 		Type:         string(s.Type),
@@ -130,12 +135,7 @@ func printNextJSON(result *ledger.DispatchResult, ctx *context) error {
 		ReadingRule:  readingRule(s.Risk),
 	}
 
-	data, err := json.MarshalIndent(out, "", "  ")
-	if err != nil {
-		return err
-	}
-	fmt.Println(string(data))
-	return nil
+	return printJSON(cmd, out)
 }
 
 func readingRule(risk slice.Risk) string {

@@ -11,20 +11,20 @@ import (
 
 // Dashboard holds data for the progress display.
 type Dashboard struct {
-	Total     int
-	Done      int
-	Coding    int
-	Reviewing int
-	Pending   int
-	Rework    int
-	Active    *slice.Slice
-	ByStage   map[string]StageProgress
+	Total     int                      `json:"total"`
+	Done      int                      `json:"done"`
+	Coding    int                      `json:"coding"`
+	Reviewing int                      `json:"reviewing"`
+	Pending   int                      `json:"pending"`
+	Rework    int                      `json:"rework"`
+	Active    *slice.Slice             `json:"active,omitempty"`
+	ByStage   map[string]StageProgress `json:"by_stage,omitempty"`
 }
 
 // StageProgress holds progress for a single stage.
 type StageProgress struct {
-	Total int
-	Done  int
+	Total int `json:"total"`
+	Done  int `json:"done"`
 }
 
 // Compute builds a Dashboard from a slice list.
