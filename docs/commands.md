@@ -1,6 +1,8 @@
-# Command Reference
+# Command Guide
 
-Complete reference for all Metis CLI commands.
+> **Audience:** both personas. Task-oriented guidance with examples. For
+> the exhaustive command/flag/audience tables, see [cli.md](cli.md); for
+> the agent protocol these commands serve, see [protocol.md](protocol.md).
 
 ## Output Format
 

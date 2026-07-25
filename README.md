@@ -68,6 +68,24 @@ The human retains what humans are good at: planning, architecture, priorities,
 judgment calls. Agents do what agents are good at: writing code fast, within
 declared bounds, subject to independent review.
 
+## Two Personas, One Binary
+
+Metis serves two users with deliberately different experiences:
+
+| | **Human developer** | **Agent** |
+|---|---|---|
+| Works across | many projects (workspace registry, `-w` flag) | the current repo only |
+| Entry point | `metis init`, then planning | `metis kickoff`, every session |
+| Reads | dashboards (`status`, `progress`, `findings`) | `-o json` fields, never formatted text |
+| Changes config | `metis config set` | reads via `metis config get` |
+| Owns | OVERVIEW, plans, priorities, releases | one slice at a time, within a committed brief |
+| Guide | [docs/workflow.md](docs/workflow.md) | [docs/protocol.md](docs/protocol.md) |
+
+The boundary is enforced, not aspirational: agents resolve the project from
+their working directory (the workspace registry can never redirect them),
+every value an agent needs is a JSON field, and every state transition an
+agent makes is an atomic commit.
+
 ## How It Works
 
 ```
@@ -193,13 +211,14 @@ unaffected. See [docs/commands.md](docs/commands.md#workspaces).
 
 ## Documentation
 
-| Document | Content |
-|---|---|
-| [docs/workflow.md](docs/workflow.md) | Full workflow guide — greenfield, extending, OVERVIEW-first, reconciliation |
-| [docs/commands.md](docs/commands.md) | Complete command reference with all flags and examples |
-| [docs/configuration.md](docs/configuration.md) | `.metis/project.yaml` schema — every field, defaults, examples |
-| [docs/protocol.md](docs/protocol.md) | Agent session protocol — kickoff, coder/reviewer flows, resume logic |
-| [docs/templates.md](docs/templates.md) | Template system — how agents use the structured document templates |
+| Document | Audience | Content |
+|---|---|---|
+| [docs/workflow.md](docs/workflow.md) | Human | Workflow guide — greenfield, extending, reconciliation |
+| [docs/protocol.md](docs/protocol.md) | Agent | Session protocol — kickoff, coder/reviewer flows, hard rules |
+| [docs/cli.md](docs/cli.md) | Both | Full CLI reference — every command, flag, and who uses it |
+| [docs/commands.md](docs/commands.md) | Both | Task-oriented command guide with examples |
+| [docs/configuration.md](docs/configuration.md) | Human | `.metis/project.yaml` schema — every field, defaults, examples |
+| [docs/templates.md](docs/templates.md) | Agent | Template system — the structured document formats |
 
 ## License
 

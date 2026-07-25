@@ -1,5 +1,8 @@
 # Document Templates
 
+> **Audience:** agents produce these documents; humans review and approve
+> them.
+
 Metis provides structured templates in `.metis/templates/` that agents use
 to produce consistently-formatted artifacts. These are created during
 `metis init` and are designed for **agent consumption** — comprehensive enough

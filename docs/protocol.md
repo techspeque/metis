@@ -1,7 +1,9 @@
 # Agent Session Protocol
 
-The complete protocol every agent follows from session start. This is what
-`metis kickoff` generates dynamically from your configuration.
+> **Audience:** agents — and humans who want to understand exactly what
+> agents do. This is what `metis kickoff` generates dynamically from your
+> configuration; agents receive it live, so the binary is always the
+> authority. The human-side guide is [workflow.md](workflow.md).
 
 ## Overview
 
@@ -172,6 +174,9 @@ If `metis next` assigned role = **Reviewer**:
    - **Pass:** `metis commit --flip reviewed` then `metis archive`
    - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."`
 
+   Both paths are atomic — `block` and `archive` commit the ledger and
+   findings changes themselves, so the session always ends with a clean tree.
+
 6. **Report** — slice ID, verdict, findings (if any), what's next
 
 ---
@@ -210,6 +215,7 @@ These rules are non-negotiable and embedded in `AGENTS.md`:
 10. No planning in execution — do not re-scope or invent additional work
 11. Report mismatches — if you're the wrong agent for this slice, STOP
 12. Trust the tools — do not walk YAML, compare slugs, or evaluate booleans manually
+13. Exact values come from `-o json` — every read command supports it; never parse human-readable output
 
 ---
 

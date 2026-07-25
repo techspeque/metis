@@ -1,5 +1,8 @@
 # Configuration Reference
 
+> **Audience:** human developers — configuration is human-owned; agents
+> only read it (`metis config get`).
+
 > Tip: `metis config view` shows the effective configuration,
 > `metis config get/set <dotted.key>` reads and writes individual values
 > without hand-editing YAML (comments are preserved). See
