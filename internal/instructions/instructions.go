@@ -94,6 +94,10 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("6. **Report** — slice ID, files changed, verify result, what's next\n\n")
 	}
 
+	reviewedCmd := "`metis commit --flip reviewed --agent <your-slug> --slice <id>`"
+	if cfg.Routing.Review == "self" {
+		reviewedCmd = "`metis commit --flip reviewed --slice <id>`"
+	}
 	if role == "" || role == "reviewer" {
 		b.WriteString("## Step 6b: Reviewer Flow\n\n")
 		b.WriteString("1. **Locate commits** — `metis log <id>`\n")
@@ -102,7 +106,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("4. **Audit scope** — `metis log <id> --validate` (format + files vs brief scope; FAIL -> block)\n")
 		b.WriteString("5. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
 		b.WriteString("6. **Verdict:**\n")
-		b.WriteString("   - Pass -> `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`\n")
+		b.WriteString("   - Pass -> " + reviewedCmd + " then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
 		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
 	}

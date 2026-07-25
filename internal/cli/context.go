@@ -9,6 +9,7 @@ import (
 
 	"github.com/techspeque/metis/internal/config"
 	"github.com/techspeque/metis/internal/fsutil"
+	"github.com/techspeque/metis/internal/git"
 	"github.com/techspeque/metis/internal/ledger"
 	"github.com/techspeque/metis/internal/userconfig"
 )
@@ -190,6 +191,23 @@ func (c *context) saveArchive(a *ledger.Archive) error {
 // (routing.review: self), where coder and reviewer may be the same agent.
 func (c *context) allowSelfReview() bool {
 	return c.cfg.Routing.Review == "self"
+}
+
+// commitStateSoft commits metis state files after a mutation, keeping the
+// tree clean between commands. Unlike the protocol transitions (flip, block,
+// archive) a git failure here only warns — these commands also serve humans
+// working outside a fully-initialized git flow.
+func (c *context) commitStateSoft(sliceID, message string, paths ...string) {
+	if err := git.Add(c.repoRoot, paths...); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: state not committed (%v) — commit .metis changes manually\n", err)
+		return
+	}
+	full := git.FormatCommitMessage(c.cfg, sliceID, "chore", message)
+	if err := git.CommitPaths(c.repoRoot, full, paths...); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: state not committed (%v) — commit .metis changes manually\n", err)
+		return
+	}
+	fmt.Printf("Committed: %s\n", full)
 }
 
 // agentSlugs returns the set of valid agent slugs from the config.

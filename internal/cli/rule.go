@@ -44,6 +44,7 @@ var ruleAddCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Added accuracy rule #%d: %s\n", len(ctx.cfg.AccuracyRules), args[0])
+		ctx.commitStateSoft("rules", "add accuracy rule", ctx.cfgPath)
 		return nil
 	},
 }
@@ -120,6 +121,7 @@ var rulePromoteCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Promoted %s to accuracy rule #%d: %s\n", f.ID, ruleIdx, f.Finding)
+		ctx.commitStateSoft(f.Slice, "promote finding "+f.ID+" to rule", ctx.cfgPath, findingsPath)
 		return nil
 	},
 }

@@ -15,6 +15,7 @@ func init() {
 	verifyCmd.Flags().Bool("pre", false, "Label as pre-flight verification")
 	verifyCmd.Flags().Bool("post", false, "Label as post-implementation verification")
 	verifyCmd.Flags().Bool("env", false, "Run only the environment soundness check")
+	verifyCmd.Flags().String("slice", "", "The slice ID you were dispatched (errors if dispatch has moved on)")
 	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(interfacesCmd)
 }
@@ -43,7 +44,20 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 			sliceID = result.Slice.ID
 		}
 
+		// Bind to the dispatched slice: without this, a p0 slice arriving
+		// mid-session would silently key this run's log to the wrong slice
+		// and pre-satisfy its flip-coded precondition.
+		if claimed, _ := cmd.Flags().GetString("slice"); claimed != "" && claimed != sliceID {
+			return fmt.Errorf("slice mismatch: the active slice is %s but you passed --slice %s — if %s is what you were dispatched, dispatch has moved on; re-run 'metis next' and report to the human", sliceID, claimed, claimed)
+		}
+
 		store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))
+
+		// The configured command may run for minutes; holding the exclusive
+		// repository lock through it would starve every other metis process
+		// (status polls, the reviewer's independent verify). All state reads
+		// are done — release before spawning.
+		releaseRepoLock()
 
 		envOnly, _ := cmd.Flags().GetBool("env")
 		if envOnly {
@@ -107,6 +121,7 @@ var interfacesCmd = &cobra.Command{
 		}
 
 		store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))
+		releaseRepoLock()
 
 		exitCode, err := runner.Interfaces(ctx.cfg, ctx.repoRoot, sliceID, store)
 		if err != nil {

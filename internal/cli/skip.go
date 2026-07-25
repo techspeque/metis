@@ -42,6 +42,7 @@ var skipCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Skipped slice: %s\n", args[0])
+		ctx.commitStateSoft(args[0], "skip slice", ctx.ledgerPath())
 		return nil
 	},
 }
@@ -72,6 +73,7 @@ var reopenCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Reopened slice: %s\n", args[0])
+		ctx.commitStateSoft(args[0], "reopen slice", ctx.ledgerPath())
 		return nil
 	},
 }

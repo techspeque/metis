@@ -110,6 +110,24 @@ func (l *Ledger) Archive(archive *Archive) []string {
 	if remaining == nil {
 		remaining = []slice.Slice{}
 	}
+
+	// Archived slices are done by definition: strip them from remaining
+	// blocked_by lists so dependents (gates especially) dispatch instead of
+	// deadlocking on IDs that no longer exist in the active ledger.
+	archivedSet := map[string]bool{}
+	for _, id := range archived {
+		archivedSet[id] = true
+	}
+	for i := range remaining {
+		var deps []string
+		for _, dep := range remaining[i].BlockedBy {
+			if !archivedSet[dep] {
+				deps = append(deps, dep)
+			}
+		}
+		remaining[i].BlockedBy = deps
+	}
+
 	l.Slices = remaining
 	return archived
 }

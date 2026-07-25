@@ -135,6 +135,7 @@ var addCmd = &cobra.Command{
 		}
 
 		fmt.Printf("Added slice: %s (%s)\n", s.ID, s.Title)
+		ctx.commitStateSoft(s.ID, "add slice", ctx.ledgerPath())
 		return nil
 	},
 }

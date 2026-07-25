@@ -56,13 +56,22 @@ they change, so the tree is never left dirty between protocol steps.
 
 | Command | Flags | JSON | Audience |
 |---|---|---|---|
-| `metis commit` | `-m/--message` · `--prefix` · `--brief` · `--flip <coded\|reviewed>` · `--amend` | — | Agent |
+| `metis commit` | `-m/--message` · `--prefix` · `--brief` · `--flip <coded\|reviewed>` · `--agent <slug>` (identity, required for reviewed flips) · `--slice <id>` (dispatch binding) · `--amend` | — | Agent |
+| `metis log <id>` | `--validate` (scope + format audit; exit 1 on violations) | ✓ | Agent (reviewer), Both |
 | `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` | — | Agent (reviewer) |
 | `metis skip <id>` | `--reason`\* | — | Both (recon) |
 | `metis reopen <id>` | `--reason`\* | — | Human |
 | `metis archive` | — | — | Agent (reviewer) |
 
-`commit --flip reviewed` validates cross-vendor review (reviewer ≠ coder).
+`commit --flip coded` requires the slice's brief and a green `verify --post`
+run; `--flip reviewed` requires `--agent <slug>` (validated against the
+coder — set `routing.review: self` for single-agent projects). `--slice <id>`
+binds the command to the dispatched slice and errors if dispatch moved on.
+`log --validate` audits commit format and touched files against the brief's
+`owned_paths`; a passing audit is required before `--flip reviewed` (gate
+slices are exempt from the scope portion; normal slices with no declared
+scope fail the audit). `add`/`edit`/`skip`/`reopen`/`rule` auto-commit their
+state changes (warning instead of failing outside a git flow).
 Finding categories: `auth`, `protocol`, `scope`, `tests`, `arch-dup`,
 `arch-fit`, `data`, `maint`, `security`, `behavior`, `performance`.
 

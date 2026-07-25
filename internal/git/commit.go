@@ -2,6 +2,7 @@ package git
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 
 	"github.com/techspeque/metis/internal/config"
@@ -48,7 +49,13 @@ func StripAttribution(message string) string {
 	lines := strings.Split(message, "\n")
 	var clean []string
 
-	for _, line := range lines {
+	for i, line := range lines {
+		// The subject line is never attribution — stripping it corrupted
+		// legitimate subjects and aborted commits with empty messages.
+		if i == 0 {
+			clean = append(clean, line)
+			continue
+		}
 		lower := strings.ToLower(strings.TrimSpace(line))
 
 		// Skip Co-Authored-By lines
@@ -95,16 +102,11 @@ func containsModelName(lower string) bool {
 	return false
 }
 
+var attributionVerbRe = regexp.MustCompile(`\b(assisted|assistance|generated|co-authored|written by|created by|authored by|powered by|with the help of|used)\b`)
+
 // containsAttributionVerb reports whether a line reads as attribution
-// rather than as a description of the change itself.
+// rather than as a description of the change itself. Whole-word matches
+// only — substring matching flagged "unused", "caused", "assist mode".
 func containsAttributionVerb(lower string) bool {
-	for _, verb := range []string{
-		"assist", "generated", "co-author", "written by", "created by",
-		"authored by", "with the help", "powered by", "used ",
-	} {
-		if strings.Contains(lower, verb) {
-			return true
-		}
-	}
-	return false
+	return attributionVerbRe.MatchString(lower)
 }

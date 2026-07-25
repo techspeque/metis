@@ -37,7 +37,13 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := tmp.Close(); err != nil {
 		return fmt.Errorf("closing temp file: %w", err)
 	}
-	if err := os.Chmod(tmpName, perm); err != nil {
+	// Preserve the target's existing mode (its original create honored the
+	// umask); fall back to perm for new files.
+	mode := perm
+	if fi, err := os.Stat(path); err == nil {
+		mode = fi.Mode().Perm()
+	}
+	if err := os.Chmod(tmpName, mode); err != nil {
 		return fmt.Errorf("setting permissions: %w", err)
 	}
 	return os.Rename(tmpName, path)
@@ -71,7 +77,7 @@ func AcquireLock(lockPath string) (release func(), err error) {
 			}, nil
 		}
 		if time.Now().After(deadline) {
-			return nil, fmt.Errorf("repository lock at %s held by another metis process for over %s — retry, or remove the file if no other metis is running", lockPath, LockTimeout)
+			return nil, fmt.Errorf("repository lock at %s held by another metis process for over %s — wait for it to finish and retry", lockPath, LockTimeout)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}

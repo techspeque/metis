@@ -134,8 +134,9 @@ type Stats struct {
 // AgentStats holds per-agent finding statistics.
 type AgentStats struct {
 	Slices    int `json:"slices"`
+	Done      int `json:"done"`
 	Blocks    int `json:"blocks"`
-	FirstPass int `json:"first_pass"` // slices with 0 blocks
+	FirstPass int `json:"first_pass"` // done slices with 0 review cycles
 }
 
 // GetStats computes aggregate statistics.

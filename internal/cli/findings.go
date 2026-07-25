@@ -42,8 +42,11 @@ func fillAgentStats(ctx *context, store *findings.Store, stats *findings.Stats) 
 		sliceCoder[s.ID] = s.Coder
 		as := agg[s.Coder]
 		as.Slices++
-		if s.IsDone() && s.ReviewCycles == 0 {
-			as.FirstPass++
+		if s.IsDone() {
+			as.Done++
+			if s.ReviewCycles == 0 {
+				as.FirstPass++
+			}
 		}
 		agg[s.Coder] = as
 	}
@@ -97,8 +100,8 @@ var findingsCmd = &cobra.Command{
 				fmt.Printf("  %-24s %7s %7s %10s\n", "coder", "slices", "blocks", "first-pass")
 				for agent, as := range stats.ByAgent {
 					rate := "-"
-					if done := as.FirstPass + (as.Slices - as.FirstPass); done > 0 && as.Slices > 0 {
-						rate = fmt.Sprintf("%d%%", as.FirstPass*100/as.Slices)
+					if as.Done > 0 {
+						rate = fmt.Sprintf("%d%%", as.FirstPass*100/as.Done)
 					}
 					fmt.Printf("  %-24s %7d %7d %10s\n", agent, as.Slices, as.Blocks, rate)
 				}
