@@ -8,6 +8,8 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"github.com/techspeque/metis/internal/fsutil"
+
 	"github.com/techspeque/metis/internal/slice"
 )
 
@@ -59,7 +61,7 @@ func (l *Ledger) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshaling ledger: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := fsutil.WriteFileAtomic(path, data, 0o644); err != nil {
 		return fmt.Errorf("writing ledger: %w", err)
 	}
 	return nil
@@ -95,7 +97,7 @@ func (a *Archive) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshaling archive: %w", err)
 	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
+	if err := fsutil.WriteFileAtomic(path, data, 0o644); err != nil {
 		return fmt.Errorf("writing archive: %w", err)
 	}
 	return nil

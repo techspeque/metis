@@ -20,7 +20,7 @@ func main() {
 		version, commit, date = versionFromBuildInfo(bi, version, commit, date)
 	}
 	cli.SetVersionInfo(version, commit, date)
-	if err := cli.Execute(); err != nil {
-		os.Exit(1)
+	if code := cli.Execute(); code != 0 {
+		os.Exit(code)
 	}
 }

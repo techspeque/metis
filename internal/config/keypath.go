@@ -15,6 +15,8 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/techspeque/metis/internal/fsutil"
 )
 
 // Lookup returns the value at a dotted key path in the config.
@@ -202,7 +204,7 @@ func SetInFile(filePath, keyPath, raw string) error {
 		return fmt.Errorf("refusing to write: result would not parse: %w", err)
 	}
 
-	return os.WriteFile(filePath, buf.Bytes(), 0o644)
+	return fsutil.WriteFileAtomic(filePath, buf.Bytes(), 0o644)
 }
 
 // mappingValue returns the value node for a key in a mapping, or nil.

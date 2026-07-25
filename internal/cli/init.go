@@ -181,9 +181,10 @@ Use --from .metis/project.yaml for non-interactive mode.`,
 			return fmt.Errorf("writing templates: %w", err)
 		}
 
-		// Add .metis/runs/ to .gitignore if not already there
+		// Ignore transient state: verification logs and the process lock
 		gitignorePath := filepath.Join(repoRoot, ".gitignore")
 		appendToGitignore(gitignorePath, ".metis/runs/")
+		appendToGitignore(gitignorePath, ".metis/.lock")
 
 		// Register this project in the user-level workspace registry so the
 		// registry populates itself through normal use. Registration failures

@@ -59,9 +59,11 @@ func init() {
 		"Output format: text or json (env: METIS_OUTPUT)")
 }
 
-// Execute runs the root command.
-func Execute() error {
+// Execute runs the root command and returns the process exit code.
+func Execute() int {
 	// Update version template dynamically (since init() runs before SetVersionInfo)
 	rootCmd.SetVersionTemplate(fmt.Sprintf("metis %s (%s) built %s\n", version, commit, date))
-	return rootCmd.Execute()
+	err := rootCmd.Execute()
+	releaseRepoLock()
+	return resolveExitCode(err)
 }

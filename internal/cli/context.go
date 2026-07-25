@@ -8,9 +8,22 @@ import (
 	"path/filepath"
 
 	"github.com/techspeque/metis/internal/config"
+	"github.com/techspeque/metis/internal/fsutil"
 	"github.com/techspeque/metis/internal/ledger"
 	"github.com/techspeque/metis/internal/userconfig"
 )
+
+// repoLockRelease releases the repository lock acquired by loadContext.
+// Execute calls releaseRepoLock after the command finishes; commands that
+// never load a context never take the lock.
+var repoLockRelease func()
+
+func releaseRepoLock() {
+	if repoLockRelease != nil {
+		repoLockRelease()
+		repoLockRelease = nil
+	}
+}
 
 // Workspace resolution sources, in precedence order.
 const (
@@ -52,10 +65,23 @@ func loadContext() (*context, error) {
 		return nil, err
 	}
 
+	repoRoot := config.RootFromConfigPath(cfgPath)
+
+	// Serialize concurrent metis processes on this repository: every
+	// command's load→mutate→save sequence runs under the lock, so two
+	// agent sessions can never lose each other's ledger updates.
+	if repoLockRelease == nil {
+		release, err := fsutil.AcquireLock(filepath.Join(repoRoot, ".metis", ".lock"))
+		if err != nil {
+			return nil, err
+		}
+		repoLockRelease = release
+	}
+
 	ctx := &context{
 		cfg:      cfg,
 		cfgPath:  cfgPath,
-		repoRoot: config.RootFromConfigPath(cfgPath),
+		repoRoot: repoRoot,
 		source:   source,
 		wsName:   wsName,
 	}

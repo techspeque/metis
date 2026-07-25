@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/spf13/cobra"
@@ -53,10 +52,9 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 			}
 			if exitCode == 0 {
 				fmt.Println("environment: OK")
-			} else {
-				os.Exit(exitCode)
+				return nil
 			}
-			return nil
+			return exitWithCode(cmd, exitCode)
 		}
 
 		// Determine label
@@ -76,12 +74,9 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 
 		if exitCode == 0 {
 			fmt.Println("verify: ALL GREEN")
+			return nil
 		}
-
-		if exitCode != 0 {
-			os.Exit(exitCode)
-		}
-		return nil
+		return exitWithCode(cmd, exitCode)
 	},
 }
 
@@ -114,7 +109,7 @@ var interfacesCmd = &cobra.Command{
 		}
 
 		if exitCode != 0 {
-			os.Exit(exitCode)
+			return exitWithCode(cmd, exitCode)
 		}
 		return nil
 	},

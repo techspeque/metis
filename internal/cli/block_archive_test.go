@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -12,6 +13,9 @@ import (
 func makeGitProjectWithLedger(t *testing.T) string {
 	t.Helper()
 	dir := makeProjectWithLedger(t)
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte(".metis/.lock\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, args := range [][]string{
 		{"init", "-q"},
 		{"config", "user.email", "t@t.co"},

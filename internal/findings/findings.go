@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/techspeque/metis/internal/fsutil"
 )
 
 // Finding represents a single review finding.
@@ -66,12 +68,21 @@ func (s *Store) Save(path string) error {
 	if err != nil {
 		return fmt.Errorf("marshaling findings: %w", err)
 	}
-	return os.WriteFile(path, data, 0o644)
+	return fsutil.WriteFileAtomic(path, data, 0o644)
 }
 
-// Add appends a new finding and returns its generated ID.
+// Add appends a new finding and returns its generated ID. The ID is one
+// past the highest existing numeric ID (not the slice length), so IDs stay
+// unique even after findings are compacted or appended concurrently.
 func (s *Store) Add(sliceID, severity, category, finding string) string {
-	id := fmt.Sprintf("f-%03d", len(s.Findings)+1)
+	maxID := 0
+	for _, f := range s.Findings {
+		var n int
+		if _, err := fmt.Sscanf(f.ID, "f-%d", &n); err == nil && n > maxID {
+			maxID = n
+		}
+	}
+	id := fmt.Sprintf("f-%03d", maxID+1)
 	s.Findings = append(s.Findings, Finding{
 		ID:       id,
 		Date:     time.Now().Format("2006-01-02"),

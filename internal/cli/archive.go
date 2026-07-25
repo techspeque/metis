@@ -38,10 +38,12 @@ var archiveCmd = &cobra.Command{
 			return nil
 		}
 
-		if err := ctx.saveLedger(l); err != nil {
+		// Archive first, then shrink the ledger: if the second write fails,
+		// slices exist in both files (recoverable) rather than neither.
+		if err := ctx.saveArchive(archive); err != nil {
 			return err
 		}
-		if err := ctx.saveArchive(archive); err != nil {
+		if err := ctx.saveLedger(l); err != nil {
 			return err
 		}
 
