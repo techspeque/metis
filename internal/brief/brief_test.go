@@ -126,3 +126,36 @@ func TestRender_Gate(t *testing.T) {
 		}
 	}
 }
+
+func TestParseOwnedPaths(t *testing.T) {
+	inline := "- **owned_paths:** src/auth/, cmd/main.go\n- **read_only_paths:** internal/\n"
+	got := ParseOwnedPaths(inline)
+	if len(got) != 2 || got[0] != "src/auth/" || got[1] != "cmd/main.go" {
+		t.Errorf("inline parse = %v", got)
+	}
+
+	bullets := "- **owned_paths:**\n  - internal/foo/\n  - pkg/bar.go\n- **read_only_paths:** x\n"
+	got = ParseOwnedPaths(bullets)
+	if len(got) != 2 || got[0] != "internal/foo/" || got[1] != "pkg/bar.go" {
+		t.Errorf("bullet parse = %v", got)
+	}
+
+	// Unfilled template placeholder must not count as scope.
+	if got := ParseOwnedPaths("- **owned_paths:** exact files this slice may edit\n"); len(got) != 0 {
+		t.Errorf("placeholder should parse to no paths, got %v", got)
+	}
+}
+
+func TestInScope(t *testing.T) {
+	owned := []string{"src/auth/", "cmd/main.go"}
+	for file, want := range map[string]bool{
+		"src/auth/login.go": true,
+		"cmd/main.go":       true,
+		"src/other/x.go":    false,
+		"cmd/main.gopher":   false,
+	} {
+		if InScope(file, owned) != want {
+			t.Errorf("InScope(%q) != %v", file, want)
+		}
+	}
+}

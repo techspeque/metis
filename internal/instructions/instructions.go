@@ -96,14 +96,15 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 
 	if role == "" || role == "reviewer" {
 		b.WriteString("## Step 6b: Reviewer Flow\n\n")
-		b.WriteString("1. **Locate commits** — `git log --oneline --grep \"<slice-id>\"`\n")
+		b.WriteString("1. **Locate commits** — `metis log <id>`\n")
 		b.WriteString("2. **Read brief** — `metis brief <id>`\n")
 		b.WriteString("3. **Independent verify** — `metis verify --post`\n")
-		b.WriteString("4. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
-		b.WriteString("5. **Verdict:**\n")
+		b.WriteString("4. **Audit scope** — `metis log <id> --validate` (format + files vs brief scope; FAIL -> block)\n")
+		b.WriteString("5. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
+		b.WriteString("6. **Verdict:**\n")
 		b.WriteString("   - Pass -> `metis commit --flip reviewed --agent <your-slug>` then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
-		b.WriteString("6. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
+		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
 	}
 
 	return strings.TrimSpace(b.String())
@@ -333,6 +334,7 @@ func sectionToolingMap() string {
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
 | ` + "`metis status`" + ` | One-line progress summary |
+| ` + "`metis log <id> --validate`" + ` | Audit slice commits: format + scope vs brief |
 | ` + "`metis config get <key>`" + ` | Read one config value |
 
 Every read command accepts ` + "`-o json`" + `. When you need an exact value

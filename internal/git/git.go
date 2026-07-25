@@ -88,3 +88,43 @@ func CommitAmend(repoDir, message string) error {
 	}
 	return nil
 }
+
+// SliceCommit is one commit associated with a slice.
+type SliceCommit struct {
+	Hash    string   `json:"hash"`
+	Subject string   `json:"subject"`
+	Body    string   `json:"body"`
+	Files   []string `json:"files"`
+}
+
+// SliceCommits returns every commit whose message references the slice ID,
+// oldest first, with the files each touched.
+func SliceCommits(repoDir, sliceID string) ([]SliceCommit, error) {
+	cmd := exec.Command("git", "log", "--reverse", "--grep", sliceID, "--format=%H")
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git log: %w", err)
+	}
+
+	var commits []SliceCommit
+	for _, hash := range strings.Fields(string(out)) {
+		show := exec.Command("git", "show", "--name-only", "--format=%s%n%b%x00", hash)
+		show.Dir = repoDir
+		raw, err := show.Output()
+		if err != nil {
+			return nil, fmt.Errorf("git show %s: %w", hash, err)
+		}
+		parts := strings.SplitN(string(raw), "\x00", 2)
+		header := strings.SplitN(parts[0], "\n", 2)
+		c := SliceCommit{Hash: hash[:7], Subject: header[0]}
+		if len(header) > 1 {
+			c.Body = strings.TrimSpace(header[1])
+		}
+		if len(parts) > 1 {
+			c.Files = append(c.Files, strings.Fields(parts[1])...)
+		}
+		commits = append(commits, c)
+	}
+	return commits, nil
+}

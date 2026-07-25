@@ -155,12 +155,16 @@ If `metis next` assigned role = **Coder**:
 
 If `metis next` assigned role = **Reviewer**:
 
-1. **Locate commits** — `git log --oneline --grep "<slice-id>"`
+1. **Locate commits** — `metis log <id>`
 
 2. **Read brief** — `metis brief <id>` (reads the committed brief)
 
 3. **Independent verify** — `metis verify --post`
    (You MUST verify independently — stored logs are evidence, not proof)
+
+3b. **Audit scope** — `metis log <id> --validate`: deterministic check that
+   every commit matches the format and every touched file falls inside the
+   brief's declared `owned_paths`. FAIL → block with category `scope`.
 
 4. **Walk checklist** — one-line verdict per item, citing `file:line`:
    1. Behavioral correctness
