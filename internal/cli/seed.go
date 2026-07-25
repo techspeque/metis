@@ -85,7 +85,7 @@ var seedCmd = &cobra.Command{
 			case !slugs[s.Reviewer]:
 				problems = append(problems, fmt.Sprintf("%s: unknown reviewer %q", s.ID, s.Reviewer))
 			}
-			if s.Coder != "" && s.Coder == s.Reviewer {
+			if !ctx.allowSelfReview() && s.Coder != "" && s.Coder == s.Reviewer {
 				problems = append(problems, fmt.Sprintf("%s: coder and reviewer are both %q (cross-vendor review)", s.ID, s.Coder))
 			}
 			if !s.Risk.IsValid() {

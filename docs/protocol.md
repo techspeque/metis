@@ -171,7 +171,7 @@ If `metis next` assigned role = **Reviewer**:
    6. Maintainability
 
 5. **Verdict:**
-   - **Pass:** `metis commit --flip reviewed` then `metis archive`
+   - **Pass:** `metis commit --flip reviewed --agent <your-slug>` then `metis archive`
    - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."`
 
    Both paths are atomic — `block` and `archive` commit the ledger and

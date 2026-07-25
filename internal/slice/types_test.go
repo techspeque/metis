@@ -171,14 +171,14 @@ func TestSlice_Validate(t *testing.T) {
 		Created:  "2026-07-09",
 	}
 
-	if errs := valid.Validate(); len(errs) != 0 {
+	if errs := valid.Validate(false); len(errs) != 0 {
 		t.Errorf("valid slice has errors: %v", errs)
 	}
 
 	// Test invalid: same coder and reviewer
 	s := valid
 	s.Reviewer = s.Coder
-	if errs := s.Validate(); len(errs) == 0 {
+	if errs := s.Validate(false); len(errs) == 0 {
 		t.Error("expected error for coder == reviewer")
 	}
 
@@ -186,7 +186,7 @@ func TestSlice_Validate(t *testing.T) {
 	s = valid
 	s.Coded = false
 	s.Reviewed = true
-	if errs := s.Validate(); len(errs) == 0 {
+	if errs := s.Validate(false); len(errs) == 0 {
 		t.Error("expected error for reviewed && !coded")
 	}
 
@@ -194,21 +194,21 @@ func TestSlice_Validate(t *testing.T) {
 	s = valid
 	s.Plan = "plans/impl.md"
 	s.PlanSection = ""
-	if errs := s.Validate(); len(errs) == 0 {
+	if errs := s.Validate(false); len(errs) == 0 {
 		t.Error("expected error for plan without plan_section")
 	}
 
 	// Test invalid: bad type
 	s = valid
 	s.Type = "invalid"
-	if errs := s.Validate(); len(errs) == 0 {
+	if errs := s.Validate(false); len(errs) == 0 {
 		t.Error("expected error for invalid type")
 	}
 
 	// Test invalid: empty ID
 	s = valid
 	s.ID = ""
-	if errs := s.Validate(); len(errs) == 0 {
+	if errs := s.Validate(false); len(errs) == 0 {
 		t.Error("expected error for empty ID")
 	}
 }

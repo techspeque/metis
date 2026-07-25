@@ -404,7 +404,7 @@ func TestArchive(t *testing.T) {
 
 func TestValidate_Valid(t *testing.T) {
 	l := sampleLedger()
-	errs := l.Validate(nil)
+	errs := l.Validate(nil, false)
 	if len(errs) != 0 {
 		t.Errorf("valid ledger has errors: %v", errs)
 	}
@@ -420,7 +420,7 @@ func TestValidate_DuplicateIDs(t *testing.T) {
 				Risk: slice.RiskMedium, Coder: "a", Reviewer: "b"},
 		},
 	}
-	errs := l.Validate(nil)
+	errs := l.Validate(nil, false)
 	if len(errs) == 0 {
 		t.Error("expected error for duplicate IDs")
 	}
@@ -435,7 +435,7 @@ func TestValidate_AgentSlugs(t *testing.T) {
 		},
 	}
 	agents := map[string]bool{"b": true}
-	errs := l.Validate(agents)
+	errs := l.Validate(agents, false)
 	found := false
 	for _, e := range errs {
 		if e.Error() == "feat-0001: coder \"unknown-agent\" not in agents map" {
@@ -457,7 +457,7 @@ func TestValidate_CircularDeps(t *testing.T) {
 				Risk: slice.RiskMedium, Coder: "x", Reviewer: "y", BlockedBy: []string{"a"}},
 		},
 	}
-	errs := l.Validate(nil)
+	errs := l.Validate(nil, false)
 	found := false
 	for _, e := range errs {
 		if e != nil {
@@ -485,5 +485,23 @@ func sampleLedger() *Ledger {
 				Coder: "agent-a", Reviewer: "agent-b", Created: "2026-07-02",
 			},
 		},
+	}
+}
+
+// TestValidate_SelfReviewPolicy pins single-agent mode: coder==reviewer is
+// rejected by default and accepted when the policy allows it.
+func TestValidate_SelfReviewPolicy(t *testing.T) {
+	l := &Ledger{Version: 1, Slices: []slice.Slice{{
+		ID: "feat-0001", Title: "t", Type: slice.TypeFeat,
+		Priority: slice.PriorityP2, Risk: slice.RiskLow,
+		Coder: "solo/agent", Reviewer: "solo/agent", Created: "2026-07-26",
+	}}}
+	agents := map[string]bool{"solo/agent": true}
+
+	if errs := l.Validate(agents, false); len(errs) == 0 {
+		t.Error("self-review should fail without the policy")
+	}
+	if errs := l.Validate(agents, true); len(errs) != 0 {
+		t.Errorf("self-review with policy should pass, got: %v", errs)
 	}
 }

@@ -57,7 +57,7 @@ var checkCmd = &cobra.Command{
 				return err
 			}
 
-			errs := l.Validate(ctx.agentSlugs())
+			errs := l.Validate(ctx.agentSlugs(), ctx.allowSelfReview())
 			section := &checkSection{OK: len(errs) == 0, Errors: []string{}, Slices: len(l.Slices)}
 			for _, e := range errs {
 				section.Errors = append(section.Errors, e.Error())

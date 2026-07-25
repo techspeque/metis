@@ -186,6 +186,12 @@ func (c *context) saveArchive(a *ledger.Archive) error {
 	return a.Save(c.archivePath())
 }
 
+// allowSelfReview reports whether the project opts into single-agent mode
+// (routing.review: self), where coder and reviewer may be the same agent.
+func (c *context) allowSelfReview() bool {
+	return c.cfg.Routing.Review == "self"
+}
+
 // agentSlugs returns the set of valid agent slugs from the config.
 func (c *context) agentSlugs() map[string]bool {
 	slugs := make(map[string]bool)

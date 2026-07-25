@@ -110,7 +110,7 @@ Done slices cannot be edited — 'metis reopen' them first.`,
 			return fmt.Errorf("nothing to change — pass at least one flag (see 'metis edit --help')")
 		}
 
-		if s.Coder != "" && s.Coder == s.Reviewer {
+		if !ctx.allowSelfReview() && s.Coder != "" && s.Coder == s.Reviewer {
 			return fmt.Errorf("coder and reviewer must differ (cross-vendor review)")
 		}
 		if s.Plan != "" && s.PlanSection == "" {

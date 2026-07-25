@@ -101,7 +101,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("3. **Independent verify** — `metis verify --post`\n")
 		b.WriteString("4. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
 		b.WriteString("5. **Verdict:**\n")
-		b.WriteString("   - Pass -> `metis commit --flip reviewed` then `metis archive`\n")
+		b.WriteString("   - Pass -> `metis commit --flip reviewed --agent <your-slug>` then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
 		b.WriteString("6. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
 	}
@@ -328,7 +328,7 @@ func sectionToolingMap() string {
 | ` + "`metis commit -m \"...\"`" + ` | Commit with enforced format |
 | ` + "`metis commit --brief`" + ` | Commit the brief |
 | ` + "`metis commit --flip coded`" + ` | Flip coded and commit |
-| ` + "`metis commit --flip reviewed`" + ` | Flip reviewed and commit |
+| ` + "`metis commit --flip reviewed --agent <slug>`" + ` | Flip reviewed and commit (identity required) |
 | ` + "`metis block <id>`" + ` | Block a slice during review |
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
