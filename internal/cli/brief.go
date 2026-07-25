@@ -41,6 +41,9 @@ template. Use --write to create the file.`,
 
 		// If brief already exists, print it
 		if data, err := os.ReadFile(briefPath); err == nil {
+			if jsonOutput() {
+				return printJSON(cmd, briefOutput{ID: s.ID, Path: briefPath, Exists: true, Content: string(data)})
+			}
 			fmt.Print(string(data))
 			return nil
 		}
@@ -61,7 +64,18 @@ template. Use --write to create the file.`,
 			return nil
 		}
 
+		if jsonOutput() {
+			return printJSON(cmd, briefOutput{ID: s.ID, Path: briefPath, Exists: false, Content: content})
+		}
 		fmt.Print(content)
 		return nil
 	},
+}
+
+// briefOutput is the JSON shape of 'metis brief'.
+type briefOutput struct {
+	ID      string `json:"id"`
+	Path    string `json:"path"`
+	Exists  bool   `json:"exists"`
+	Content string `json:"content"`
 }

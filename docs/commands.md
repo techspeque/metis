@@ -20,7 +20,8 @@ consumers read the same repo at the same time.
 
 JSON is emitted on stdout; exit codes are unchanged. Commands with JSON
 support: `status`, `next`, `list`, `show`, `progress`, `findings`, `check`,
-`version`, `workspace list`, `workspace current`.
+`version`, `config view`, `config get`, `rule list`, `brief`, `kickoff`,
+`instructions`, `workspace list`, `workspace current`.
 
 **For programmatic consumers (agents, editors, scripts): always pass
 `--output json` explicitly and parse fields from it — never parse the
@@ -147,16 +148,13 @@ metis seed .metis/plans/phase-1.md --type feat  # override type (default: feat)
 
 ## Slice Lifecycle
 
-### `metis flip coded <id>`
+### Flipping lifecycle flags
 
-Mark a slice as coded. The coder runs this after implementation is complete.
-
-### `metis flip reviewed <id>`
-
-Mark a slice as reviewed (sign-off). The reviewer runs this after approving.
-
-Flags:
-- `--agent <slug>` — identifies the reviewer (validates not same as coder)
+Lifecycle flags are flipped through `metis commit --flip coded` /
+`metis commit --flip reviewed` (see [Git Enforcement](#metis-commit)) — the
+flip and the ledger commit are one atomic step, so the ledger can never be
+left dirty between them. For `reviewed`, the dispatching agent is validated
+against the slice's coder (cross-vendor review).
 
 ### `metis block <id>`
 
@@ -195,12 +193,13 @@ Move all fully-done slices (`coded && reviewed`) to `.metis/slices-done.yaml`.
 
 Full verification pipeline:
 
-1. Run `metis env-check` → fail = exit 2 (environment failure)
+1. Run the environment soundness check (`commands.env_check`) → fail = exit 2
 2. Run configured `commands.verify` → fail = exit 1 (code failure)
 
 ```bash
 metis verify --pre     # pre-flight (before changes), stored as verify-pre.log
 metis verify --post    # post-implementation, stored as verify-post.log
+metis verify --env     # environment soundness check only
 metis verify           # stored as verify-latest.log
 ```
 
@@ -209,11 +208,7 @@ metis verify           # stored as verify-latest.log
 - 1: verify command failed (code error)
 - 2: environment failure (do NOT modify code)
 
-### `metis env-check`
-
-Run the configured `commands.env_check` to verify environment soundness.
-
-Exit 2 prints:
+On environment failure (exit 2) it prints:
 ```
 VERDICT: ENVIRONMENT FAILURE — NOT A CODE FAILURE.
 Do NOT modify code, tests, or config to make verify pass.

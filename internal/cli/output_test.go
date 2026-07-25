@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -221,5 +222,65 @@ func TestCheckJSONReportsFailure(t *testing.T) {
 	}
 	if result.OK || result.Config == nil || result.Config.OK || len(result.Config.Errors) == 0 {
 		t.Errorf("check JSON = %+v, want config failure details", result)
+	}
+}
+
+func TestKickoffAndInstructionsJSON(t *testing.T) {
+	makeProjectWithLedger(t)
+	setOutputFlag(t, "json")
+
+	var kick struct {
+		Role    string `json:"role"`
+		Content string `json:"content"`
+	}
+	captureJSON(t, kickoffCmd, nil, &kick)
+	if !strings.Contains(kick.Content, "Metis Session Protocol") {
+		t.Errorf("kickoff JSON content missing protocol header")
+	}
+
+	var instr struct {
+		For     string `json:"for"`
+		Content string `json:"content"`
+	}
+	captureJSON(t, instructionsCmd, nil, &instr)
+	if instr.Content == "" || instr.For != "" {
+		t.Errorf("instructions JSON = for=%q, content len %d", instr.For, len(instr.Content))
+	}
+}
+
+func TestBriefAndRuleListJSON(t *testing.T) {
+	makeProjectWithLedger(t)
+	setOutputFlag(t, "json")
+
+	var b struct {
+		ID      string `json:"id"`
+		Exists  bool   `json:"exists"`
+		Content string `json:"content"`
+	}
+	captureJSON(t, briefCmd, []string{"feat-0001"}, &b)
+	if b.ID != "feat-0001" || b.Exists || b.Content == "" {
+		t.Errorf("brief JSON = %+v", b)
+	}
+
+	var rules []string
+	captureJSON(t, ruleListCmd, nil, &rules)
+	if rules == nil {
+		t.Error("rule list JSON should be an empty array, not null")
+	}
+}
+
+// TestRemovedSurface pins the CLI cleanup: no bare 'flip' command, no
+// 'env-check' command, no stale 'instructions --json' flag.
+func TestRemovedSurface(t *testing.T) {
+	for _, c := range rootCmd.Commands() {
+		if c.Name() == "flip" || c.Name() == "env-check" {
+			t.Errorf("command %q should have been removed", c.Name())
+		}
+	}
+	if instructionsCmd.Flags().Lookup("json") != nil {
+		t.Error("instructions --json flag should have been removed")
+	}
+	if verifyCmd.Flags().Lookup("env") == nil {
+		t.Error("verify --env flag should exist")
 	}
 }
