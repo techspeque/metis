@@ -1,4 +1,4 @@
-// Package config handles loading and validating the metis.yaml configuration.
+// Package config handles loading and validating the .metis/project.yaml configuration.
 package config
 
 import (
@@ -9,7 +9,7 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config represents the full metis.yaml configuration.
+// Config represents the full .metis/project.yaml configuration.
 type Config struct {
 	Version         int              `yaml:"version" json:"version"`
 	Project         ProjectConfig    `yaml:"project" json:"project"`
@@ -114,7 +114,48 @@ func DefaultConfig() Config {
 	}
 }
 
-// Load reads and parses a metis.yaml file, applying defaults for missing fields.
+// FileName is the project configuration file, relative to the repo root.
+// It lives inside .metis/ (project.yaml) alongside the rest of the project
+// state; the file is distinct from the user-level ~/.metis/config.yaml.
+const FileName = ".metis/project.yaml"
+
+// LegacyFileName is the pre-v0.0.5 location at the repo root. Discovery
+// still accepts it (with a deprecation warning); 'metis init' migrates it.
+const LegacyFileName = "metis.yaml"
+
+// IsLegacyPath reports whether a discovered config path uses the deprecated
+// repo-root location.
+func IsLegacyPath(path string) bool {
+	return filepath.Base(filepath.Dir(path)) != ".metis"
+}
+
+// RootFromConfigPath returns the repo root for a discovered config path,
+// handling both the current (.metis/project.yaml) and legacy (root
+// metis.yaml) locations.
+func RootFromConfigPath(cfgPath string) string {
+	dir := filepath.Dir(cfgPath)
+	if filepath.Base(dir) == ".metis" {
+		return filepath.Dir(dir)
+	}
+	return dir
+}
+
+// FindConfigIn returns the config path directly under the given repo root,
+// preferring the current location over the legacy one.
+func FindConfigIn(root string) (string, error) {
+	current := filepath.Join(root, FileName)
+	if _, err := os.Stat(current); err == nil {
+		return current, nil
+	}
+	legacy := filepath.Join(root, LegacyFileName)
+	if _, err := os.Stat(legacy); err == nil {
+		return legacy, nil
+	}
+	return "", fmt.Errorf("no %s (or legacy %s) found at %s", FileName, LegacyFileName, root)
+}
+
+// Load reads and parses a project configuration file, applying defaults for
+// missing fields.
 func Load(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -124,7 +165,8 @@ func Load(path string) (*Config, error) {
 	return Parse(data)
 }
 
-// Parse parses metis.yaml content from bytes, applying defaults for missing fields.
+// Parse parses project configuration content from bytes, applying defaults
+// for missing fields.
 func Parse(data []byte) (*Config, error) {
 	cfg := DefaultConfig()
 
@@ -140,8 +182,9 @@ func Parse(data []byte) (*Config, error) {
 	return &cfg, nil
 }
 
-// FindConfig searches for metis.yaml starting from the given directory,
-// walking up to the repository root. Returns the path if found.
+// FindConfig searches for the project configuration starting from the given
+// directory, walking up to the filesystem root. At each level the current
+// location (.metis/project.yaml) is preferred over the legacy root metis.yaml.
 func FindConfig(startDir string) (string, error) {
 	dir, err := filepath.Abs(startDir)
 	if err != nil {
@@ -149,9 +192,8 @@ func FindConfig(startDir string) (string, error) {
 	}
 
 	for {
-		candidate := filepath.Join(dir, "metis.yaml")
-		if _, err := os.Stat(candidate); err == nil {
-			return candidate, nil
+		if path, err := FindConfigIn(dir); err == nil {
+			return path, nil
 		}
 
 		// Stop at filesystem root
@@ -162,10 +204,11 @@ func FindConfig(startDir string) (string, error) {
 		dir = parent
 	}
 
-	return "", fmt.Errorf("metis.yaml not found (searched from %s to filesystem root)", startDir)
+	return "", fmt.Errorf("%s not found (searched from %s to filesystem root)", FileName, startDir)
 }
 
-// LoadFromDir finds and loads metis.yaml starting from the given directory.
+// LoadFromDir finds and loads the project configuration starting from the
+// given directory.
 func LoadFromDir(dir string) (*Config, error) {
 	path, err := FindConfig(dir)
 	if err != nil {

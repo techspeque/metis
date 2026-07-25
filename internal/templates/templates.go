@@ -63,7 +63,7 @@ it cannot do before.>
 ## Workstream <N.1>: <Title>
 
 - **Risk:** low | medium | high
-- **Coder:** <agent-slug from metis.yaml agents map>
+- **Coder:** <agent-slug — see ` + "`metis config get agents -o json`" + `>
 - **Reviewer:** <agent-slug, must differ from coder>
 - **Stage:** <project taxonomy label, e.g., foundation | mvp | beta>
 - **Blocked by:** <workstream IDs if dependency exists, omit if none>
@@ -192,7 +192,8 @@ Where the seam points are.>
 ### 3.2 Non-Goals (do NOT build)
 
 <Explicit things this project will never do. Agents must not build these
-even if asked indirectly. These become ` + "`non_goals`" + ` in metis.yaml.>
+even if asked indirectly. These become ` + "`non_goals`" + ` in the project config
+(the human applies them via ` + "`metis config set`" + `).>
 
 - <non-goal>
 - <non-goal>
@@ -200,7 +201,8 @@ even if asked indirectly. These become ` + "`non_goals`" + ` in metis.yaml.>
 ### 3.3 Invariants (must ALWAYS hold)
 
 <Project-wide rules that must never be violated. These become
-` + "`accuracy_rules`" + ` in metis.yaml and are enforced in every review.>
+` + "`accuracy_rules`" + ` (added via ` + "`metis rule add`" + ` or promoted from findings
+via ` + "`metis rule promote`" + `) and are enforced in every review.>
 
 - <invariant>
 - <invariant>
@@ -284,7 +286,7 @@ stating the decision, followed by the rules or invariants it implies.>
 
 ### Rules this decision implies:
 
-1. <rule — concrete, enforceable, may become an accuracy_rule in metis.yaml>
+1. <rule — concrete, enforceable, may become an accuracy_rule via ` + "`metis rule add`" + `>
 2. <rule>
 3. <rule>
 
@@ -376,8 +378,8 @@ affect pending or future work.>
 - [ ] Plan file <path> updated: <what changed>
 - [ ] ADR <NNNN> superseded by ADR <MMMM>: <reason>
 - [ ] ADR <NNNN> created: <new decision required by changes>
-- [ ] Accuracy rules updated in metis.yaml: <if invariants changed>
-- [ ] Non-goals updated in metis.yaml: <if scope boundaries changed>
+- [ ] Accuracy rules updated (` + "`metis rule add`" + ` / ` + "`metis rule promote`" + `): <if invariants changed>
+- [ ] Non-goals updated (` + "`metis config set non_goals ...`" + `): <if scope boundaries changed>
 
 ---
 

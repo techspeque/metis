@@ -16,7 +16,7 @@ func init() {
 var checkCmd = &cobra.Command{
 	Use:   "check",
 	Short: "Validate configuration and ledger integrity",
-	Long:  `Validates metis.yaml and the slice ledger. Exit code 0 = pass, 1 = failure.`,
+	Long:  `Validates .metis/project.yaml and the slice ledger. Exit code 0 = pass, 1 = failure.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		configOnly, _ := cmd.Flags().GetBool("config")
 		ledgerOnly, _ := cmd.Flags().GetBool("ledger")

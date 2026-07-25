@@ -14,7 +14,7 @@ METIS_OUTPUT=json metis list
 ```
 
 Resolution order: `--output` flag → `METIS_OUTPUT` → plain text. The format
-is deliberately **not** configurable in `metis.yaml`: output shape is a
+is deliberately **not** configurable in `.metis/project.yaml`: output shape is a
 property of the consumer (human, agent, or tool), not the project — several
 consumers read the same repo at the same time.
 
@@ -247,7 +247,7 @@ metis commit --amend                            # amend previous commit
 
 ### `metis instructions`
 
-Emit the full dynamic agent contract assembled from `metis.yaml`.
+Emit the full dynamic agent contract assembled from `.metis/project.yaml`.
 
 ```bash
 metis instructions                  # full contract
@@ -320,7 +320,7 @@ feat-0001 | Coder | opencode/opus | 14/42 done (33%)
 
 ### `metis rule add "..."`
 
-Append a new accuracy rule to `metis.yaml`.
+Append a new accuracy rule to `.metis/project.yaml`.
 
 ### `metis rule list`
 
@@ -349,7 +349,7 @@ Scalars print raw (script-friendly); lists and sections print as YAML.
 
 ### `metis config set <key> <value>`
 
-Set one value in `metis.yaml` by dotted key path. The edit goes through the
+Set one value in `.metis/project.yaml` by dotted key path. The edit goes through the
 YAML node tree, so **comments and unrelated formatting are preserved**.
 Unknown keys are rejected with the list of valid keys at that level; values
 are type-checked against the schema (bools, ints, strings, string lists).
@@ -380,14 +380,14 @@ Check adapter files exist and are not stale (config changed since last generate)
 
 Workspaces are a user-level registry (`~/.metis/config.yaml`) for the human
 persona working across many projects. Agents are unaffected: inside a repo,
-upward discovery of `metis.yaml` always wins and the registry is never
+upward discovery of `.metis/project.yaml` always wins and the registry is never
 consulted.
 
 Every command resolves its target project in this order:
 
 1. `--workspace <name>` (`-w`) — global flag, explicit always wins
 2. `METIS_WORKSPACE` env var — scripting/CI override
-3. Upward discovery of `metis.yaml` from the current directory
+3. Upward discovery of `.metis/project.yaml` from the current directory
 4. The active workspace from `~/.metis/config.yaml`
 
 When a command resolves via anything other than cwd discovery, it prints a
@@ -396,14 +396,14 @@ provenance line to stderr: `workspace: <name> (<path>) [via --workspace]`.
 ### `metis workspace list`
 
 List registered workspaces. The active one is marked `[active]`; entries
-whose path no longer contains a `metis.yaml` are marked `[missing]` (they
+whose path no longer contains a `.metis/project.yaml` are marked `[missing]` (they
 are displayed, never auto-pruned — an unmounted volume is not a deleted
 project).
 
 ### `metis workspace add <name> [path]`
 
 Register a workspace. The path defaults to the repo root discovered from the
-current directory and must contain a `metis.yaml`.
+current directory and must contain a `.metis/project.yaml`.
 
 ### `metis workspace remove <name>`
 
@@ -434,12 +434,12 @@ METIS_WORKSPACE=acme-api metis next
 Scaffold a new Metis project.
 
 ```bash
-metis init                    # interactive (creates minimal metis.yaml)
-metis init --from metis.yaml  # non-interactive (reads existing config, scaffolds state)
+metis init                    # interactive (creates minimal .metis/project.yaml)
+metis init --from .metis/project.yaml  # non-interactive (reads existing config, scaffolds state)
 ```
 
 Creates:
-- `metis.yaml` (if not present)
+- `.metis/project.yaml` (if not present)
 - `.metis/` directory structure (slices, briefs, plans, adr, templates, runs)
 - Surface adapters (CLAUDE.md, AGENTS.md, opencode.json, .claude/settings.json)
 - Document templates in `.metis/templates/`

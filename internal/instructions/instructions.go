@@ -1,5 +1,5 @@
 // Package instructions implements the dynamic agent contract generation engine.
-// It assembles risk-scaled instructions from metis.yaml configuration.
+// It assembles risk-scaled instructions from .metis/project.yaml configuration.
 package instructions
 
 import (

@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/techspeque/metis/internal/surface"
 )
 
 var (
@@ -22,6 +24,7 @@ func SetVersionInfo(v, c, d string) {
 	commit = c
 	date = d
 	rootCmd.Version = version
+	surface.SetVersion(v)
 }
 
 // SetVersion sets the version string (backwards compatibility).

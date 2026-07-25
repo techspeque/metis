@@ -1,5 +1,5 @@
 // Package git provides git operations with enforcement of branch, commit, and
-// attribution rules as defined in metis.yaml.
+// attribution rules as defined in .metis/project.yaml.
 package git
 
 import (

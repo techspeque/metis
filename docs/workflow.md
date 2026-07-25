@@ -53,7 +53,7 @@ Use the template at `.metis/templates/overview.md` for structure guidance.
 
 ```bash
 metis init
-# Edit metis.yaml: set project.overview, agents, commands, hot_paths, routing
+# Configure via metis config set: set project.overview, agents, commands, hot_paths, routing
 metis surface generate
 ```
 
