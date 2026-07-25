@@ -145,7 +145,7 @@ If `metis next` assigned role = **Coder**:
 
 5. **Regenerate interfaces** — `metis interfaces` (if you changed public API)
 
-6. **Flip** — `metis commit --flip coded`
+6. **Flip** — `metis commit --flip coded --slice <id>` — binding the flip to the slice from Step 2 makes it error loudly if dispatch moved on (e.g. a p0 arrived) instead of flipping the wrong slice
 
 7. **Report** — slice ID, files changed, verify result, what's next
 
@@ -175,7 +175,7 @@ If `metis next` assigned role = **Reviewer**:
    6. Maintainability
 
 5. **Verdict:**
-   - **Pass:** `metis commit --flip reviewed --agent <your-slug>` then `metis archive`
+   - **Pass:** `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`
    - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."`
 
    Both paths are atomic — `block` and `archive` commit the ledger and

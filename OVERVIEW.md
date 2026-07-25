@@ -163,8 +163,9 @@ routing:
   review: cross-vendor   # reviewer must be a different agent than the coder
 
 # ─── Hot Paths ────────────────────────────────────────────────────────────────
-# Paths where a mistake is expensive. Any slice touching these is auto-escalated
-# to risk: high and gets full-depth reading.
+# Paths where a mistake is expensive. Listed as mandatory-caution zones in
+# agent instructions; touches are surfaced by 'metis log --validate'.
+# (Automatic risk escalation from observed paths is deferred roadmap.)
 
 hot_paths:
   - src/auth/
@@ -386,7 +387,9 @@ independently).
 metis init
 ```
 
-Interactive setup. Prompts for project name, language, branch names, agents,
+Non-interactive setup; prints copy-pasteable `metis config set` next steps.
+(A prompting wizard is deferred roadmap.) Formerly specced to prompt for
+project name, language, branch names, agents,
 hot paths, and commands. Writes `metis.yaml` and scaffolds the `.metis/`
 directory structure. Generates surface adapters.
 
@@ -402,7 +405,7 @@ metis check
 ```
 
 Validates everything:
-- Config (`metis.yaml`) structural validity
+- Config (`.metis/project.yaml`) structural validity
 - Ledger integrity (unique IDs, valid slugs, valid risk/priority/type values,
   no `reviewed && !coded`, coder != reviewer, `plan_section` present when
   `plan` is set)
@@ -581,8 +584,9 @@ status.
 metis show <id>
 ```
 
-Show full details of a slice including its brief (if committed), finding
-history, and run logs.
+Show full details of a slice (ledger fields). Inline brief, finding
+history, and run-log display are deferred roadmap — use 'metis brief <id>',
+'metis findings --slice <id>', and .metis/runs/<id>/ directly.
 
 ---
 
@@ -798,9 +802,9 @@ metis verify [--pre | --post]
 ```
 
 Full verification pipeline:
-1. Runs `metis env-check` first. If it fails → exit 2 (env failure).
-2. Runs `metis check --ledger`. If it fails → exit 3 (ledger error).
-3. Runs the configured `commands.verify`. Captures output.
+1. Runs the environment check first ('metis verify --env'). Fail → exit 2.
+2. Runs the configured `commands.verify`. Captures output.
+   (A ledger pre-check with exit 3 is deferred roadmap.)
 
 Flags:
 - `--pre` — labels this as a pre-flight verification (before changes).
@@ -813,7 +817,6 @@ Exit codes:
 - 0: all pass
 - 1: verify command failed (code error)
 - 2: environment failure
-- 3: ledger error
 
 ```
 metis interfaces
@@ -980,7 +983,7 @@ Terminal dashboard showing:
 - Per-phase progress bars (done / in-progress / pending)
 - Overall completion percentage
 - By-stage breakdown
-- Quality stats (first-pass acceptance rate, re-review count)
+- Quality stats — see 'metis findings --stats' (per-agent first-pass rate); inline in progress is deferred roadmap
 - Currently active slice
 - Next up
 
@@ -1067,7 +1070,7 @@ Flags:
 - `--type <type>` — override type for all generated slices (default: `feat`)
 
 ```
-metis seed --interactive <plan-file>
+metis seed --interactive <plan-file>   # DEFERRED — not implemented; use --dry-run + edit the plan
 ```
 
 Walks through each workstream and prompts for confirmation/overrides before
@@ -1275,10 +1278,10 @@ file in `.metis/runs/<slice-id>/`. A timestamp header is prepended:
 The reviewer can inspect the coder's run without re-executing:
 
 ```bash
-metis show phase-2-ws-2.3 --runs
+cat .metis/runs/phase-2-ws-2.3/verify-post.log   # ('metis show --runs' is deferred roadmap)
 ```
 
-Prints the stored verify logs. The reviewer MUST still run `metis verify`
+The stored verify logs are plain files. The reviewer MUST still run `metis verify`
 independently — stored logs are evidence, not proof.
 
 ---
@@ -1621,11 +1624,7 @@ that reads files and runs commands.
 | 0 | Success |
 | 1 | General failure (code error, validation failure) |
 | 2 | Environment failure (env-check failed) |
-| 3 | Ledger error (structural problem in slices.yaml) |
-| 4 | Configuration error (invalid metis.yaml) |
-| 5 | Git error (wrong branch, dirty tree, commit failed) |
-| 10 | No active slice (backlog empty) |
-| 11 | Model mismatch (wrong agent for this slice) |
+| 3-11 | Reserved (deferred roadmap — these currently exit 1; only 0/1/2 are implemented) |
 
 ---
 

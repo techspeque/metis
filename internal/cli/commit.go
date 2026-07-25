@@ -18,6 +18,7 @@ func init() {
 	commitCmd.Flags().String("flip", "", "Shortcut: flip coded or reviewed and commit (coded|reviewed)")
 	commitCmd.Flags().Bool("amend", false, "Amend the previous commit")
 	commitCmd.Flags().String("agent", "", "Your agent slug (required with --flip reviewed for cross-vendor validation)")
+	commitCmd.Flags().String("slice", "", "The slice ID you were dispatched (errors if dispatch has moved on)")
 	rootCmd.AddCommand(commitCmd)
 }
 
@@ -49,6 +50,13 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 
 		sliceID := result.Slice.ID
 		sliceType := result.Slice.Type
+
+		// Bind to the dispatched slice: an agent passes the ID it received
+		// from 'metis next'; if a higher-priority slice arrived in between,
+		// fail loudly instead of silently acting on the wrong slice.
+		if claimed, _ := cmd.Flags().GetString("slice"); claimed != "" && claimed != sliceID {
+			return fmt.Errorf("dispatch has moved on: active slice is %s, you were working %s — re-run 'metis next' and report to the human", sliceID, claimed)
+		}
 
 		// Handle shortcuts
 		briefMode, _ := cmd.Flags().GetBool("brief")

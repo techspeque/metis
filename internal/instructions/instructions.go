@@ -90,7 +90,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("2. **Write brief** — `metis brief <id> --write`, edit it, `metis commit --brief`\n")
 		b.WriteString("3. **Implement** — within declared scope only\n")
 		b.WriteString("4. **Verify** — `metis verify --post`\n")
-		b.WriteString("5. **Flip** — `metis commit --flip coded`\n")
+		b.WriteString("5. **Flip** — `metis commit --flip coded --slice <id>` (the id from Step 2)\n")
 		b.WriteString("6. **Report** — slice ID, files changed, verify result, what's next\n\n")
 	}
 
@@ -102,7 +102,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("4. **Audit scope** — `metis log <id> --validate` (format + files vs brief scope; FAIL -> block)\n")
 		b.WriteString("5. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
 		b.WriteString("6. **Verdict:**\n")
-		b.WriteString("   - Pass -> `metis commit --flip reviewed --agent <your-slug>` then `metis archive`\n")
+		b.WriteString("   - Pass -> `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
 		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
 	}
