@@ -34,7 +34,8 @@ func fillAgentStats(ctx *context, store *findings.Store, stats *findings.Stats) 
 	sliceCoder := map[string]string{}
 	agg := map[string]findings.AgentStats{}
 	all := append(append([]slice.Slice{}, l.Slices...), archive.Slices...)
-	for _, s := range all {
+	for i := range all {
+		s := &all[i]
 		if s.Coder == "" {
 			continue
 		}

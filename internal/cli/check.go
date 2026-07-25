@@ -3,8 +3,11 @@ package cli
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
+
+	"github.com/techspeque/metis/internal/git"
 )
 
 func init() {
@@ -79,6 +82,18 @@ var checkCmd = &cobra.Command{
 		result.OK = len(allErrors) == 0
 		if result.OK {
 			result.Overview = ctx.checkOverviewDrift()
+
+			// The first agent session hard-stops on the wrong branch; warn
+			// the human before that happens.
+			if !jsonOutput() {
+				if branch, err := git.CurrentBranch(ctx.repoRoot); err == nil && branch != ctx.cfg.Project.IntegrationBranch {
+					fmt.Printf("WARNING: current branch is %q but agents only work on %q — git checkout -b %s\n",
+						branch, ctx.cfg.Project.IntegrationBranch, ctx.cfg.Project.IntegrationBranch)
+				}
+				if ctx.cfg.Commands.Verify == "" || strings.Contains(ctx.cfg.Commands.Verify, "no verify configured") {
+					fmt.Println("WARNING: commands.verify is a placeholder — verification proves nothing until you set it")
+				}
+			}
 		}
 
 		if jsonOutput() {

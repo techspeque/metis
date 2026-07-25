@@ -76,7 +76,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 
 	b.WriteString("## Step 4: Read Instructions\n\n")
 	b.WriteString("```bash\nmetis instructions --for <slice-id>\n```\n\n")
-	b.WriteString("Read the output. This is the risk-scaled contract plus contextual archaeology.\n\n")
+	b.WriteString("Read the output. This is the risk-scaled contract plus the project overview.\n\n")
 
 	b.WriteString("## Step 5: Pre-flight Verification\n\n")
 	b.WriteString("```bash\nmetis verify --pre\n```\n\n")
@@ -223,7 +223,7 @@ func sectionHotPaths(cfg *config.Config) string {
 		return "## Hot-Path Zones\n\n(None configured)"
 	}
 	var b strings.Builder
-	b.WriteString("## Hot-Path Zones\n\nAny slice touching these paths is risk: high and gets full-depth reading:\n")
+	b.WriteString("## Hot-Path Zones\n\nMistakes here are expensive. Treat any work touching these paths as high\nrisk: read surrounding code fully before editing, and declare the touch in\nyour brief — `metis log --validate` will surface it to the reviewer:\n")
 	for _, p := range cfg.HotPaths {
 		fmt.Fprintf(&b, "- %s\n", p)
 	}

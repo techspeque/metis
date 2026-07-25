@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -73,6 +74,10 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 		}
 
 		if exitCode == 0 {
+			if strings.Contains(ctx.cfg.Commands.Verify, "no verify configured") {
+				fmt.Println("verify: PLACEHOLDER — commands.verify is not configured; nothing was actually verified")
+				return nil
+			}
 			fmt.Println("verify: ALL GREEN")
 			return nil
 		}

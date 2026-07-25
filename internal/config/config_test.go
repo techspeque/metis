@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -182,7 +183,7 @@ func TestValidate_MissingAgents(t *testing.T) {
 	errs := cfg.Validate()
 	found := false
 	for _, e := range errs {
-		if e.Error() == "at least one agent must be defined in agents" {
+		if strings.Contains(e.Error(), "at least one agent must be defined") {
 			found = true
 		}
 	}

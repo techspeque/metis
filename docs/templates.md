@@ -76,7 +76,7 @@ Standard notation for referencing other Metis artifacts:
 **Purpose:** Create implementation plans that `metis seed` can parse.
 
 **Key constraints:**
-- Workstream headings MUST follow the format: `### Workstream N.M: Title`
+- Workstream headings follow `## Workstream N.M: Title` (the template default; `###` depth also parses)
 - Metadata fields (`Risk`, `Coder`, `Reviewer`, `Stage`) MUST use exact casing
 - Each workstream = one slice = one reviewable unit of work
 

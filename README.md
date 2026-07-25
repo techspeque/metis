@@ -145,13 +145,35 @@ go build -o metis ./cmd/metis
 
 ## Quick Start
 
-1. **Write your OVERVIEW** — the application spec describing what you're building
-2. **Initialize:** `metis init` — scaffolds config, state directory, surface adapters, templates
-3. **Configure:** `metis config set` — overview path, agents, commands, routing
-4. **Plan a phase:** ask an agent to create a plan from the OVERVIEW (using `.metis/templates/plan.md`)
-5. **Seed and execute:** `metis seed .metis/plans/phase-0.md` then launch agent sessions
+```bash
+# 1. Initialize (scaffolds .metis/, adapters, and templates)
+git init my-project && cd my-project
+metis init
 
-Each agent session runs `metis kickoff` and the protocol handles everything from there.
+# 2. Agents only work on the integration branch — create it
+git checkout -b dev
+
+# 3. Configure — no YAML editing; at least two agents for cross-vendor
+#    review (or 'metis config set routing.review self' for single-agent)
+metis config set project.overview OVERVIEW.md
+metis config set commands.verify "go test ./..."
+metis config set agents.claude-code/opus.surface claude-code
+metis config set agents.claude-code/opus.model opus
+metis config set agents.claude-code/opus.label "Claude Code (Opus)"
+metis config set agents.opencode/opus.surface opencode
+metis config set agents.opencode/opus.model opus
+metis config set agents.opencode/opus.label "opencode (Opus)"
+metis surface generate   # refresh adapters after config changes
+metis check              # green = ready
+
+# 4. Write OVERVIEW.md (structure: .metis/templates/overview.md), then ask
+#    an agent to plan Phase 0 using .metis/templates/plan.md, and seed it
+metis seed .metis/plans/phase-0.md --dry-run
+metis seed .metis/plans/phase-0.md
+```
+
+Each agent session runs `metis kickoff` and the protocol handles everything
+from there.
 
 See [docs/workflow.md](docs/workflow.md) for the full workflow guide.
 
