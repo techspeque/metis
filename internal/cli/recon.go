@@ -32,7 +32,7 @@ Completed/archived work is never touched — always fix forward.`,
 		}
 
 		if ctx.cfg.Project.Overview == "" {
-			return fmt.Errorf("project.overview is not configured in metis.yaml")
+			return fmt.Errorf("project.overview is not configured in .metis/project.yaml")
 		}
 
 		// Determine coder/reviewer

@@ -3,7 +3,7 @@ package config
 // This file implements key-path access to the configuration: dotted paths
 // like "project.name" or "agents.claude-code/opus.model", resolved against
 // the Config schema via yaml struct tags. Reads operate on the effective
-// (defaults-applied) config; writes edit the raw metis.yaml through the
+// (defaults-applied) config; writes edit the raw .metis/project.yaml through the
 // yaml.v3 node tree so comments and unrelated formatting survive.
 
 import (
@@ -117,7 +117,7 @@ func parseValueNode(t reflect.Type, raw string) (*yaml.Node, error) {
 		return scalar("!!int", strconv.Itoa(n)), nil
 	case reflect.Slice:
 		if t.Elem().Kind() != reflect.String {
-			return nil, fmt.Errorf("this key is not settable from the CLI — edit metis.yaml directly")
+			return nil, fmt.Errorf("this key is not settable from the CLI — edit .metis/project.yaml directly")
 		}
 		seq := &yaml.Node{Kind: yaml.SequenceNode, Tag: "!!seq"}
 		for _, item := range strings.Split(raw, ",") {
@@ -125,11 +125,11 @@ func parseValueNode(t reflect.Type, raw string) (*yaml.Node, error) {
 		}
 		return seq, nil
 	default:
-		return nil, fmt.Errorf("this key holds a %s and is not settable from the CLI — edit metis.yaml directly", t.Kind())
+		return nil, fmt.Errorf("this key holds a %s and is not settable from the CLI — edit .metis/project.yaml directly", t.Kind())
 	}
 }
 
-// SetInFile updates one key in a metis.yaml file, preserving comments and
+// SetInFile updates one key in a .metis/project.yaml file, preserving comments and
 // unrelated formatting. Intermediate mappings are created as needed.
 func SetInFile(filePath, keyPath, raw string) error {
 	t, err := PathType(keyPath)

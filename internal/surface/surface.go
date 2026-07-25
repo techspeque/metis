@@ -60,7 +60,7 @@ func Validate(cfg *config.Config, repoRoot string) []string {
 
 	current := configHash(cfg)
 	if string(stored) != current {
-		warnings = append(warnings, "surface adapters are stale (config changed since last generate)")
+		warnings = append(warnings, "surface adapters are stale (config or metis version changed since last generate) — run 'metis surface generate'")
 	}
 
 	return warnings
@@ -151,9 +151,21 @@ func writeHashFile(cfg *config.Config, repoRoot string) error {
 	return os.WriteFile(filepath.Join(dir, "surface.hash"), []byte(hash), 0o644)
 }
 
+// toolVersion participates in the staleness hash so that upgrading metis
+// (which may change generated adapter content) flags existing adapters as
+// stale even when the project config is unchanged. Set via SetVersion.
+var toolVersion = "dev"
+
+// SetVersion records the metis version used in the adapter staleness hash.
+func SetVersion(v string) {
+	toolVersion = v
+}
+
 func configHash(cfg *config.Config) string {
-	// Hash the config fields that affect surface adapter content
+	// Hash the config fields that affect surface adapter content, salted
+	// with the metis version that generated them.
 	data, _ := json.Marshal(cfg)
+	data = append(data, []byte(toolVersion)...)
 	h := sha256.Sum256(data)
 	return hex.EncodeToString(h[:])
 }

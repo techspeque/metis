@@ -10,7 +10,7 @@ import (
 
 // Output format is a property of the consumer, not the project: it is
 // resolved from the --output flag, then the METIS_OUTPUT env var, and never
-// from metis.yaml — a project-level default would let one consumer's
+// from .metis/project.yaml — a project-level default would let one consumer's
 // preference leak into another's parsing.
 const envOutput = "METIS_OUTPUT"
 

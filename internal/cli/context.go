@@ -55,9 +55,14 @@ func loadContext() (*context, error) {
 	ctx := &context{
 		cfg:      cfg,
 		cfgPath:  cfgPath,
-		repoRoot: filepath.Dir(cfgPath),
+		repoRoot: config.RootFromConfigPath(cfgPath),
 		source:   source,
 		wsName:   wsName,
+	}
+
+	if config.IsLegacyPath(cfgPath) {
+		fmt.Fprintf(os.Stderr, "warning: %s at the repo root is deprecated — run 'metis init' to migrate it to %s\n",
+			config.LegacyFileName, config.FileName)
 	}
 
 	// Anything other than cwd discovery is a redirection the user should see.
@@ -108,7 +113,7 @@ func resolveConfigPath() (string, string, string, error) {
 		cwd)
 }
 
-// workspacePath resolves a registered workspace name to its metis.yaml path.
+// workspacePath resolves a registered workspace name to its project config path.
 func workspacePath(name string) (string, error) {
 	uc, err := userconfig.Load()
 	if err != nil {
@@ -118,9 +123,9 @@ func workspacePath(name string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("workspace %q is not registered (see 'metis workspace list')", name)
 	}
-	cfgPath := filepath.Join(root, "metis.yaml")
-	if _, err := os.Stat(cfgPath); err != nil {
-		return "", fmt.Errorf("workspace %q points to %s, but no metis.yaml found there (see 'metis workspace list')", name, root)
+	cfgPath, err := config.FindConfigIn(root)
+	if err != nil {
+		return "", fmt.Errorf("workspace %q points to %s, but no %s found there (see 'metis workspace list')", name, root, config.FileName)
 	}
 	return cfgPath, nil
 }

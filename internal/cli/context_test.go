@@ -9,9 +9,25 @@ import (
 	"github.com/techspeque/metis/internal/userconfig"
 )
 
-// makeProject creates a directory containing a minimal metis.yaml and
-// returns its path (symlinks resolved, so paths compare cleanly on macOS).
+// makeProject creates a directory containing a minimal .metis/project.yaml
+// and returns its path (symlinks resolved, so paths compare cleanly on macOS).
 func makeProject(t *testing.T) string {
+	t.Helper()
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, ".metis"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".metis", "project.yaml"), []byte("version: 1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// makeLegacyProject creates a project with the deprecated root metis.yaml.
+func makeLegacyProject(t *testing.T) string {
 	t.Helper()
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
@@ -154,7 +170,7 @@ func TestResolveStaleWorkspacePath(t *testing.T) {
 	if err == nil {
 		t.Fatal("loadContext() with stale workspace path: want error")
 	}
-	if !strings.Contains(err.Error(), "stale") || !strings.Contains(err.Error(), "no metis.yaml") {
+	if !strings.Contains(err.Error(), "stale") || !strings.Contains(err.Error(), "no .metis/project.yaml") {
 		t.Errorf("error %q should explain the stale path", err)
 	}
 }
@@ -171,5 +187,47 @@ func TestResolveNothingFound(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "metis init") || !strings.Contains(err.Error(), "workspace use") {
 		t.Errorf("error %q should suggest both 'metis init' and 'metis workspace use'", err)
+	}
+}
+
+// TestResolveLegacyRootConfig pins the migration grace period: a project
+// with only the deprecated root metis.yaml still resolves, with the repo
+// root derived correctly.
+func TestResolveLegacyRootConfig(t *testing.T) {
+	legacy := makeLegacyProject(t)
+	setUserConfig(t, "", map[string]string{})
+	setWorkspaceFlag(t, "")
+	t.Setenv(envWorkspace, "")
+	t.Chdir(legacy)
+
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatalf("loadContext() on legacy project: %v", err)
+	}
+	if ctx.repoRoot != legacy {
+		t.Errorf("repoRoot = %s, want %s", ctx.repoRoot, legacy)
+	}
+	if ctx.source != sourceCwd {
+		t.Errorf("source = %s, want cwd", ctx.source)
+	}
+}
+
+// TestResolveCurrentBeatsLegacy: when both locations exist, the .metis one wins.
+func TestResolveCurrentBeatsLegacy(t *testing.T) {
+	dir := makeProject(t)
+	if err := os.WriteFile(filepath.Join(dir, "metis.yaml"), []byte("version: 1\nproject: {name: legacy}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setUserConfig(t, "", map[string]string{})
+	setWorkspaceFlag(t, "")
+	t.Setenv(envWorkspace, "")
+	t.Chdir(dir)
+
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if filepath.Base(filepath.Dir(ctx.cfgPath)) != ".metis" {
+		t.Errorf("cfgPath = %s, want the .metis/project.yaml location to win", ctx.cfgPath)
 	}
 }

@@ -94,7 +94,7 @@ using the template at `.metis/templates/plan.md` and the OVERVIEW as input."
 
 **Key constraints:**
 - Sections are numbered and ordered (1-8)
-- Non-goals and invariants sections feed directly into `metis.yaml` configuration
+- Non-goals and invariants sections feed directly into `.metis/project.yaml` configuration
 - Phase sketch provides the high-level roadmap (detailed planning is per-phase)
 
 **How to use:** When starting a new project, use this template as the

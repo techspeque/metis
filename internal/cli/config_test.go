@@ -58,7 +58,7 @@ func TestConfigSetUnknownKey(t *testing.T) {
 		t.Errorf("error should list valid keys: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "metis.yaml"))
+	data, err := os.ReadFile(filepath.Join(dir, ".metis", "project.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
