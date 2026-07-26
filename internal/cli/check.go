@@ -101,6 +101,20 @@ var checkCmd = &cobra.Command{
 				if ctx.cfg.Commands.Verify == "" || strings.Contains(ctx.cfg.Commands.Verify, "no verify configured") {
 					fmt.Println("WARNING: commands.verify is a placeholder — verification proves nothing until you set it")
 				}
+				if ctx.cfg.Routing.Review == "cross-vendor" {
+					if l, lerr := ctx.loadLedger(); lerr == nil {
+						warned := map[string]bool{}
+						for i := range l.Slices {
+							s := &l.Slices[i]
+							cs, rs := ctx.cfg.Agents[s.Coder].Surface, ctx.cfg.Agents[s.Reviewer].Surface
+							pair := s.Coder + "|" + s.Reviewer
+							if cs != "" && cs == rs && !warned[pair] {
+								warned[pair] = true
+								fmt.Printf("WARNING: %s: coder and reviewer share surface %q — cross-vendor means different surfaces (cross-model only)\n", s.ID, cs)
+							}
+						}
+					}
+				}
 			}
 		}
 

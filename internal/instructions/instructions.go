@@ -108,6 +108,8 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("6. **Verdict:**\n")
 		b.WriteString("   - Pass -> " + reviewedCmd + " then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
+		b.WriteString("   - Non-blocking observations -> `metis findings record <id> --finding \"...\"` (advisory; no state change)\n")
+		b.WriteString("   - On pass, close findings you verified fixed: `metis findings resolve <f-id> --note <how>`\n")
 		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
 	}
 
@@ -338,7 +340,9 @@ func sectionToolingMap() string {
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
 | ` + "`metis status`" + ` | One-line progress summary |
-| ` + "`metis log <id> --validate`" + ` | Audit slice commits: format + scope vs brief |
+| ` + "`metis log <id> --validate`" + ` | Audit slice commits: format + scope vs brief (scope N/A for gates — inspect manually) |
+| ` + "`metis findings record <id>`" + ` | Record advisory (non-blocking) observation |
+| ` + "`metis findings resolve <f-id>`" + ` | Close a finding after verifying its fix |
 | ` + "`metis config get <key>`" + ` | Read one config value |
 
 Every read command accepts ` + "`-o json`" + `. When you need an exact value

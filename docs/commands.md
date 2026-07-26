@@ -179,6 +179,19 @@ Blocking is atomic: the ledger and findings changes are committed in the
 same step (`chore(<id>): block review (cycle N)`), so a block never leaves
 the tree dirty between sessions.
 
+### `metis findings record <slice-id>` / `metis findings resolve <finding-id>`
+
+`record` files an advisory (non-blocking) observation — unlike `block`, it
+never touches the slice lifecycle. `resolve` closes a finding after its fix
+is verified, keeping the findings ledger a complete audit trail instead of
+accumulating stale "open" entries.
+
+```bash
+metis findings record feat-0012 --severity P3 --category maint \
+  --finding "footer landmark trade-off forced by plan — revisit in phase 1"
+metis findings resolve f-002 --note "fixed in 4e16005"
+```
+
 ### `metis skip <id> --reason "..."`
 
 Mark a slice as done without implementation (effectively removes from queue).

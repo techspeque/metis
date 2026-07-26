@@ -83,9 +83,17 @@ var addCmd = &cobra.Command{
 			return fmt.Errorf("--plan-section is required when --plan is set")
 		}
 
-		// Generate ID if not provided
+		// Generate ID if not provided. Sequence numbering must consider the
+		// archive too — otherwise archiving feat-0001 lets the next add mint
+		// feat-0001 again, corrupting everything keyed by slice ID.
 		if id == "" {
-			id = slice.GenerateID(wt, slice.NextSequence(l.IDs(), wt))
+			allIDs := l.IDs()
+			if archive, aerr := ctx.loadArchive(); aerr == nil {
+				for i := range archive.Slices {
+					allIDs = append(allIDs, archive.Slices[i].ID)
+				}
+			}
+			id = slice.GenerateID(wt, slice.NextSequence(allIDs, wt))
 		}
 
 		// Parse blocked_by

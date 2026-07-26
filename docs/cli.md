@@ -107,6 +107,8 @@ version** changed since the last generate.
 | `metis config get <key>` | dotted path, e.g. `project.name`, `agents.<slug>.model` | ✓ | Both |
 | `metis config set <key> <value>` | comments preserved; lists comma-separated | — | Human |
 | `metis rule add "<text>"` | — | — | Both |
+| `metis findings record <slice-id>` | `--severity` · `--category` · `--finding`\* | — | Agent (reviewer) — advisory, no state change |
+| `metis findings resolve <finding-id>` | `--note` | — | Agent (reviewer) / Both |
 | `metis rule list` | — | ✓ | Human |
 | `metis rule promote <finding-id>` | — | — | Both |
 

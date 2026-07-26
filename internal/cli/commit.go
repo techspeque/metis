@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/techspeque/metis/internal/git"
 	"github.com/techspeque/metis/internal/runs"
+	"github.com/techspeque/metis/internal/slice"
 )
 
 func init() {
@@ -67,7 +69,8 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 
 		switch {
 		case briefMode:
-			return commitBrief(ctx, sliceID)
+			briefMsg, _ := cmd.Flags().GetString("message")
+			return commitBrief(ctx, sliceID, briefMsg)
 		case flipMode == "coded":
 			return commitFlip(ctx, sliceID, "coded", "")
 		case flipMode == "reviewed":
@@ -92,6 +95,23 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		message, _ := cmd.Flags().GetString("message")
 		if message == "" {
 			return fmt.Errorf("--message is required")
+		}
+
+		// -m takes the bare message; metis adds the prefix. If the caller
+		// already included a formatted prefix, strip it instead of doubling.
+		for _, p := range ctx.cfg.Commits.Prefixes {
+			formatted := p + "(" + sliceID + "): "
+			if strings.HasPrefix(message, formatted) {
+				message = strings.TrimPrefix(message, formatted)
+				fmt.Fprintf(os.Stderr, "note: stripped %q from -m — metis adds the prefix; pass the bare message\n", formatted)
+				break
+			}
+		}
+
+		// metis commit does not auto-stage; fail with guidance, not a raw
+		// git error, when nothing is staged.
+		if staged, err := git.HasStagedChanges(ctx.repoRoot); err == nil && !staged {
+			return fmt.Errorf("nothing staged — 'git add' your changed files first (metis commit commits the index)")
 		}
 
 		prefix, _ := cmd.Flags().GetString("prefix")
@@ -125,7 +145,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 	},
 }
 
-func commitBrief(ctx *context, sliceID string) error {
+func commitBrief(ctx *context, sliceID, message string) error {
 	briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, sliceID+".md")
 	if _, err := os.Stat(briefPath); os.IsNotExist(err) {
 		return fmt.Errorf("brief not found at %s — create it first with 'metis brief %s --write'", briefPath, sliceID)
@@ -135,11 +155,15 @@ func commitBrief(ctx *context, sliceID string) error {
 		return err
 	}
 
-	message := git.FormatCommitMessage(ctx.cfg, sliceID, "docs", "slice brief")
-	if err := git.CommitPaths(ctx.repoRoot, message, briefPath); err != nil {
+	subject := "slice brief"
+	if message != "" {
+		subject = "slice brief: " + message
+	}
+	full := git.FormatCommitMessage(ctx.cfg, sliceID, "docs", subject)
+	if err := git.CommitPaths(ctx.repoRoot, full, briefPath); err != nil {
 		return err
 	}
-	fmt.Printf("Committed brief: %s\n", message)
+	fmt.Printf("Committed brief: %s\n", full)
 	return nil
 }
 
@@ -161,13 +185,17 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 		if _, err := os.Stat(briefPath); os.IsNotExist(err) {
 			return fmt.Errorf("cannot flip coded: no brief at %s — 'metis brief %s --write', edit it, 'metis commit --brief'", briefPath, sliceID)
 		}
-		store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))
-		_, exitCode, err := store.Read(sliceID, "verify-post")
-		if err != nil {
-			return fmt.Errorf("cannot flip coded: no verify-post run recorded for %s — run 'metis verify --post' first", sliceID)
-		}
-		if exitCode != 0 {
-			return fmt.Errorf("cannot flip coded: last 'metis verify --post' for %s exited %d — fix and re-verify", sliceID, exitCode)
+		// Gate slices produce an evidence report, not product code — the
+		// verify-post precondition applies to code-bearing slices only.
+		if s := ledgerObj.FindByID(sliceID); s == nil || s.Type != slice.TypeGate {
+			store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))
+			_, exitCode, err := store.Read(sliceID, "verify-post")
+			if err != nil {
+				return fmt.Errorf("cannot flip coded: no verify-post run recorded for %s — run 'metis verify --post' first", sliceID)
+			}
+			if exitCode != 0 {
+				return fmt.Errorf("cannot flip coded: last 'metis verify --post' for %s exited %d — fix and re-verify", sliceID, exitCode)
+			}
 		}
 		if err := ledgerObj.FlipCoded(sliceID); err != nil {
 			return err

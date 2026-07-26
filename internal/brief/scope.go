@@ -16,6 +16,11 @@ import (
 //
 // Returns nil when the brief declares no scope — callers treat that as
 // "scope not verifiable", not as "everything allowed".
+// cleanPathEntry strips markdown formatting agents naturally add.
+func cleanPathEntry(p string) string {
+	return strings.Trim(strings.TrimSpace(p), "`*")
+}
+
 func ParseOwnedPaths(content string) []string {
 	lines := strings.Split(content, "\n")
 	var paths []string
@@ -27,7 +32,7 @@ func ParseOwnedPaths(content string) []string {
 		if idx := strings.Index(strings.ToLower(trimmed), "**owned_paths:**"); idx >= 0 {
 			rest := strings.TrimSpace(trimmed[idx+len("**owned_paths:**"):])
 			for _, p := range strings.Split(rest, ",") {
-				if p = strings.TrimSpace(p); p != "" && !isPlaceholder(p) {
+				if p = cleanPathEntry(p); p != "" && !isPlaceholder(p) {
 					paths = append(paths, p)
 				}
 			}
@@ -38,7 +43,7 @@ func ParseOwnedPaths(content string) []string {
 		if collecting {
 			// Sub-bullets continue the list; anything else ends it.
 			if strings.HasPrefix(trimmed, "- ") && !strings.Contains(trimmed, "**") {
-				if p := strings.TrimSpace(strings.TrimPrefix(trimmed, "- ")); p != "" && !isPlaceholder(p) {
+				if p := cleanPathEntry(strings.TrimPrefix(trimmed, "- ")); p != "" && !isPlaceholder(p) {
 					paths = append(paths, p)
 				}
 				continue
