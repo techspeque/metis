@@ -21,8 +21,9 @@ type Finding struct {
 	Severity   string `yaml:"severity" json:"severity"` // P1, P2, P3
 	Category   string `yaml:"category" json:"category"` // auth, protocol, scope, tests, arch-dup, arch-fit, data, maint, security, behavior, performance
 	Finding    string `yaml:"finding" json:"finding"`
-	Status     string `yaml:"status" json:"status"`                               // open, resolved, promoted
+	Status     string `yaml:"status" json:"status"`                               // open, advisory, resolved, promoted
 	PromotedTo *int   `yaml:"promoted_to,omitempty" json:"promoted_to,omitempty"` // accuracy_rule index if promoted
+	ResolvedBy string `yaml:"resolved_by,omitempty" json:"resolved_by,omitempty"` // note/commit recorded at resolution
 }
 
 // Store holds all findings.
@@ -76,9 +77,9 @@ func (s *Store) Save(path string) error {
 // unique even after findings are compacted or appended concurrently.
 func (s *Store) Add(sliceID, severity, category, finding string) string {
 	maxID := 0
-	for _, f := range s.Findings {
+	for i := range s.Findings {
 		var n int
-		if _, err := fmt.Sscanf(f.ID, "f-%d", &n); err == nil && n > maxID {
+		if _, err := fmt.Sscanf(s.Findings[i].ID, "f-%d", &n); err == nil && n > maxID {
 			maxID = n
 		}
 	}
@@ -95,6 +96,28 @@ func (s *Store) Add(sliceID, severity, category, finding string) string {
 	return id
 }
 
+// AddWithStatus appends a finding with an explicit status (e.g. "advisory"
+// for non-blocking observations) and returns its ID.
+func (s *Store) AddWithStatus(sliceID, severity, category, finding, status string) string {
+	id := s.Add(sliceID, severity, category, finding)
+	s.FindByID(id).Status = status
+	return id
+}
+
+// Resolve marks a finding resolved, recording how.
+func (s *Store) Resolve(id, resolvedBy string) error {
+	f := s.FindByID(id)
+	if f == nil {
+		return fmt.Errorf("finding %q not found", id)
+	}
+	if f.Status == "resolved" || f.Status == "promoted" {
+		return fmt.Errorf("finding %q is already %s", id, f.Status)
+	}
+	f.Status = "resolved"
+	f.ResolvedBy = resolvedBy
+	return nil
+}
+
 // FindByID returns a pointer to a finding by ID.
 func (s *Store) FindByID(id string) *Finding {
 	for i := range s.Findings {
@@ -108,7 +131,8 @@ func (s *Store) FindByID(id string) *Finding {
 // Filter returns findings matching the given criteria (empty string = no filter).
 func (s *Store) Filter(severity, category, sliceID string) []Finding {
 	var result []Finding
-	for _, f := range s.Findings {
+	for i := range s.Findings {
+		f := &s.Findings[i]
 		if severity != "" && f.Severity != severity {
 			continue
 		}
@@ -118,7 +142,7 @@ func (s *Store) Filter(severity, category, sliceID string) []Finding {
 		if sliceID != "" && f.Slice != sliceID {
 			continue
 		}
-		result = append(result, f)
+		result = append(result, *f)
 	}
 	return result
 }
@@ -147,9 +171,9 @@ func (s *Store) GetStats() Stats {
 		ByCategory: make(map[string]int),
 		ByAgent:    make(map[string]AgentStats),
 	}
-	for _, f := range s.Findings {
-		stats.BySeverity[f.Severity]++
-		stats.ByCategory[f.Category]++
+	for i := range s.Findings {
+		stats.BySeverity[s.Findings[i].Severity]++
+		stats.ByCategory[s.Findings[i].Category]++
 	}
 	return stats
 }

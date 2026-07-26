@@ -94,6 +94,9 @@ var seedCmd = &cobra.Command{
 		}
 
 		dryRun, _ := cmd.Flags().GetBool("dry-run")
+		if dryRun && jsonOutput() {
+			return printJSON(cmd, map[string]any{"slices": slices, "problems": problems})
+		}
 		if dryRun {
 			fmt.Printf("Would create %d slice(s):\n\n", len(slices))
 			for _, s := range slices {

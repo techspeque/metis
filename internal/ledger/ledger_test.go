@@ -529,3 +529,7 @@ func TestArchiveUnblocksDependents(t *testing.T) {
 		t.Fatalf("gate must dispatch after blockers archived, got %+v", result)
 	}
 }
+
+// TestNextSequenceAcrossArchive is covered at CLI level; keep the ledger
+// invariant visible: IDs() reflects only active slices by design, so callers
+// generating new IDs must merge archive IDs themselves.

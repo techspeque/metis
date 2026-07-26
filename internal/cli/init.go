@@ -63,6 +63,14 @@ an existing configuration file.`,
 				Commands: config.CommandsConfig{
 					Verify: "echo 'no verify configured'",
 				},
+				ReviewChecklist: []string{
+					"Behavioral correctness",
+					"Security and authorization correctness",
+					"Scope discipline (diff vs. the committed brief)",
+					"Test sufficiency",
+					"Architectural fit — no duplicated/hallucinated interfaces; matches ADRs",
+					"Maintainability",
+				},
 				Commits: config.CommitsConfig{
 					Prefixes:       []string{"feat", "fix", "refactor", "docs", "test", "chore"},
 					RequireSliceID: true,

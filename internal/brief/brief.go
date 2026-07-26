@@ -35,7 +35,7 @@ func renderStandard(s *slice.Slice) string {
 
 	b.WriteString("\n## Goal\n\nOne sentence, drawn from the plan's stated goal.\n")
 	b.WriteString("\n## Architectural context\n\nInterfaces, types, packages, and schema this slice consumes or implements.\nRead from `metis interfaces` output or prior briefs.\n")
-	b.WriteString("\n## Declared file scope\n\n- **owned_paths:** exact files this slice may edit\n- **read_only_paths:** packages/files this slice may inspect but not modify\n")
+	b.WriteString("\n## Declared file scope\n\n- **owned_paths:** exact files or directories this slice may edit (plain paths, comma-separated or as sub-bullets; directories match by prefix)\n- **read_only_paths:** packages/files this slice may inspect but not modify\n")
 	b.WriteString("\n## Definition of Done\n\nSpecific, testable criteria.\n")
 	b.WriteString("\n## Test plan\n\nWhich tests will exist and what they prove.\n")
 	b.WriteString("\n## Out-of-scope touches\n\nEmpty unless a fix outside declared scope proved genuinely required.\nEach entry: what, where, and why.\n")
@@ -86,7 +86,7 @@ func renderGate(s *slice.Slice) string {
 	b.WriteString("\n## Phase being validated\n\nPhase <N>: <title>\n")
 	b.WriteString("\n## Composition scenarios\n\nWhat integration/contract scenarios prove the phase works as a composed system:\n1. <scenario>\n2. <scenario>\n")
 	b.WriteString("\n## Evidence criteria\n\n- [ ] All phase slices coded and reviewed\n- [ ] Cross-module integration tests pass\n- [ ] No interface mismatches at seam points\n- [ ] Performance/resource usage acceptable\n")
-	b.WriteString("\n## Report\n\n(Filled during execution with actual evidence)\n")
+	b.WriteString("\n## Report\n\n(Filled during execution with actual evidence)\n\n> Full gate-report structure: .metis/templates/gate.md\n")
 
 	return b.String()
 }

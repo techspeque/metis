@@ -62,10 +62,13 @@ it cannot do before.>
 
 ## Workstream <N.1>: <Title>
 
+<!-- The heading number becomes the slice ID: "Workstream 0.1" under phase 0
+     seeds slice phase-0-ws-0.1. -->
+
 - **Risk:** low | medium | high
 - **Coder:** <agent-slug — see ` + "`metis config get agents -o json`" + `>
 - **Reviewer:** <agent-slug, must differ from coder>
-- **Stage:** <project taxonomy label, e.g., foundation | mvp | beta>
+- **Stage:** <free-form grouping label for progress reporting, e.g., foundation | mvp | beta — no fixed taxonomy>
 - **Blocked by:** <workstream IDs if dependency exists, omit if none>
 
 Tasks:
@@ -106,7 +109,8 @@ Acceptance criteria:
 ## Phase Gate
 
 > This section defines how Phase <N> is validated as a composed system.
-> It becomes a ` + "`gate`" + ` slice automatically.
+> It becomes a ` + "`gate`" + ` slice automatically (phase-<N>-gate, risk high,
+> blocked by every workstream in the phase).
 
 Composition scenarios to validate:
 - [ ] <integration scenario proving modules work together>
@@ -118,7 +122,8 @@ Performance / resource checks:
 
 ---
 
-## Sizing Guidance (for the planning agent)
+## Sizing Guidance (for the planning agent — this section and Ordering
+## Guidance are ignored by ` + "`metis seed`" + ` and may be kept or deleted)
 
 Each workstream should be:
 - ONE reviewable unit of work (a few hundred lines of diff, not thousands)

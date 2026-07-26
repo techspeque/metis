@@ -56,6 +56,19 @@ func Add(repoDir string, paths ...string) error {
 	return nil
 }
 
+// HasStagedChanges reports whether anything is staged for commit.
+func HasStagedChanges(repoDir string) (bool, error) {
+	cmd := exec.Command("git", "diff", "--cached", "--quiet")
+	cmd.Dir = repoDir
+	if err := cmd.Run(); err != nil {
+		if _, ok := err.(*exec.ExitError); ok {
+			return true, nil
+		}
+		return false, fmt.Errorf("checking staged changes: %w", err)
+	}
+	return false, nil
+}
+
 // Commit creates a git commit with the given message.
 func Commit(repoDir, message string) error {
 	cmd := exec.Command("git", "commit", "-m", message)

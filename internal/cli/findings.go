@@ -11,6 +11,14 @@ import (
 )
 
 func init() {
+	findingsResolveCmd.Flags().String("note", "", "How it was resolved (e.g. a commit hash or one-liner)")
+	findingsCmd.AddCommand(findingsResolveCmd)
+
+	findingsRecordCmd.Flags().String("severity", "P3", "Severity: P1|P2|P3")
+	findingsRecordCmd.Flags().String("category", "", "Category (same set as metis block)")
+	findingsRecordCmd.Flags().String("finding", "", "Description of the observation (required)")
+	findingsCmd.AddCommand(findingsRecordCmd)
+
 	findingsCmd.Flags().String("severity", "", "Filter by severity: P1|P2|P3")
 	findingsCmd.Flags().String("category", "", "Filter by category")
 	findingsCmd.Flags().String("slice", "", "Filter by slice ID")
@@ -50,14 +58,75 @@ func fillAgentStats(ctx *context, store *findings.Store, stats *findings.Stats) 
 		}
 		agg[s.Coder] = as
 	}
-	for _, f := range store.Findings {
-		if coder, ok := sliceCoder[f.Slice]; ok {
+	for i := range store.Findings {
+		if coder, ok := sliceCoder[store.Findings[i].Slice]; ok {
 			as := agg[coder]
 			as.Blocks++
 			agg[coder] = as
 		}
 	}
 	stats.ByAgent = agg
+}
+
+var findingsResolveCmd = &cobra.Command{
+	Use:   "resolve <finding-id>",
+	Short: "Mark a finding resolved (closes the audit trail)",
+	Args:  cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, err := loadContext()
+		if err != nil {
+			return err
+		}
+		path := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Findings)
+		store, err := findings.Load(path)
+		if err != nil {
+			return err
+		}
+		note, _ := cmd.Flags().GetString("note")
+		if err := store.Resolve(args[0], note); err != nil {
+			return err
+		}
+		if err := store.Save(path); err != nil {
+			return err
+		}
+		f := store.FindByID(args[0])
+		fmt.Printf("Resolved %s: %s\n", args[0], f.Finding)
+		ctx.commitStateSoft(f.Slice, "resolve finding "+args[0], path)
+		return nil
+	},
+}
+
+var findingsRecordCmd = &cobra.Command{
+	Use:   "record <slice-id>",
+	Short: "Record a non-blocking advisory observation",
+	Long: `Records an advisory finding without touching the slice's lifecycle —
+unlike 'metis block', which resets coded and forces a rework cycle. Use for
+worth-remembering observations that don't warrant blocking the review.`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		ctx, err := loadContext()
+		if err != nil {
+			return err
+		}
+		text, _ := cmd.Flags().GetString("finding")
+		if text == "" {
+			return fmt.Errorf("--finding is required")
+		}
+		severity, _ := cmd.Flags().GetString("severity")
+		category, _ := cmd.Flags().GetString("category")
+		path := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Findings)
+		store, err := findings.Load(path)
+		if err != nil {
+			return err
+		}
+		id := store.AddWithStatus(args[0], severity, category, text, "advisory")
+		if err := store.Save(path); err != nil {
+			return err
+		}
+		fmt.Printf("Advisory %s recorded: [%s/%s] %s\n", id, severity, category, text)
+		ctx.commitStateSoft(args[0], "record advisory "+id, path)
+		return nil
+	},
 }
 
 var findingsCmd = &cobra.Command{

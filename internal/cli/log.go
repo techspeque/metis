@@ -83,6 +83,8 @@ type auditReport struct {
 	Slice           string        `json:"slice"`
 	OK              bool          `json:"ok"`
 	Gate            bool          `json:"gate"`
+	FirstCommit     string        `json:"first_commit,omitempty"`
+	LastCommit      string        `json:"last_commit,omitempty"`
 	ScopeVerifiable bool          `json:"scope_verifiable"`
 	OwnedPaths      []string      `json:"owned_paths"`
 	Commits         []auditCommit `json:"commits"`
@@ -172,6 +174,10 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 	}
 	if report.Commits == nil {
 		report.Commits = []auditCommit{}
+	}
+	if len(commits) > 0 {
+		report.FirstCommit = commits[0].Hash
+		report.LastCommit = commits[len(commits)-1].Hash
 	}
 	return report
 }

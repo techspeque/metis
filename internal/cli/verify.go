@@ -93,6 +93,13 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 				return nil
 			}
 			fmt.Println("verify: ALL GREEN")
+			if sliceID != "" {
+				name := "verify-latest"
+				if label != "" {
+					name = "verify-" + label
+				}
+				fmt.Printf("log: %s\n", filepath.Join(ctx.cfg.Paths.Runs, sliceID, name+".log"))
+			}
 			return nil
 		}
 		return exitWithCode(cmd, exitCode)

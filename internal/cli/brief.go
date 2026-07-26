@@ -34,7 +34,19 @@ template. Use --write to create the file.`,
 
 		s := l.FindByID(args[0])
 		if s == nil {
-			return fmt.Errorf("slice %q not found", args[0])
+			// Archived slices remain readable — their briefs are the
+			// archaeology later slices are told to consult.
+			if archive, aerr := ctx.loadArchive(); aerr == nil {
+				for i := range archive.Slices {
+					if archive.Slices[i].ID == args[0] {
+						s = &archive.Slices[i]
+						break
+					}
+				}
+			}
+		}
+		if s == nil {
+			return fmt.Errorf("slice %q not found in ledger or archive", args[0])
 		}
 
 		briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, s.ID+".md")
