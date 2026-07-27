@@ -80,16 +80,18 @@ Exit code 1 when any check fails.`,
 
 // auditReport is the JSON shape of 'metis log --validate'.
 type auditReport struct {
-	Slice           string        `json:"slice"`
-	OK              bool          `json:"ok"`
-	Gate            bool          `json:"gate"`
-	FirstCommit     string        `json:"first_commit,omitempty"`
-	LastCommit      string        `json:"last_commit,omitempty"`
-	ScopeVerifiable bool          `json:"scope_verifiable"`
-	OwnedPaths      []string      `json:"owned_paths"`
-	ScopeWarnings   []string      `json:"scope_warnings"`
-	Commits         []auditCommit `json:"commits"`
-	OutOfScope      []string      `json:"out_of_scope_files"`
+	Slice            string        `json:"slice"`
+	OK               bool          `json:"ok"`
+	Gate             bool          `json:"gate"`
+	FirstCommit      string        `json:"first_commit,omitempty"`
+	LastCommit       string        `json:"last_commit,omitempty"`
+	ScopeVerifiable  bool          `json:"scope_verifiable"`
+	BriefCommitted   bool          `json:"brief_committed"`
+	BriefUncommitted bool          `json:"brief_uncommitted,omitempty"`
+	OwnedPaths       []string      `json:"owned_paths"`
+	ScopeWarnings    []string      `json:"scope_warnings"`
+	Commits          []auditCommit `json:"commits"`
+	OutOfScope       []string      `json:"out_of_scope_files"`
 }
 
 type auditCommit struct {
@@ -118,10 +120,16 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 		}
 	}
 
-	// Scope contract from the committed brief.
+	// Scope contract from the brief AT HEAD — reading the working tree would
+	// let the audited party edit owned_paths, uncommitted, and pass.
 	briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
-	if data, err := os.ReadFile(filepath.Join(ctx.repoRoot, briefRel)); err == nil {
+	if data, err := git.FileAtHead(ctx.repoRoot, briefRel); err == nil {
+		report.BriefCommitted = true
 		report.OwnedPaths, report.ScopeWarnings = brief.ParseOwnedPathsWithWarnings(string(data))
+	} else if _, serr := os.Stat(filepath.Join(ctx.repoRoot, briefRel)); serr == nil {
+		// Brief exists only uncommitted: the contract isn't in history yet,
+		// so scope stays unverifiable — the fix is to commit the brief.
+		report.BriefUncommitted = true
 	}
 	report.ScopeVerifiable = len(report.OwnedPaths) > 0
 	if report.OwnedPaths == nil {
@@ -201,6 +209,8 @@ func printAuditText(r *auditReport) {
 	switch {
 	case r.Gate:
 		fmt.Println("Scope: gate slice — scope audit not applicable")
+	case r.BriefUncommitted:
+		fmt.Println("Scope: FAIL — brief exists but is not committed; the audit reads the contract at HEAD (commit the brief)")
 	case !r.ScopeVerifiable:
 		fmt.Println("Scope: FAIL — brief declares no owned_paths (scope is a contract; declare it)")
 	case len(r.OutOfScope) > 0:

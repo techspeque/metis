@@ -102,6 +102,19 @@ func CommitAmend(repoDir, message string) error {
 	return nil
 }
 
+// FileAtHead returns the committed content of a repo-relative file at HEAD.
+// Errors when the file does not exist in the HEAD tree (e.g. it only exists
+// uncommitted in the working tree).
+func FileAtHead(repoDir, relPath string) ([]byte, error) {
+	cmd := exec.Command("git", "show", "HEAD:"+relPath)
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git show HEAD:%s: %w", relPath, err)
+	}
+	return out, nil
+}
+
 // SliceCommit is one commit associated with a slice.
 type SliceCommit struct {
 	Hash    string   `json:"hash"`
