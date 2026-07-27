@@ -65,6 +65,30 @@ func TestCheckCitations(t *testing.T) {
 	}
 }
 
+// TestCheckCitationsQualifiedAndAmends covers the real-world frontmatter
+// shapes from the metiswww dogfood: a supersedes value with a trailing
+// qualifier, and an amends: key for decisions modified without replacement.
+func TestCheckCitationsQualifiedAndAmends(t *testing.T) {
+	root := t.TempDir()
+	write(t, root, ".metis/adr/0002-policy.md", "---\nid: 0002\nstatus: accepted\n---\n# ADR-0002: Policy\n")
+	write(t, root, ".metis/adr/0005-observer.md", "---\nid: 0005\nstatus: accepted\nsupersedes: ADR-0002 (script-purpose clause only)\n---\n# ADR-0005: Observer\n")
+	write(t, root, ".metis/adr/0008-stats.md", "---\nid: 0008\nstatus: accepted\n---\n# ADR-0008: Stats\n")
+	write(t, root, ".metis/adr/0009-human-owned.md", "---\nid: 0009\nstatus: accepted\namends: ADR-0008\n---\n# ADR-0009: Human owned\n")
+	write(t, root, ".metis/briefs/ws-1.md", "Per ADR-0002 scripts must animate; ADR-0008 says stats are derived.\n")
+
+	warnings := CheckCitations(root, ".metis/adr/", []string{".metis/briefs/"})
+	if len(warnings) != 2 {
+		t.Fatalf("warnings = %v, want qualified-supersede and amends flags", warnings)
+	}
+	joined := strings.Join(warnings, "\n")
+	if !strings.Contains(joined, "ADR-0002, superseded by ADR-0005") {
+		t.Errorf("missing qualified-supersede warning in %q", joined)
+	}
+	if !strings.Contains(joined, "ADR-0008, amended by ADR-0009") {
+		t.Errorf("missing amends warning in %q", joined)
+	}
+}
+
 // TestCheckCitationsStatusOnly: an ADR marked superseded/deprecated without a
 // named successor still flags its citers.
 func TestCheckCitationsStatusOnly(t *testing.T) {

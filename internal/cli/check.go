@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -97,10 +98,17 @@ var checkCmd = &cobra.Command{
 				}
 				// Reverse citation walk: an ADR names what it supersedes,
 				// but nothing else finds the prose still quoting the old
-				// decision — that drift passes every other check.
-				scanRels := []string{ctx.cfg.Paths.Briefs, ctx.cfg.Paths.Plans, ctx.cfg.Paths.ADR}
+				// decision — that drift passes every other check. Archived
+				// slices' briefs are frozen history and stay unscanned;
+				// only living documents warn.
+				scanRels := []string{ctx.cfg.Paths.Plans, ctx.cfg.Paths.ADR}
 				if ctx.cfg.Project.Overview != "" {
 					scanRels = append(scanRels, ctx.cfg.Project.Overview)
+				}
+				if l, lerr := ctx.loadLedger(); lerr == nil {
+					for _, id := range l.IDs() {
+						scanRels = append(scanRels, filepath.Join(ctx.cfg.Paths.Briefs, id+".md"))
+					}
 				}
 				for _, w := range adr.CheckCitations(ctx.repoRoot, ctx.cfg.Paths.ADR, scanRels) {
 					fmt.Printf("WARNING: %s\n", w)

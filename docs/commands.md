@@ -263,11 +263,13 @@ metis check --ledger    # ledger only
 
 Also detects OVERVIEW drift (warns if overview has changed since last seed/recon).
 
-Also walks ADR citations in reverse: when an ADR supersedes another (via
-`supersedes:` frontmatter or a `superseded`/`deprecated` status), any brief,
-plan, ADR, or the overview still citing the old decision is flagged with a
-warning — prose quoting an amended rule passes every other check and is
-otherwise only caught by a reviewer reading. Advisory, never a hard error.
+Also walks ADR citations in reverse: when an ADR replaces or modifies
+another (via `supersedes:`/`amends:` frontmatter — trailing qualifiers OK —
+or a `superseded`/`deprecated` status), any living document still citing the
+old decision is flagged with a warning: plans, ADRs, the overview, and
+active slices' briefs (archived briefs are frozen history and stay silent).
+Prose quoting an amended rule passes every other check and is otherwise only
+caught by a reviewer reading. Advisory, never a hard error.
 
 ---
 
