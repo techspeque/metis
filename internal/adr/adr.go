@@ -62,7 +62,7 @@ func CheckCitations(repoRoot, adrRel string, scanRels []string) []string {
 					continue
 				}
 				key := relPath + "\x00" + s.token
-				if seen[key] || !strings.Contains(content, s.token) {
+				if seen[key] || !citesToken(content, s.token) {
 					continue
 				}
 				seen[key] = true
@@ -77,6 +77,23 @@ func CheckCitations(repoRoot, adrRel string, scanRels []string) []string {
 	}
 	sort.Strings(warnings)
 	return warnings
+}
+
+// citesToken reports whether content cites the token as a whole ID — a
+// digit right after the match means a longer ID that merely shares the
+// prefix (ADR-001 inside ADR-0011 is not a citation of ADR-001).
+func citesToken(content, token string) bool {
+	for from := 0; ; {
+		idx := strings.Index(content[from:], token)
+		if idx < 0 {
+			return false
+		}
+		end := from + idx + len(token)
+		if end >= len(content) || content[end] < '0' || content[end] > '9' {
+			return true
+		}
+		from = end
+	}
 }
 
 // collectSuperseded reads every ADR's frontmatter and returns the set of

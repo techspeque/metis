@@ -114,6 +114,22 @@ func TestCheckCitationsTemplateIgnored(t *testing.T) {
 	}
 }
 
+// TestCitesTokenBoundary: an ID sharing a prefix with a longer ID is not a
+// citation of the shorter one.
+func TestCitesTokenBoundary(t *testing.T) {
+	for content, want := range map[string]bool{
+		"per ADR-001 the rule holds":  true,
+		"per ADR-0011 the rule holds": false,
+		"ADR-0011 restates ADR-001":   true,
+		"ends with ADR-001":           true,
+		"no citation at all":          false,
+	} {
+		if got := citesToken(content, "ADR-001"); got != want {
+			t.Errorf("citesToken(%q) = %v, want %v", content, got, want)
+		}
+	}
+}
+
 // TestCheckCitationsNoADRDir: projects without ADRs stay silent.
 func TestCheckCitationsNoADRDir(t *testing.T) {
 	if warnings := CheckCitations(t.TempDir(), ".metis/adr/", []string{".metis/briefs/"}); warnings != nil {
