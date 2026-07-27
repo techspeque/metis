@@ -245,7 +245,7 @@ This is fully documented in [protocol.md](protocol.md).
 - **Completed slices:** immutable (archived, never modified)
 - **Pending slices:** can be edited: `metis edit <id> --title "..." --risk high`
 - **New work:** additive: `metis add` or `metis seed --append`
-- **Abandoned work:** skipped: `metis skip <id> --reason "descoped"`
+- **Abandoned work:** retired: `metis remove <id> --reason "descoped"` (skip is for work deliberately marked done without implementation)
 - **Always validate:** `metis check` after any batch of changes
 
 The ledger is the single dispatch truth. The plan file is frozen intent.

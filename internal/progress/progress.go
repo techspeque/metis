@@ -17,6 +17,7 @@ type Dashboard struct {
 	Reviewing int                      `json:"reviewing"`
 	Pending   int                      `json:"pending"`
 	Rework    int                      `json:"rework"`
+	Removed   int                      `json:"removed,omitempty"`
 	Active    *slice.Slice             `json:"active,omitempty"`
 	ByStage   map[string]StageProgress `json:"by_stage,omitempty"`
 }
@@ -30,11 +31,16 @@ type StageProgress struct {
 // Compute builds a Dashboard from a slice list.
 func Compute(slices []slice.Slice) *Dashboard {
 	d := &Dashboard{
-		Total:   len(slices),
 		ByStage: make(map[string]StageProgress),
 	}
 
 	for i := range slices {
+		// Retired slices left the plan — they count toward nothing.
+		if slices[i].Status() == slice.StatusRemoved {
+			d.Removed++
+			continue
+		}
+		d.Total++
 		stage := slices[i].Stage
 		if stage == "" {
 			stage = "(none)"
@@ -78,6 +84,9 @@ func (d *Dashboard) Render() string {
 	fmt.Fprintf(&b, "  Reviewing: %d\n", d.Reviewing)
 	fmt.Fprintf(&b, "  Rework:    %d\n", d.Rework)
 	fmt.Fprintf(&b, "  Pending:   %d\n", d.Pending)
+	if d.Removed > 0 {
+		fmt.Fprintf(&b, "  Removed:   %d (retired from the plan, not counted)\n", d.Removed)
+	}
 
 	if len(d.ByStage) > 1 || (len(d.ByStage) == 1 && !hasKey(d.ByStage, "(none)")) {
 		b.WriteString("\nBy Stage:\n")

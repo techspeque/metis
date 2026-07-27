@@ -3,6 +3,7 @@ package ledger
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/techspeque/metis/internal/slice"
@@ -533,3 +534,52 @@ func TestArchiveUnblocksDependents(t *testing.T) {
 // TestNextSequenceAcrossArchive is covered at CLI level; keep the ledger
 // invariant visible: IDs() reflects only active slices by design, so callers
 // generating new IDs must merge archive IDs themselves.
+
+// TestRetire pins the remove verb: the slice leaves the plan into the
+// archive marked removed with its reason, and dependents unblock — without
+// erasing anything from history.
+func TestRetire(t *testing.T) {
+	l := &Ledger{Version: 1, Slices: []slice.Slice{
+		{ID: "ws-1", Title: "a", Type: slice.TypeFeat, Priority: slice.PriorityP2, Risk: slice.RiskLow,
+			Coder: "a/one", Reviewer: "b/two", Created: "2026-07-27"},
+		{ID: "gate-1", Title: "g", Type: slice.TypeGate, Priority: slice.PriorityP2, Risk: slice.RiskHigh,
+			Coder: "a/one", Reviewer: "b/two", BlockedBy: []string{"ws-1"}, Created: "2026-07-27"},
+	}}
+	archive := &Archive{}
+
+	if err := l.Retire(archive, "ws-1", "superseded by hotfix phase"); err != nil {
+		t.Fatalf("Retire: %v", err)
+	}
+	if l.FindByID("ws-1") != nil {
+		t.Error("retired slice still in active ledger")
+	}
+	if len(archive.Slices) != 1 || !archive.Slices[0].Removed {
+		t.Fatalf("archive = %+v, want one removed entry", archive.Slices)
+	}
+	if got := archive.Slices[0].Notes; !strings.Contains(got, "removed: superseded by hotfix phase") {
+		t.Errorf("notes = %q, want removal reason", got)
+	}
+	if archive.Slices[0].Status() != slice.StatusRemoved {
+		t.Errorf("status = %s, want removed", archive.Slices[0].Status())
+	}
+	if len(l.Slices) != 1 || len(l.Slices[0].BlockedBy) != 0 {
+		t.Errorf("dependent still blocked after retire: %+v", l.Slices[0])
+	}
+	if errs := ValidateArchive(archive); len(errs) != 0 {
+		t.Errorf("archive with retired entry must validate, got %v", errs)
+	}
+}
+
+func TestRetireRefusesDoneAndUnknown(t *testing.T) {
+	l := &Ledger{Version: 1, Slices: []slice.Slice{
+		{ID: "ws-1", Title: "a", Type: slice.TypeFeat, Priority: slice.PriorityP2, Risk: slice.RiskLow,
+			Coder: "a/one", Reviewer: "b/two", Coded: true, Reviewed: true, Created: "2026-07-27"},
+	}}
+	archive := &Archive{}
+	if err := l.Retire(archive, "ws-1", "x"); err == nil {
+		t.Error("Retire on a done slice must refuse — that history is archived, not removed")
+	}
+	if err := l.Retire(archive, "nope", "x"); err == nil {
+		t.Error("Retire on an unknown slice must error")
+	}
+}

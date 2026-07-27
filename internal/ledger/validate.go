@@ -111,10 +111,14 @@ func (l *Ledger) detectCycles() []error {
 }
 
 // ValidateArchive checks the archive for structural integrity.
-// All entries must be fully done.
+// All entries must be fully done, except retired ones (removed: true),
+// which are archived un-done by design.
 func ValidateArchive(a *Archive) []error {
 	var errs []error
 	for i := range a.Slices {
+		if a.Slices[i].Removed {
+			continue
+		}
 		if !a.Slices[i].IsDone() {
 			errs = append(errs, fmt.Errorf("archive entry %s is not fully done (coded=%v, reviewed=%v)",
 				a.Slices[i].ID, a.Slices[i].Coded, a.Slices[i].Reviewed))

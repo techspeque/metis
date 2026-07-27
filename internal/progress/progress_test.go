@@ -91,3 +91,16 @@ func TestDashboard_Render_Empty(t *testing.T) {
 		t.Error("empty render missing 0/0")
 	}
 }
+
+// TestCompute_RemovedNotCounted: retired slices left the plan — they must
+// not inflate done, pending, or the completion denominator.
+func TestCompute_RemovedNotCounted(t *testing.T) {
+	d := Compute([]slice.Slice{
+		{ID: "a", Coded: true, Reviewed: true},
+		{ID: "b", Removed: true},
+		{ID: "c"},
+	})
+	if d.Total != 2 || d.Done != 1 || d.Pending != 1 || d.Removed != 1 {
+		t.Errorf("dashboard = %+v, want total 2, done 1, pending 1, removed 1", d)
+	}
+}
