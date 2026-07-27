@@ -80,20 +80,25 @@ Exit code 1 when any check fails.`,
 
 // auditReport is the JSON shape of 'metis log --validate'.
 type auditReport struct {
-	Slice           string        `json:"slice"`
-	OK              bool          `json:"ok"`
-	Gate            bool          `json:"gate"`
-	FirstCommit     string        `json:"first_commit,omitempty"`
-	LastCommit      string        `json:"last_commit,omitempty"`
-	ScopeVerifiable bool          `json:"scope_verifiable"`
-	OwnedPaths      []string      `json:"owned_paths"`
-	Commits         []auditCommit `json:"commits"`
-	OutOfScope      []string      `json:"out_of_scope_files"`
+	Slice            string        `json:"slice"`
+	OK               bool          `json:"ok"`
+	Gate             bool          `json:"gate"`
+	FirstCommit      string        `json:"first_commit,omitempty"`
+	LastCommit       string        `json:"last_commit,omitempty"`
+	SeedCommit       string        `json:"seed_commit,omitempty"`
+	ScopeVerifiable  bool          `json:"scope_verifiable"`
+	BriefCommitted   bool          `json:"brief_committed"`
+	BriefUncommitted bool          `json:"brief_uncommitted,omitempty"`
+	OwnedPaths       []string      `json:"owned_paths"`
+	ScopeWarnings    []string      `json:"scope_warnings"`
+	Commits          []auditCommit `json:"commits"`
+	OutOfScope       []string      `json:"out_of_scope_files"`
 }
 
 type auditCommit struct {
 	Hash    string   `json:"hash"`
 	Subject string   `json:"subject"`
+	PreSeed bool     `json:"pre_seed,omitempty"`
 	Issues  []string `json:"issues"`
 }
 
@@ -117,19 +122,46 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 		}
 	}
 
-	// Scope contract from the committed brief.
+	// Scope contract from the brief AT HEAD — reading the working tree would
+	// let the audited party edit owned_paths, uncommitted, and pass.
 	briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
-	if data, err := os.ReadFile(filepath.Join(ctx.repoRoot, briefRel)); err == nil {
-		report.OwnedPaths = brief.ParseOwnedPaths(string(data))
+	if data, err := git.FileAtHead(ctx.repoRoot, briefRel); err == nil {
+		report.BriefCommitted = true
+		report.OwnedPaths, report.ScopeWarnings = brief.ParseOwnedPathsWithWarnings(string(data))
+	} else if _, serr := os.Stat(filepath.Join(ctx.repoRoot, briefRel)); serr == nil {
+		// Brief exists only uncommitted: the contract isn't in history yet,
+		// so scope stays unverifiable — the fix is to commit the brief.
+		report.BriefUncommitted = true
 	}
 	report.ScopeVerifiable = len(report.OwnedPaths) > 0
 	if report.OwnedPaths == nil {
 		report.OwnedPaths = []string{}
 	}
+	if report.ScopeWarnings == nil {
+		report.ScopeWarnings = []string{}
+	}
+
+	// Commits that reference the slice ID but predate its ledger entry are
+	// planning-era: they were made before the contract existed, so judging
+	// them against it carries no information. They are listed and labeled,
+	// not counted.
+	preSeed := map[string]bool{}
+	if seed, err := git.SeedCommit(ctx.repoRoot, sliceID, ctx.cfg.Paths.Ledger); err == nil && seed != "" {
+		report.SeedCommit = seed
+		if ancestors, err := git.AncestorsOf(ctx.repoRoot, seed); err == nil {
+			preSeed = ancestors
+		}
+	}
 
 	seenOutOfScope := map[string]bool{}
 	for _, c := range commits {
 		ac := auditCommit{Hash: c.Hash, Subject: c.Subject, Issues: []string{}}
+
+		if preSeed[c.Hash] {
+			ac.PreSeed = true
+			report.Commits = append(report.Commits, ac)
+			continue
+		}
 
 		if !strings.Contains(c.Subject, sliceID) {
 			ac.Issues = append(ac.Issues, "subject does not contain the slice ID")
@@ -149,13 +181,18 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 			ac.Issues = append(ac.Issues, "message contains attribution lines")
 		}
 
-		for _, f := range c.Files {
-			if strings.HasPrefix(f, ".metis/") || f == briefRel {
-				continue // metis state and the brief are always in scope
-			}
-			if report.ScopeVerifiable && !brief.InScope(f, report.OwnedPaths) && !seenOutOfScope[f] {
-				seenOutOfScope[f] = true
-				report.OutOfScope = append(report.OutOfScope, f)
+		// Gates validate composition, not file edits — collecting scope
+		// violations for them would flip the verdict while the output says
+		// the scope audit is not applicable.
+		if !report.Gate {
+			for _, f := range c.Files {
+				if strings.HasPrefix(f, ".metis/") || f == briefRel {
+					continue // metis state and the brief are always in scope
+				}
+				if report.ScopeVerifiable && !brief.InScope(f, report.OwnedPaths) && !seenOutOfScope[f] {
+					seenOutOfScope[f] = true
+					report.OutOfScope = append(report.OutOfScope, f)
+				}
 			}
 		}
 
@@ -184,9 +221,14 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 
 func printAuditText(r *auditReport) {
 	fmt.Printf("Audit: %s (%d commit(s))\n", r.Slice, len(r.Commits))
+	preSeedCount := 0
 	for _, c := range r.Commits {
 		mark := "ok"
-		if len(c.Issues) > 0 {
+		switch {
+		case c.PreSeed:
+			mark = "pre-seed"
+			preSeedCount++
+		case len(c.Issues) > 0:
 			mark = "FAIL"
 		}
 		fmt.Printf("  [%s] %s %s\n", mark, c.Hash, c.Subject)
@@ -194,9 +236,14 @@ func printAuditText(r *auditReport) {
 			fmt.Printf("        - %s\n", issue)
 		}
 	}
+	if preSeedCount > 0 {
+		fmt.Printf("Note: %d commit(s) predate the slice's ledger entry (seed %s) — planning-era, excluded from the audit\n", preSeedCount, r.SeedCommit)
+	}
 	switch {
 	case r.Gate:
 		fmt.Println("Scope: gate slice — scope audit not applicable")
+	case r.BriefUncommitted:
+		fmt.Println("Scope: FAIL — brief exists but is not committed; the audit reads the contract at HEAD (commit the brief)")
 	case !r.ScopeVerifiable:
 		fmt.Println("Scope: FAIL — brief declares no owned_paths (scope is a contract; declare it)")
 	case len(r.OutOfScope) > 0:
@@ -206,6 +253,14 @@ func printAuditText(r *auditReport) {
 		}
 	default:
 		fmt.Println("Scope: all touched files within owned_paths")
+	}
+	// The contract as the parser saw it — when a FAIL surprises you, the
+	// mismatch between this list and the brief's text is the first suspect.
+	if !r.Gate && r.ScopeVerifiable {
+		fmt.Printf("Scope contract (parsed owned_paths): %s\n", strings.Join(r.OwnedPaths, ", "))
+	}
+	for _, w := range r.ScopeWarnings {
+		fmt.Printf("Scope warning: %s\n", w)
 	}
 	if r.OK {
 		fmt.Println("Verdict: PASS")

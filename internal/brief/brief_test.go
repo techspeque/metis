@@ -146,6 +146,48 @@ func TestParseOwnedPaths(t *testing.T) {
 	}
 }
 
+// Reproduction from the metiswww dogfood: an annotated sub-bullet used to
+// terminate collection, silently dropping the path and every path after it —
+// the audit then reported the file out of scope and cost a review cycle.
+func TestParseOwnedPathsAnnotatedBullet(t *testing.T) {
+	content := "- **owned_paths:**\n" +
+		"  - src/index.html\n" +
+		"  - docs/copy.md — **added in review cycle 1**, to close f-009 (§7)\n" +
+		"  - src/style.css\n" +
+		"- **read_only_paths:** internal/\n"
+	got, warnings := ParseOwnedPathsWithWarnings(content)
+	want := []string{"src/index.html", "docs/copy.md", "src/style.css"}
+	if len(got) != len(want) {
+		t.Fatalf("parse = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("parse[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+	if len(warnings) != 0 {
+		t.Errorf("clean annotation stripping should not warn, got %v", warnings)
+	}
+
+	// Inline form with a dash annotation on one entry.
+	inline := "- **owned_paths:** src/x.go — hot path, docs/y.md\n"
+	got, _ = ParseOwnedPathsWithWarnings(inline)
+	if len(got) != 2 || got[0] != "src/x.go" || got[1] != "docs/y.md" {
+		t.Errorf("inline annotated parse = %v", got)
+	}
+
+	// An entry that still contains whitespace after cleaning is suspicious
+	// and must be named — silence here is what caused the dogfood cycle.
+	suspect := "- **owned_paths:**\n  - docs/copy.md (added later)\n"
+	got, warnings = ParseOwnedPathsWithWarnings(suspect)
+	if len(got) != 1 {
+		t.Fatalf("suspect parse = %v", got)
+	}
+	if len(warnings) != 1 || !strings.Contains(warnings[0], "whitespace") {
+		t.Errorf("expected whitespace warning, got %v", warnings)
+	}
+}
+
 func TestInScope(t *testing.T) {
 	owned := []string{"src/auth/", "cmd/main.go"}
 	for file, want := range map[string]bool{

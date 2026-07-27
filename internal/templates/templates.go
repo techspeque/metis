@@ -270,7 +270,8 @@ title: <decision title>
 status: proposed | accepted | superseded | deprecated
 date: YYYY-MM-DD
 phase: <N>
-supersedes: <ADR-MMMM if applicable, omit otherwise>
+supersedes: <ADR-MMMM if this ADR replaces another, omit otherwise>
+amends: <ADR-MMMM if this ADR modifies another without replacing it, omit otherwise>
 ---
 
 # ADR-NNNN: <Decision Title>

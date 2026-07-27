@@ -102,6 +102,54 @@ func CommitAmend(repoDir, message string) error {
 	return nil
 }
 
+// SeedCommit returns the abbreviated hash of the first commit that introduced
+// the slice ID into the ledger file — the moment the slice began to exist.
+// Returns "" when no such commit is found (ledger never committed, or the ID
+// never appeared in it).
+func SeedCommit(repoDir, sliceID, ledgerRel string) (string, error) {
+	cmd := exec.Command("git", "log", "--reverse", "--format=%H", "-S", sliceID, "--", ledgerRel)
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("git log -S %s: %w", sliceID, err)
+	}
+	hashes := strings.Fields(string(out))
+	if len(hashes) == 0 {
+		return "", nil
+	}
+	return hashes[0][:7], nil
+}
+
+// AncestorsOf returns the set of abbreviated hashes strictly before the given
+// commit. A root commit has no ancestors.
+func AncestorsOf(repoDir, hash string) (map[string]bool, error) {
+	cmd := exec.Command("git", "rev-list", hash+"^")
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		// hash^ does not resolve for a root commit — no ancestors.
+		return map[string]bool{}, nil
+	}
+	set := map[string]bool{}
+	for _, h := range strings.Fields(string(out)) {
+		set[h[:7]] = true
+	}
+	return set, nil
+}
+
+// FileAtHead returns the committed content of a repo-relative file at HEAD.
+// Errors when the file does not exist in the HEAD tree (e.g. it only exists
+// uncommitted in the working tree).
+func FileAtHead(repoDir, relPath string) ([]byte, error) {
+	cmd := exec.Command("git", "show", "HEAD:"+relPath)
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("git show HEAD:%s: %w", relPath, err)
+	}
+	return out, nil
+}
+
 // SliceCommit is one commit associated with a slice.
 type SliceCommit struct {
 	Hash    string   `json:"hash"`

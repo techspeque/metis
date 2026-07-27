@@ -155,11 +155,15 @@ type Slice struct {
 	ReviewCycles int      `yaml:"review_cycles" json:"review_cycles"`
 	BlockedBy    []string `yaml:"blocked_by,omitempty" json:"blocked_by,omitempty"`
 	Notes        string   `yaml:"notes,omitempty" json:"notes,omitempty"`
+	Removed      bool     `yaml:"removed,omitempty" json:"removed,omitempty"`
 	Created      string   `yaml:"created" json:"created"`
 }
 
 // Status returns the computed lifecycle status of the slice.
 func (s *Slice) Status() Status {
+	if s.Removed {
+		return StatusRemoved
+	}
 	if s.Coded && s.Reviewed {
 		return StatusDone
 	}
@@ -250,6 +254,7 @@ const (
 	StatusReviewing Status = "reviewing"
 	StatusRework    Status = "rework"
 	StatusDone      Status = "done"
+	StatusRemoved   Status = "removed"
 )
 
 // String returns the string representation of a Status.

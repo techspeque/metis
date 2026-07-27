@@ -60,6 +60,7 @@ they change, so the tree is never left dirty between protocol steps.
 | `metis log <id>` | `--validate` (scope + format audit; exit 1 on violations) | ✓ | Agent (reviewer), Both |
 | `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` | — | Agent (reviewer) |
 | `metis skip <id>` | `--reason`\* | — | Both (recon) |
+| `metis remove <id>` | `--reason`\* | — | Human |
 | `metis reopen <id>` | `--reason`\* | — | Human |
 | `metis archive` | — | — | Agent (reviewer) |
 

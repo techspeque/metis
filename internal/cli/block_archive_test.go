@@ -88,3 +88,37 @@ func TestArchiveCommitsState(t *testing.T) {
 		t.Errorf("last commit = %q, want archive state commit", strings.TrimSpace(log))
 	}
 }
+
+// TestRemoveCommitsState pins that retiring a slice moves it to the archive
+// marked removed and commits both state files — clean tree, honest trail.
+func TestRemoveCommitsState(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	setOutputFlag(t, "")
+
+	rootCmd.SetArgs([]string{"remove", "feat-0001", "--reason", "descoped by product owner"})
+	t.Cleanup(func() { rootCmd.SetArgs([]string{}) })
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("remove: %v", err)
+	}
+
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("tree dirty after remove:\n%s", status)
+	}
+	ledgerData, err := os.ReadFile(filepath.Join(dir, ".metis", "slices.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(ledgerData), "feat-0001") {
+		t.Error("retired slice still in active ledger")
+	}
+	archiveData, err := os.ReadFile(filepath.Join(dir, ".metis", "slices-done.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(archiveData), "feat-0001") || !strings.Contains(string(archiveData), "removed: true") {
+		t.Errorf("archive missing removed entry:\n%s", archiveData)
+	}
+	if log := gitOut(t, dir, "log", "-1", "--format=%s"); !strings.Contains(log, "remove slice (retired)") {
+		t.Errorf("last commit = %q, want remove state commit", strings.TrimSpace(log))
+	}
+}

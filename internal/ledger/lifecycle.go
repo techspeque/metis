@@ -92,6 +92,39 @@ func (l *Ledger) Reopen(id string, reason string) error {
 	return nil
 }
 
+// Retire moves a slice the plan no longer needs to the archive, marked
+// removed with the reason in its notes. Nothing is erased — the audit trail
+// keeps the slice and why it left. Dependents' blocked_by lists drop the
+// retired ID so they dispatch instead of deadlocking (same rule as Archive).
+func (l *Ledger) Retire(archive *Archive, id, reason string) error {
+	s := l.FindByID(id)
+	if s == nil {
+		return fmt.Errorf("slice %q not found", id)
+	}
+	if s.IsDone() {
+		return fmt.Errorf("slice %q is done — completed work is archived by 'metis archive', not removed", id)
+	}
+	s.Removed = true
+	if reason != "" {
+		if s.Notes != "" {
+			s.Notes += "; "
+		}
+		s.Notes += "removed: " + reason
+	}
+	archive.Slices = append(archive.Slices, *s)
+	_ = l.Remove(id)
+	for i := range l.Slices {
+		var deps []string
+		for _, dep := range l.Slices[i].BlockedBy {
+			if dep != id {
+				deps = append(deps, dep)
+			}
+		}
+		l.Slices[i].BlockedBy = deps
+	}
+	return nil
+}
+
 // Archive moves all done slices from the ledger to the archive.
 // Returns the IDs of archived slices.
 func (l *Ledger) Archive(archive *Archive) []string {

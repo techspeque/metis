@@ -194,7 +194,17 @@ metis findings resolve f-002 --note "fixed in 4e16005"
 
 ### `metis skip <id> --reason "..."`
 
-Mark a slice as done without implementation (effectively removes from queue).
+Mark a slice as done without implementation. The slice stays in the plan's
+history as deliberately-not-implemented work; for a slice the plan no longer
+needs at all, use `metis remove`.
+
+### `metis remove <id> --reason "..."`
+
+Retire a slice the plan no longer needs: the entry moves to the archive
+marked `removed: true` with the reason recorded, and dependents' `blocked_by`
+lists drop the retired ID. Nothing is erased — the audit trail keeps the
+slice and why it left. Done slices are refused (completed work is archived,
+not removed). Removed slices count toward nothing in `metis progress`.
 
 ### `metis reopen <id> --reason "..."`
 
@@ -252,6 +262,14 @@ metis check --ledger    # ledger only
 ```
 
 Also detects OVERVIEW drift (warns if overview has changed since last seed/recon).
+
+Also walks ADR citations in reverse: when an ADR replaces or modifies
+another (via `supersedes:`/`amends:` frontmatter — trailing qualifiers OK —
+or a `superseded`/`deprecated` status), any living document still citing the
+old decision is flagged with a warning: plans, ADRs, the overview, and
+active slices' briefs (archived briefs are frozen history and stay silent).
+Prose quoting an amended rule passes every other check and is otherwise only
+caught by a reviewer reading. Advisory, never a hard error.
 
 ---
 
