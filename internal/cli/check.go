@@ -7,6 +7,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/techspeque/metis/internal/adr"
 	"github.com/techspeque/metis/internal/git"
 	"github.com/techspeque/metis/internal/ledger"
 	"github.com/techspeque/metis/internal/surface"
@@ -92,6 +93,16 @@ var checkCmd = &cobra.Command{
 			// the human before that happens.
 			if !jsonOutput() {
 				for _, w := range surface.Validate(ctx.cfg, ctx.repoRoot) {
+					fmt.Printf("WARNING: %s\n", w)
+				}
+				// Reverse citation walk: an ADR names what it supersedes,
+				// but nothing else finds the prose still quoting the old
+				// decision — that drift passes every other check.
+				scanRels := []string{ctx.cfg.Paths.Briefs, ctx.cfg.Paths.Plans, ctx.cfg.Paths.ADR}
+				if ctx.cfg.Project.Overview != "" {
+					scanRels = append(scanRels, ctx.cfg.Project.Overview)
+				}
+				for _, w := range adr.CheckCitations(ctx.repoRoot, ctx.cfg.Paths.ADR, scanRels) {
 					fmt.Printf("WARNING: %s\n", w)
 				}
 				if branch, err := git.CurrentBranch(ctx.repoRoot); err == nil && branch != ctx.cfg.Project.IntegrationBranch {
