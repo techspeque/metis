@@ -85,6 +85,7 @@ type auditReport struct {
 	Gate             bool          `json:"gate"`
 	FirstCommit      string        `json:"first_commit,omitempty"`
 	LastCommit       string        `json:"last_commit,omitempty"`
+	SeedCommit       string        `json:"seed_commit,omitempty"`
 	ScopeVerifiable  bool          `json:"scope_verifiable"`
 	BriefCommitted   bool          `json:"brief_committed"`
 	BriefUncommitted bool          `json:"brief_uncommitted,omitempty"`
@@ -97,6 +98,7 @@ type auditReport struct {
 type auditCommit struct {
 	Hash    string   `json:"hash"`
 	Subject string   `json:"subject"`
+	PreSeed bool     `json:"pre_seed,omitempty"`
 	Issues  []string `json:"issues"`
 }
 
@@ -139,9 +141,27 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 		report.ScopeWarnings = []string{}
 	}
 
+	// Commits that reference the slice ID but predate its ledger entry are
+	// planning-era: they were made before the contract existed, so judging
+	// them against it carries no information. They are listed and labeled,
+	// not counted.
+	preSeed := map[string]bool{}
+	if seed, err := git.SeedCommit(ctx.repoRoot, sliceID, ctx.cfg.Paths.Ledger); err == nil && seed != "" {
+		report.SeedCommit = seed
+		if ancestors, err := git.AncestorsOf(ctx.repoRoot, seed); err == nil {
+			preSeed = ancestors
+		}
+	}
+
 	seenOutOfScope := map[string]bool{}
 	for _, c := range commits {
 		ac := auditCommit{Hash: c.Hash, Subject: c.Subject, Issues: []string{}}
+
+		if preSeed[c.Hash] {
+			ac.PreSeed = true
+			report.Commits = append(report.Commits, ac)
+			continue
+		}
 
 		if !strings.Contains(c.Subject, sliceID) {
 			ac.Issues = append(ac.Issues, "subject does not contain the slice ID")
@@ -196,15 +216,23 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 
 func printAuditText(r *auditReport) {
 	fmt.Printf("Audit: %s (%d commit(s))\n", r.Slice, len(r.Commits))
+	preSeedCount := 0
 	for _, c := range r.Commits {
 		mark := "ok"
-		if len(c.Issues) > 0 {
+		switch {
+		case c.PreSeed:
+			mark = "pre-seed"
+			preSeedCount++
+		case len(c.Issues) > 0:
 			mark = "FAIL"
 		}
 		fmt.Printf("  [%s] %s %s\n", mark, c.Hash, c.Subject)
 		for _, issue := range c.Issues {
 			fmt.Printf("        - %s\n", issue)
 		}
+	}
+	if preSeedCount > 0 {
+		fmt.Printf("Note: %d commit(s) predate the slice's ledger entry (seed %s) — planning-era, excluded from the audit\n", preSeedCount, r.SeedCommit)
 	}
 	switch {
 	case r.Gate:
