@@ -121,6 +121,37 @@ func TestAuditPreSeedCommitsExcluded(t *testing.T) {
 	}
 }
 
+// TestAuditGateSkipsScopeCollection reproduces the phase-1-gate dogfood
+// verdict: the display said "gate slice — scope audit not applicable" while
+// out-of-scope collection still ran and flipped the verdict to FAIL. Gates
+// must not accumulate scope violations at all.
+func TestAuditGateSkipsScopeCollection(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	replaceInFile(t, filepath.Join(dir, ".metis", "slices.yaml"), "type: feat", "type: gate")
+	gitOut(t, dir, "commit", "-aqm", "chore(feat-0001): make it a gate")
+	writeCommitted(t, dir, ".metis/briefs/feat-0001.md",
+		"- **owned_paths:** .metis/briefs/feat-0001.md\n", "docs(feat-0001): brief")
+	writeCommitted(t, dir, "docs/copy.md", "copy\n", "docs(feat-0001): gate evidence touches a doc")
+
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	commits, err := git.SliceCommits(dir, "feat-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report := auditSlice(ctx, "feat-0001", commits)
+	if !report.Gate {
+		t.Fatal("fixture slice not recognized as gate")
+	}
+	if !report.OK || len(report.OutOfScope) != 0 {
+		t.Fatalf("gate audit = OK:%v out_of_scope:%v — scope must not apply to gates",
+			report.OK, report.OutOfScope)
+	}
+}
+
 // TestAuditUncommittedBrief: a brief that exists only in the working tree is
 // not a contract yet — scope stays unverifiable, with the cause named.
 func TestAuditUncommittedBrief(t *testing.T) {

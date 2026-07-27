@@ -181,13 +181,18 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 			ac.Issues = append(ac.Issues, "message contains attribution lines")
 		}
 
-		for _, f := range c.Files {
-			if strings.HasPrefix(f, ".metis/") || f == briefRel {
-				continue // metis state and the brief are always in scope
-			}
-			if report.ScopeVerifiable && !brief.InScope(f, report.OwnedPaths) && !seenOutOfScope[f] {
-				seenOutOfScope[f] = true
-				report.OutOfScope = append(report.OutOfScope, f)
+		// Gates validate composition, not file edits — collecting scope
+		// violations for them would flip the verdict while the output says
+		// the scope audit is not applicable.
+		if !report.Gate {
+			for _, f := range c.Files {
+				if strings.HasPrefix(f, ".metis/") || f == briefRel {
+					continue // metis state and the brief are always in scope
+				}
+				if report.ScopeVerifiable && !brief.InScope(f, report.OwnedPaths) && !seenOutOfScope[f] {
+					seenOutOfScope[f] = true
+					report.OutOfScope = append(report.OutOfScope, f)
+				}
 			}
 		}
 
