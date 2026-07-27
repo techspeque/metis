@@ -87,6 +87,7 @@ type auditReport struct {
 	LastCommit      string        `json:"last_commit,omitempty"`
 	ScopeVerifiable bool          `json:"scope_verifiable"`
 	OwnedPaths      []string      `json:"owned_paths"`
+	ScopeWarnings   []string      `json:"scope_warnings"`
 	Commits         []auditCommit `json:"commits"`
 	OutOfScope      []string      `json:"out_of_scope_files"`
 }
@@ -120,11 +121,14 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 	// Scope contract from the committed brief.
 	briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
 	if data, err := os.ReadFile(filepath.Join(ctx.repoRoot, briefRel)); err == nil {
-		report.OwnedPaths = brief.ParseOwnedPaths(string(data))
+		report.OwnedPaths, report.ScopeWarnings = brief.ParseOwnedPathsWithWarnings(string(data))
 	}
 	report.ScopeVerifiable = len(report.OwnedPaths) > 0
 	if report.OwnedPaths == nil {
 		report.OwnedPaths = []string{}
+	}
+	if report.ScopeWarnings == nil {
+		report.ScopeWarnings = []string{}
 	}
 
 	seenOutOfScope := map[string]bool{}
@@ -206,6 +210,14 @@ func printAuditText(r *auditReport) {
 		}
 	default:
 		fmt.Println("Scope: all touched files within owned_paths")
+	}
+	// The contract as the parser saw it — when a FAIL surprises you, the
+	// mismatch between this list and the brief's text is the first suspect.
+	if !r.Gate && r.ScopeVerifiable {
+		fmt.Printf("Scope contract (parsed owned_paths): %s\n", strings.Join(r.OwnedPaths, ", "))
+	}
+	for _, w := range r.ScopeWarnings {
+		fmt.Printf("Scope warning: %s\n", w)
 	}
 	if r.OK {
 		fmt.Println("Verdict: PASS")
