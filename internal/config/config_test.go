@@ -293,3 +293,70 @@ func TestFindConfig_NotFound(t *testing.T) {
 		t.Error("expected error when metis.yaml is not found")
 	}
 }
+
+// Metis writes files outside .metis/ — the project overview and the surface
+// adapters — as a side effect of seeding plans and regenerating the surface.
+// The scope audit exempts what ManagedPaths reports, so anything missing here
+// is reported to a reviewer as a scope violation no brief can fix.
+func TestManagedPaths(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Project.Overview = "OVERVIEW.md"
+
+	for _, f := range []string{
+		"OVERVIEW.md",
+		"AGENTS.md",
+		"CLAUDE.md",
+		"opencode.json",
+		".claude/settings.json",
+		"metis.yaml",
+		".metis/slices.yaml",
+		".metis/briefs/feat-0001.md",
+		".metis/runs/feat-0001/verify-post.log",
+	} {
+		if !cfg.IsManagedPath(f) {
+			t.Errorf("IsManagedPath(%q) = false, want true", f)
+		}
+	}
+
+	// Project source must still be measured against the brief.
+	for _, f := range []string{
+		"README.md",
+		"src/main.go",
+		"docs/OVERVIEW.md",
+		".claude/agents/reviewer.md",
+		"CLAUDE.md.bak",
+		"opencode.json5",
+	} {
+		if cfg.IsManagedPath(f) {
+			t.Errorf("IsManagedPath(%q) = true, want false", f)
+		}
+	}
+}
+
+// A relocated path stays managed: the exemption follows config, it is not a
+// hardcoded .metis/ prefix.
+func TestManagedPathsFollowsRelocatedConfig(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Paths.Plans = "docs/plans/"
+	cfg.Project.Overview = "docs/spec/OVERVIEW.md"
+
+	for _, f := range []string{"docs/plans/phase-1.md", "docs/spec/OVERVIEW.md"} {
+		if !cfg.IsManagedPath(f) {
+			t.Errorf("IsManagedPath(%q) = false for a relocated managed path", f)
+		}
+	}
+	if cfg.IsManagedPath("docs/other.md") {
+		t.Error("relocating plans must not exempt the whole docs/ tree")
+	}
+}
+
+// An unset overview must not exempt the repo root.
+func TestManagedPathsEmptyOverview(t *testing.T) {
+	cfg := DefaultConfig()
+	if cfg.Project.Overview != "" {
+		t.Fatalf("fixture assumption broken: overview = %q", cfg.Project.Overview)
+	}
+	if cfg.IsManagedPath("anything.md") {
+		t.Error("empty overview exempted an unrelated file")
+	}
+}

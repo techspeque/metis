@@ -174,3 +174,64 @@ func TestAuditUncommittedBrief(t *testing.T) {
 			report.OK, report.ScopeVerifiable, report.BriefUncommitted)
 	}
 }
+
+// Reproduction from the warrantum dogfood: `metis surface generate` rewrote
+// AGENTS.md and a planning session amended OVERVIEW.md while this slice was
+// the active one, so both landed in commits carrying its ID. The audit judged
+// metis's own output against the slice's owned_paths and reported violations
+// the agent could only clear by declaring metis's files in its brief — which
+// then blocked `--flip reviewed` on a review that had already passed.
+func TestAuditExemptsMetisManagedFiles(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	if err := os.WriteFile(filepath.Join(dir, ".metis", "project.yaml"),
+		[]byte("version: 1\nproject:\n  overview: OVERVIEW.md\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitOut(t, dir, "commit", "-aqm", "chore(feat-0001): declare the overview")
+
+	// .gitignore comes from the fixture's own seed commit, so declare it and
+	// leave the test measuring only the managed-path behaviour.
+	writeCommitted(t, dir, ".metis/briefs/feat-0001.md",
+		"## Declared file scope\n\n- **owned_paths:** src/, .gitignore\n", "chore(feat-0001): brief")
+	writeCommitted(t, dir, "src/a.go", "package src\n", "feat(feat-0001): the actual work")
+	writeCommitted(t, dir, "OVERVIEW.md", "# Overview\n", "docs(feat-0001): amend the overview")
+	writeCommitted(t, dir, "AGENTS.md", "# Agents\n", "chore(feat-0001): metis surface regenerated")
+
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	commits, err := git.SliceCommits(dir, "feat-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	report := auditSlice(ctx, "feat-0001", commits)
+	if !report.OK {
+		t.Fatalf("audit = FAIL, want PASS; out_of_scope = %v", report.OutOfScope)
+	}
+	if len(report.OutOfScope) != 0 {
+		t.Errorf("out_of_scope = %v, want none", report.OutOfScope)
+	}
+	// The exemption must be reported, not silent: a reviewer has to be able
+	// to tell "metis wrote this" from "nobody touched it".
+	for _, f := range []string{"OVERVIEW.md", "AGENTS.md"} {
+		if !slices.Contains(report.Exempt, f) {
+			t.Errorf("exempt = %v, want it to name %q", report.Exempt, f)
+		}
+	}
+	if slices.Contains(report.Exempt, "src/a.go") {
+		t.Error("slice source was exempted; it must be measured against the brief")
+	}
+
+	// The exemption must not become a blanket pass for root files.
+	writeCommitted(t, dir, "README.md", "# readme\n", "docs(feat-0001): stray root edit")
+	commits, err = git.SliceCommits(dir, "feat-0001")
+	if err != nil {
+		t.Fatal(err)
+	}
+	report = auditSlice(ctx, "feat-0001", commits)
+	if report.OK || !slices.Contains(report.OutOfScope, "README.md") {
+		t.Fatalf("audit = OK:%v out_of_scope:%v, want FAIL naming README.md", report.OK, report.OutOfScope)
+	}
+}

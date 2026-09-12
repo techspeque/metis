@@ -38,8 +38,7 @@ func Generate(cfg *config.Config, repoRoot string) error {
 func Validate(cfg *config.Config, repoRoot string) []string {
 	var warnings []string
 
-	files := []string{"CLAUDE.md", "AGENTS.md", "opencode.json", ".claude/settings.json"}
-	for _, f := range files {
+	for _, f := range config.SurfaceAdapterFiles {
 		path := filepath.Join(repoRoot, f)
 		if _, err := os.Stat(path); os.IsNotExist(err) {
 			warnings = append(warnings, fmt.Sprintf("surface adapter missing: %s", f))
