@@ -27,6 +27,7 @@ func testConfig() *config.Config {
 		AccuracyRules:   []string{"Do not hallucinate interfaces"},
 		NonGoals:        []string{"Frontend"},
 		Testing:         []string{"Mock at trust boundaries only"},
+		Conventions:     []string{"Comments say why, never what"},
 		ReviewChecklist: []string{"Behavioral correctness"},
 		Commands:        config.CommandsConfig{Verify: "go test ./..."},
 		Commits: config.CommitsConfig{
@@ -51,6 +52,7 @@ func TestGenerate_ContainsAllSections(t *testing.T) {
 		"Model Routing",
 		"Testing Rules",
 		"Non-Goals",
+		"Conventions",
 		"Accuracy Rules",
 		"Review Checklist",
 		"Feedback Loop",
@@ -109,6 +111,9 @@ func TestGenerateForSlice_LowRisk(t *testing.T) {
 	}
 	if !strings.Contains(out, "Tooling Map") {
 		t.Error("low risk should include tooling map")
+	}
+	if !strings.Contains(out, "Comments say why, never what") {
+		t.Error("low risk should include conventions")
 	}
 }
 

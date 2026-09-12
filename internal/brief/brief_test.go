@@ -26,6 +26,7 @@ func TestRender_Feat(t *testing.T) {
 		"## Definition of Done",
 		"## Test plan",
 		"## Out-of-scope touches",
+		"## Report",
 	}
 	for _, c := range checks {
 		if !strings.Contains(out, c) {

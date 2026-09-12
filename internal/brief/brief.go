@@ -39,6 +39,7 @@ func renderStandard(s *slice.Slice) string {
 	b.WriteString("\n## Definition of Done\n\nSpecific, testable criteria.\n")
 	b.WriteString("\n## Test plan\n\nWhich tests will exist and what they prove.\n")
 	b.WriteString("\n## Out-of-scope touches\n\nEmpty unless a fix outside declared scope proved genuinely required.\nEach entry: what, where, and why.\n")
+	b.WriteString("\n## Report\n\nFilled at implementation. Facts and evidence only: what changed, commands run and their results,\ndecisions taken with the reason, findings resolved. No narrative; short.\n")
 
 	return b.String()
 }
