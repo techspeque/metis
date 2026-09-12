@@ -15,6 +15,10 @@ import (
 //   - internal/foo/
 //   - cmd/metis/main.go
 //
+// A sub-bullet's annotation may wrap across indented continuation lines; the
+// list ends at the next field bullet, or at the first non-empty line that is
+// neither a sub-bullet nor such a continuation.
+//
 // Returns nil when the brief declares no scope — callers treat that as
 // "scope not verifiable", not as "everything allowed".
 func ParseOwnedPaths(content string) []string {
@@ -41,6 +45,13 @@ func isFieldBullet(trimmed string) bool {
 	return strings.HasPrefix(rest, "**")
 }
 
+// isIndented reports whether a line carries leading whitespace, which is what
+// distinguishes a sub-bullet's wrapped annotation from the prose or heading
+// that genuinely ends the list.
+func isIndented(line string) bool {
+	return len(line) > 0 && (line[0] == ' ' || line[0] == '\t')
+}
+
 // ParseOwnedPathsWithWarnings is ParseOwnedPaths plus diagnostics for entries
 // that parse but look malformed — a silent mis-parse here costs a review
 // cycle, so anything suspicious is named explicitly.
@@ -59,6 +70,11 @@ func ParseOwnedPathsWithWarnings(content string) (paths []string, warnings []str
 		paths = append(paths, p)
 	}
 
+	// inItem tracks whether the previous line was a sub-bullet or its wrapped
+	// continuation, so an indented line can be told apart from a fresh
+	// indented paragraph that follows a blank line.
+	inItem := false
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
@@ -68,6 +84,7 @@ func ParseOwnedPathsWithWarnings(content string) (paths []string, warnings []str
 				add(p)
 			}
 			collecting = true
+			inItem = false
 			continue
 		}
 
@@ -76,11 +93,24 @@ func ParseOwnedPathsWithWarnings(content string) (paths []string, warnings []str
 			// other non-empty line ends it.
 			if strings.HasPrefix(trimmed, "- ") && !isFieldBullet(trimmed) {
 				add(strings.TrimPrefix(trimmed, "- "))
+				inItem = true
 				continue
 			}
-			if trimmed != "" {
-				collecting = false
+			if trimmed == "" {
+				// A blank line does not end the list, but it does end the
+				// current item: what follows is a new block, not a wrap.
+				inItem = false
+				continue
 			}
+			// An indented line directly under a sub-bullet is that bullet's
+			// annotation wrapped across lines. Treating it as a terminator
+			// silently truncated the contract and dropped every entry after
+			// it, so skip it and keep collecting.
+			if inItem && isIndented(line) {
+				continue
+			}
+			collecting = false
+			inItem = false
 		}
 	}
 	return paths, warnings
