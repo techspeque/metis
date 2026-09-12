@@ -21,6 +21,7 @@ type Config struct {
 	AccuracyRules   []string         `yaml:"accuracy_rules,omitempty" json:"accuracy_rules,omitempty"`
 	NonGoals        []string         `yaml:"non_goals,omitempty" json:"non_goals,omitempty"`
 	Testing         []string         `yaml:"testing,omitempty" json:"testing,omitempty"`
+	Conventions     []string         `yaml:"conventions,omitempty" json:"conventions,omitempty"`
 	ReviewChecklist []string         `yaml:"review_checklist,omitempty" json:"review_checklist,omitempty"`
 	Commands        CommandsConfig   `yaml:"commands" json:"commands"`
 	Commits         CommitsConfig    `yaml:"commits" json:"commits"`

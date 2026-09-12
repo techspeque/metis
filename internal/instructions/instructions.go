@@ -88,7 +88,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("## Step 6a: Coder Flow\n\n")
 		b.WriteString("1. **Read interfaces** — `metis interfaces` output (if configured)\n")
 		b.WriteString("2. **Write brief** — `metis brief <id> --write`, edit it, `metis commit --brief`\n")
-		b.WriteString("3. **Implement** — within declared scope only\n")
+		b.WriteString("3. **Implement** — within declared scope only; comments and documents per the Conventions section of `metis instructions`\n")
 		b.WriteString("4. **Verify** — `metis verify --post`\n")
 		b.WriteString("5. **Flip** — `metis commit --flip coded --slice <id>` (the id from Step 2)\n")
 		b.WriteString("6. **Report** — slice ID, files changed, verify result, what's next\n\n")
@@ -107,10 +107,10 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("5. **Walk checklist** — one-line verdict per item, citing `file:line`\n")
 		b.WriteString("6. **Verdict:**\n")
 		b.WriteString("   - Pass -> " + reviewedCmd + " then `metis archive`\n")
-		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"`\n")
+		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"` (finding text: `file:line`, the defect, the required change — precise and short)\n")
 		b.WriteString("   - Non-blocking observations -> `metis findings record <id> --finding \"...\"` (advisory; no state change)\n")
 		b.WriteString("   - On pass, close findings you verified fixed: `metis findings resolve <f-id> --note <how>`\n")
-		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next\n\n")
+		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next; facts only, short\n\n")
 	}
 
 	return strings.TrimSpace(b.String())
@@ -135,6 +135,7 @@ func allSections(cfg *config.Config, repoRoot string) []string {
 		sectionRouting(cfg),
 		sectionTesting(cfg),
 		sectionNonGoals(cfg),
+		sectionConventions(cfg),
 		sectionAccuracyRules(cfg),
 		sectionReviewChecklist(cfg),
 		sectionFeedbackLoop(),
@@ -169,7 +170,7 @@ func filteredSections(cfg *config.Config, risk slice.Risk, repoRoot string) []st
 		sections = append(sections, sectionRouting(cfg))
 	}
 
-	sections = append(sections, sectionTesting(cfg), sectionNonGoals(cfg))
+	sections = append(sections, sectionTesting(cfg), sectionNonGoals(cfg), sectionConventions(cfg))
 
 	if risk == slice.RiskMedium || risk == slice.RiskHigh {
 		sections = append(sections, sectionAccuracyRules(cfg), sectionReviewChecklist(cfg))
@@ -281,6 +282,21 @@ func sectionNonGoals(cfg *config.Config) string {
 	b.WriteString("## Non-Goals (Do Not Implement)\n\n")
 	for _, ng := range cfg.NonGoals {
 		fmt.Fprintf(&b, "- %s\n", ng)
+	}
+	return b.String()
+}
+
+// sectionConventions renders the project's writing conventions for code
+// comments and documents. Included at every risk level: verbosity is
+// paid on every slice, not only risky ones.
+func sectionConventions(cfg *config.Config) string {
+	if len(cfg.Conventions) == 0 {
+		return "## Conventions\n\n(None configured)"
+	}
+	var b strings.Builder
+	b.WriteString("## Conventions\n\nHow code comments, briefs, reports, findings and docs are written:\n")
+	for _, c := range cfg.Conventions {
+		fmt.Fprintf(&b, "- %s\n", c)
 	}
 	return b.String()
 }

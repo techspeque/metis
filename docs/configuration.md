@@ -177,6 +177,22 @@ Testing rules included in every agent's instructions.
 
 ---
 
+### `conventions`
+
+```yaml
+conventions:
+  - Code comments say why, never what; no narrative or history in source
+  - Briefs, reports and findings are facts with file:line, no narrative
+  - A finding is file:line, the defect, the required change
+```
+
+Writing conventions for code comments, briefs, reports, findings and
+docs. Included in every agent's instructions at every risk level, and
+referenced from the kickoff coder and reviewer steps. Use it to cap the
+tokens agents spend on commentary.
+
+---
+
 ### `review_checklist`
 
 ```yaml
