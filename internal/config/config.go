@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -122,6 +123,65 @@ func DefaultConfig() Config {
 			Interfaces: ".metis/interfaces.txt",
 		},
 	}
+}
+
+// SurfaceAdapterFiles are the agent surface files `metis surface generate`
+// writes at the repo root. They are metis output, not project source: a hand
+// edit is overwritten on the next generate, so the scope audit must not judge
+// them against a slice's owned_paths.
+var SurfaceAdapterFiles = []string{
+	"CLAUDE.md",
+	"AGENTS.md",
+	"opencode.json",
+	".claude/settings.json",
+}
+
+// ManagedPaths returns every path metis itself owns and writes: the .metis/
+// state directory, each configured path (which may be relocated outside
+// .metis/), the project overview, the generated surface adapters, and the
+// legacy config location. Directory entries keep their trailing slash so
+// IsManagedPath matches them by prefix.
+//
+// Slice commits touch these as a side effect of running metis — seeding a
+// plan, regenerating the surface, amending the overview — so measuring them
+// against the slice's declared scope reports violations for files the agent
+// never chose to edit.
+func (c *Config) ManagedPaths() []string {
+	paths := []string{".metis/", LegacyFileName}
+	paths = append(paths, SurfaceAdapterFiles...)
+	if c == nil {
+		return paths
+	}
+	if c.Project.Overview != "" {
+		paths = append(paths, c.Project.Overview)
+	}
+	for _, p := range []string{
+		c.Paths.Ledger, c.Paths.Archive, c.Paths.Briefs, c.Paths.Plans,
+		c.Paths.ADR, c.Paths.Findings, c.Paths.Runs, c.Paths.Interfaces,
+	} {
+		if p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths
+}
+
+// IsManagedPath reports whether a repo-relative file is one metis owns.
+// Matching mirrors owned_paths: an exact hit, or any file beneath an entry
+// treated as a directory.
+func (c *Config) IsManagedPath(file string) bool {
+	for _, p := range c.ManagedPaths() {
+		if p == "" {
+			continue
+		}
+		if file == strings.TrimSuffix(p, "/") {
+			return true
+		}
+		if strings.HasPrefix(file, strings.TrimSuffix(p, "/")+"/") {
+			return true
+		}
+	}
+	return false
 }
 
 // FileName is the project configuration file, relative to the repo root.

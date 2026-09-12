@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -28,7 +29,10 @@ scope-measurement tool:
   - every subject matches the commit format with an allowed prefix
   - no attribution lines survive in any message
   - every touched file falls inside the brief's declared owned_paths
-    (metis state files and the brief itself are always in scope)
+    (files metis itself owns and writes are exempt: .metis/, the
+    configured paths, the project overview and the generated surface
+    adapters; the exempt ones outside .metis/ are listed, so the
+    exemption is never silent)
 
 Exit code 1 when any check fails.`,
 	Args: cobra.ExactArgs(1),
@@ -78,6 +82,9 @@ Exit code 1 when any check fails.`,
 	},
 }
 
+// metisStateDir is the state tree whose exemption needs no announcing.
+const metisStateDir = ".metis/"
+
 // auditReport is the JSON shape of 'metis log --validate'.
 type auditReport struct {
 	Slice            string        `json:"slice"`
@@ -93,6 +100,7 @@ type auditReport struct {
 	ScopeWarnings    []string      `json:"scope_warnings"`
 	Commits          []auditCommit `json:"commits"`
 	OutOfScope       []string      `json:"out_of_scope_files"`
+	Exempt           []string      `json:"exempt_files"`
 }
 
 type auditCommit struct {
@@ -103,7 +111,7 @@ type auditCommit struct {
 }
 
 func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditReport {
-	report := auditReport{Slice: sliceID, OK: true, OutOfScope: []string{}}
+	report := auditReport{Slice: sliceID, OK: true, OutOfScope: []string{}, Exempt: []string{}}
 
 	// Gate slices validate composition, not file edits — the scope audit
 	// does not apply to them.
@@ -154,6 +162,7 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 	}
 
 	seenOutOfScope := map[string]bool{}
+	seenExempt := map[string]bool{}
 	for _, c := range commits {
 		ac := auditCommit{Hash: c.Hash, Subject: c.Subject, Issues: []string{}}
 
@@ -186,8 +195,23 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 		// the scope audit is not applicable.
 		if !report.Gate {
 			for _, f := range c.Files {
-				if strings.HasPrefix(f, ".metis/") || f == briefRel {
-					continue // metis state and the brief are always in scope
+				// Files metis owns and writes are its own bookkeeping, not
+				// the slice's work: seeding a plan, regenerating the surface
+				// or amending the overview all land under the active slice's
+				// ID without the agent choosing to edit them. Judging them
+				// against owned_paths reports violations no one can fix
+				// except by declaring metis's files in every brief.
+				if ctx.cfg.IsManagedPath(f) || f == briefRel {
+					// Report only the exemptions that could surprise: the
+					// .metis/ state tree is self-evidently metis's and every
+					// slice touches dozens of its files, so listing them
+					// buries the ones a reviewer might have opinions about —
+					// the overview, the surface adapters, a relocated path.
+					if !strings.HasPrefix(f, metisStateDir) && !seenExempt[f] {
+						seenExempt[f] = true
+						report.Exempt = append(report.Exempt, f)
+					}
+					continue
 				}
 				if report.ScopeVerifiable && !brief.InScope(f, report.OwnedPaths) && !seenOutOfScope[f] {
 					seenOutOfScope[f] = true
@@ -212,6 +236,7 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 	if report.Commits == nil {
 		report.Commits = []auditCommit{}
 	}
+	sort.Strings(report.Exempt)
 	if len(commits) > 0 {
 		report.FirstCommit = commits[0].Hash
 		report.LastCommit = commits[len(commits)-1].Hash
@@ -258,6 +283,12 @@ func printAuditText(r *auditReport) {
 	// mismatch between this list and the brief's text is the first suspect.
 	if !r.Gate && r.ScopeVerifiable {
 		fmt.Printf("Scope contract (parsed owned_paths): %s\n", strings.Join(r.OwnedPaths, ", "))
+	}
+	// An exemption the reviewer cannot see is indistinguishable from a file
+	// that was never touched, so name them rather than skipping in silence.
+	if len(r.Exempt) > 0 {
+		fmt.Printf("Exempt (metis-managed, not judged against owned_paths): %s\n", strings.Join(r.Exempt, ", "))
+		fmt.Printf("  (%s is always exempt and is not listed)\n", metisStateDir)
 	}
 	for _, w := range r.ScopeWarnings {
 		fmt.Printf("Scope warning: %s\n", w)
