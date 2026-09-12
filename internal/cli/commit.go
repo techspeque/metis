@@ -67,6 +67,19 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 
 		agentFlag, _ := cmd.Flags().GetString("agent")
 
+		// A flag that is quietly ignored reads as a flag that was honoured.
+		// Shortcuts build their own message and commit their own paths, so
+		// say so rather than dropping the caller's intent on the floor.
+		if briefMode && flipMode != "" {
+			return fmt.Errorf("--brief and --flip are separate shortcuts; run them one at a time")
+		}
+		if amend && (briefMode || flipMode != "") {
+			return fmt.Errorf("--amend does not apply to --brief or --flip (they commit metis state, not your work)")
+		}
+		if agentFlag != "" && flipMode != "reviewed" {
+			return fmt.Errorf("--agent applies to --flip reviewed only")
+		}
+
 		switch {
 		case briefMode:
 			briefMsg, _ := cmd.Flags().GetString("message")
@@ -159,7 +172,17 @@ func commitBrief(ctx *context, sliceID, message string) error {
 	if message != "" {
 		subject = "slice brief: " + message
 	}
-	full := git.FormatCommitMessage(ctx.cfg, sliceID, "docs", subject)
+	// Metis must not author a commit its own audit would reject: the prefix
+	// has to be one the project allows, and the caller's message goes through
+	// the same attribution stripping as a normal commit.
+	const prefix = "docs"
+	if err := git.ValidatePrefix(ctx.cfg, prefix); err != nil {
+		return fmt.Errorf("cannot commit the brief: %w — brief commits use the %q prefix, so it must stay in commits.prefixes", err, prefix)
+	}
+	full := git.FormatCommitMessage(ctx.cfg, sliceID, prefix, subject)
+	if ctx.cfg.Commits.NoAttribution {
+		full = git.StripAttribution(full)
+	}
 	if err := git.CommitPaths(ctx.repoRoot, full, briefPath); err != nil {
 		return err
 	}
@@ -181,9 +204,17 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 	case "coded":
 		// Deterministic preconditions, not honor system: the brief must be
 		// committed and the post-implementation verify must have passed.
-		briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, sliceID+".md")
+		briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
+		briefPath := filepath.Join(ctx.repoRoot, briefRel)
 		if _, err := os.Stat(briefPath); os.IsNotExist(err) {
 			return fmt.Errorf("cannot flip coded: no brief at %s — 'metis brief %s --write', edit it, 'metis commit --brief'", briefPath, sliceID)
+		}
+		// On disk is not enough. The scope audit reads the contract at HEAD,
+		// so an uncommitted brief flips coded here and then fails review with
+		// "brief exists but is not committed" — the precondition has to be
+		// the same one the reviewer will measure.
+		if _, err := git.FileAtHead(ctx.repoRoot, briefRel); err != nil {
+			return fmt.Errorf("cannot flip coded: the brief at %s is not committed — the scope audit reads the contract at HEAD; run 'metis commit --brief'", briefRel)
 		}
 		// Gate slices produce an evidence report, not product code — the
 		// verify-post precondition applies to code-bearing slices only.
@@ -209,11 +240,28 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 		}
 		report := auditSlice(ctx, sliceID, commits)
 		if !report.OK {
-			return fmt.Errorf("cannot flip reviewed: 'metis log %s --validate' fails — resolve the audit (or block the slice) first", sliceID)
+			return fmt.Errorf("cannot flip reviewed: the audit fails — %s\nresolve it (or block the slice) first; 'metis log %s --validate' shows the full report", auditFailureReason(&report), sliceID)
 		}
 		if err := ledgerObj.FlipReviewed(sliceID, agent); err != nil {
 			return err
 		}
+	}
+
+	// The flip is a state transition plus its commit. If the commit fails the
+	// ledger must not keep the new flag: 'metis next' would report the slice
+	// as reviewed with nothing in history to show for it, and the audit trail
+	// the flip exists to create would be missing.
+	before, err := os.ReadFile(ctx.ledgerPath())
+	if err != nil {
+		return fmt.Errorf("reading the ledger before the flip: %w", err)
+	}
+	rollback := func() {
+		if werr := os.WriteFile(ctx.ledgerPath(), before, 0o644); werr != nil {
+			fmt.Fprintf(os.Stderr, "warning: could not roll the ledger back to its pre-flip state: %v\n", werr)
+			return
+		}
+		// Resync the index too, or the reverted content stays staged.
+		_ = git.Add(ctx.repoRoot, ctx.ledgerPath())
 	}
 
 	if err := ctx.saveLedger(ledgerObj); err != nil {
@@ -222,15 +270,51 @@ func commitFlip(ctx *context, sliceID, which, agent string) error {
 
 	// Stage the ledger
 	if err := git.Add(ctx.repoRoot, ctx.ledgerPath()); err != nil {
+		rollback()
 		return err
 	}
 
 	prefix := "chore"
+	if err := git.ValidatePrefix(ctx.cfg, prefix); err != nil {
+		rollback()
+		return fmt.Errorf("cannot flip %s: %w — metis state commits use the %q prefix, so it must stay in commits.prefixes", which, err, prefix)
+	}
 	message := git.FormatCommitMessage(ctx.cfg, sliceID, prefix, "flip "+which)
 	if err := git.CommitPaths(ctx.repoRoot, message, ctx.ledgerPath()); err != nil {
+		rollback()
 		return err
 	}
 
 	fmt.Printf("Committed: %s\n", message)
 	return nil
+}
+
+// auditFailureReason summarises why the audit said no, so the flip's error
+// names the blocker instead of sending the caller to another command to find
+// out. Scope violations come first: they are the common case and the one that
+// looks like a metis fault until you see the file list.
+func auditFailureReason(r *auditReport) string {
+	var parts []string
+	switch {
+	case r.BriefUncommitted:
+		parts = append(parts, "the brief is not committed (the contract is read at HEAD)")
+	case !r.Gate && !r.ScopeVerifiable:
+		parts = append(parts, "the brief declares no owned_paths")
+	}
+	if len(r.OutOfScope) > 0 {
+		parts = append(parts, fmt.Sprintf("%d file(s) outside owned_paths: %s", len(r.OutOfScope), strings.Join(r.OutOfScope, ", ")))
+	}
+	var bad []string
+	for _, c := range r.Commits {
+		for _, issue := range c.Issues {
+			bad = append(bad, fmt.Sprintf("%s (%s)", c.Hash, issue))
+		}
+	}
+	if len(bad) > 0 {
+		parts = append(parts, "commit issues: "+strings.Join(bad, "; "))
+	}
+	if len(parts) == 0 {
+		return "see the audit report"
+	}
+	return strings.Join(parts, "; ")
 }
