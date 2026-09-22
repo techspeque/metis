@@ -114,3 +114,42 @@ func TestLoad_NonExistent(t *testing.T) {
 		t.Errorf("expected empty findings, got %d", len(s.Findings))
 	}
 }
+
+func TestStore_FilterByStatus(t *testing.T) {
+	s := &Store{Findings: []Finding{}}
+	s.Add("feat-0001", "P1", "auth", "blocking")                     // open
+	s.AddWithStatus("feat-0001", "P3", "maint", "noted", "advisory") // advisory
+	id := s.Add("feat-0002", "P2", "tests", "fixed later")
+	if err := s.Resolve(id, "commit abc"); err != nil {
+		t.Fatal(err)
+	}
+
+	for status, want := range map[string]int{"open": 1, "advisory": 1, "resolved": 1, "promoted": 0} {
+		if got := len(s.FilterStatus("", "", "", status)); got != want {
+			t.Errorf("status %q: got %d, want %d", status, got, want)
+		}
+	}
+	// Combined with the other criteria, and the unfiltered call unchanged.
+	if got := len(s.FilterStatus("", "", "feat-0001", "open")); got != 1 {
+		t.Errorf("open in feat-0001: got %d, want 1", got)
+	}
+	if got := len(s.Filter("", "", "")); got != 3 {
+		t.Errorf("no filter: got %d, want 3", got)
+	}
+	// OpenFindings means what it says.
+	if got := s.OpenFindings(); len(got) != 1 || got[0].Status != "open" {
+		t.Errorf("OpenFindings = %+v, want the one open finding", got)
+	}
+	// The vocabulary is closed.
+	for _, ok := range Statuses {
+		if !ValidStatus(ok) {
+			t.Errorf("%q should be valid", ok)
+		}
+	}
+	if ValidStatus("closed") || ValidStatus("") {
+		t.Error("an unknown or empty status must not validate")
+	}
+	if got := s.GetStats().ByStatus; got["open"] != 1 || got["advisory"] != 1 || got["resolved"] != 1 {
+		t.Errorf("ByStatus = %v", got)
+	}
+}

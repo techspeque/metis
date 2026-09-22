@@ -128,8 +128,26 @@ func (s *Store) FindByID(id string) *Finding {
 	return nil
 }
 
+// Statuses is the closed status vocabulary, in lifecycle order.
+var Statuses = []string{"open", "advisory", "resolved", "promoted"}
+
+// ValidStatus reports whether status is one of Statuses.
+func ValidStatus(status string) bool {
+	for _, s := range Statuses {
+		if s == status {
+			return true
+		}
+	}
+	return false
+}
+
 // Filter returns findings matching the given criteria (empty string = no filter).
 func (s *Store) Filter(severity, category, sliceID string) []Finding {
+	return s.FilterStatus(severity, category, sliceID, "")
+}
+
+// FilterStatus is Filter with a status criterion as well.
+func (s *Store) FilterStatus(severity, category, sliceID, status string) []Finding {
 	var result []Finding
 	for i := range s.Findings {
 		f := &s.Findings[i]
@@ -142,6 +160,9 @@ func (s *Store) Filter(severity, category, sliceID string) []Finding {
 		if sliceID != "" && f.Slice != sliceID {
 			continue
 		}
+		if status != "" && f.Status != status {
+			continue
+		}
 		result = append(result, *f)
 	}
 	return result
@@ -152,6 +173,7 @@ type Stats struct {
 	Total      int                   `json:"total"`
 	BySeverity map[string]int        `json:"by_severity,omitempty"`
 	ByCategory map[string]int        `json:"by_category,omitempty"`
+	ByStatus   map[string]int        `json:"by_status,omitempty"`
 	ByAgent    map[string]AgentStats `json:"by_agent,omitempty"`
 }
 
@@ -169,16 +191,18 @@ func (s *Store) GetStats() Stats {
 		Total:      len(s.Findings),
 		BySeverity: make(map[string]int),
 		ByCategory: make(map[string]int),
+		ByStatus:   make(map[string]int),
 		ByAgent:    make(map[string]AgentStats),
 	}
 	for i := range s.Findings {
 		stats.BySeverity[s.Findings[i].Severity]++
 		stats.ByCategory[s.Findings[i].Category]++
+		stats.ByStatus[s.Findings[i].Status]++
 	}
 	return stats
 }
 
 // OpenFindings returns all findings with status "open".
 func (s *Store) OpenFindings() []Finding {
-	return s.Filter("", "", "")
+	return s.FilterStatus("", "", "", "open")
 }

@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"path/filepath"
+	"sort"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -22,6 +24,7 @@ func init() {
 	findingsCmd.Flags().String("severity", "", "Filter by severity: P1|P2|P3")
 	findingsCmd.Flags().String("category", "", "Filter by category")
 	findingsCmd.Flags().String("slice", "", "Filter by slice ID")
+	findingsCmd.Flags().String("status", "", "Filter by status: open|advisory|resolved|promoted")
 	findingsCmd.Flags().Bool("stats", false, "Show summary statistics")
 	rootCmd.AddCommand(findingsCmd)
 }
@@ -152,22 +155,31 @@ var findingsCmd = &cobra.Command{
 				return printJSON(cmd, stats)
 			}
 			fmt.Printf("Total findings: %d\n\n", stats.Total)
+			if len(stats.ByStatus) > 0 {
+				fmt.Println("By Status:")
+				for _, status := range findings.Statuses {
+					if count := stats.ByStatus[status]; count > 0 {
+						fmt.Printf("  %-12s %d\n", status, count)
+					}
+				}
+			}
 			if len(stats.BySeverity) > 0 {
-				fmt.Println("By Severity:")
-				for sev, count := range stats.BySeverity {
-					fmt.Printf("  %s: %d\n", sev, count)
+				fmt.Println("\nBy Severity:")
+				for _, sev := range sortedKeys(stats.BySeverity) {
+					fmt.Printf("  %s: %d\n", sev, stats.BySeverity[sev])
 				}
 			}
 			if len(stats.ByCategory) > 0 {
 				fmt.Println("\nBy Category:")
-				for cat, count := range stats.ByCategory {
-					fmt.Printf("  %-12s %d\n", cat, count)
+				for _, cat := range sortedKeys(stats.ByCategory) {
+					fmt.Printf("  %-12s %d\n", cat, stats.ByCategory[cat])
 				}
 			}
 			if len(stats.ByAgent) > 0 {
 				fmt.Println("\nBy Agent (routing evidence):")
 				fmt.Printf("  %-24s %7s %7s %10s\n", "coder", "slices", "blocks", "first-pass")
-				for agent, as := range stats.ByAgent {
+				for _, agent := range sortedKeys(stats.ByAgent) {
+					as := stats.ByAgent[agent]
 					rate := "-"
 					if as.Done > 0 {
 						rate = fmt.Sprintf("%d%%", as.FirstPass*100/as.Done)
@@ -181,8 +193,12 @@ var findingsCmd = &cobra.Command{
 		severity, _ := cmd.Flags().GetString("severity")
 		category, _ := cmd.Flags().GetString("category")
 		sliceID, _ := cmd.Flags().GetString("slice")
+		status, _ := cmd.Flags().GetString("status")
+		if status != "" && !findings.ValidStatus(status) {
+			return fmt.Errorf("--status must be one of %s", strings.Join(findings.Statuses, "|"))
+		}
 
-		results := store.Filter(severity, category, sliceID)
+		results := store.FilterStatus(severity, category, sliceID, status)
 
 		if jsonOutput() {
 			if results == nil {
@@ -196,15 +212,26 @@ var findingsCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("%-5s %-4s %-12s %-20s %s\n", "ID", "Sev", "Category", "Slice", "Finding")
-		fmt.Println("─────────────────────────────────────────────────────────────────────────────")
+		fmt.Printf("%-5s %-4s %-12s %-9s %-20s %s\n", "ID", "Sev", "Category", "Status", "Slice", "Finding")
+		fmt.Println("───────────────────────────────────────────────────────────────────────────────────────")
 		for _, f := range results {
 			finding := f.Finding
 			if len(finding) > 40 {
 				finding = finding[:37] + "..."
 			}
-			fmt.Printf("%-5s %-4s %-12s %-20s %s\n", f.ID, f.Severity, f.Category, f.Slice, finding)
+			fmt.Printf("%-5s %-4s %-12s %-9s %-20s %s\n", f.ID, f.Severity, f.Category, f.Status, f.Slice, finding)
 		}
 		return nil
 	},
+}
+
+// sortedKeys is a map's keys in ascending order, so a listing reads the
+// same way twice.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
 }

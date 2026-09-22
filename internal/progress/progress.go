@@ -4,6 +4,10 @@ package progress
 
 import (
 	"fmt"
+	"path/filepath"
+	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/techspeque/metis/internal/slice"
@@ -20,6 +24,17 @@ type Dashboard struct {
 	Removed   int                      `json:"removed,omitempty"`
 	Active    *slice.Slice             `json:"active,omitempty"`
 	ByStage   map[string]StageProgress `json:"by_stage,omitempty"`
+	// StageOrder is the stages in the order the plan reached them: first
+	// appearance over the archive then the ledger, which is the order the
+	// phases were seeded and worked.
+	StageOrder []string `json:"stage_order,omitempty"`
+	// ByPhase groups slices by the plan that seeded them (the plan file's
+	// name, or the id's phase prefix); PhaseOrder is numeric by the phase
+	// number, unnumbered phases last in first appearance. A stage name
+	// recurs across phases, so the per-phase view is the one that reads
+	// in plan order.
+	ByPhase    map[string]PhaseProgress `json:"by_phase,omitempty"`
+	PhaseOrder []string                 `json:"phase_order,omitempty"`
 }
 
 // StageProgress holds progress for a single stage.
@@ -28,10 +43,69 @@ type StageProgress struct {
 	Done  int `json:"done"`
 }
 
+// PhaseProgress holds progress for one plan's slices, and its stages in
+// the order the plan reached them.
+type PhaseProgress struct {
+	Total      int                      `json:"total"`
+	Done       int                      `json:"done"`
+	Stages     map[string]StageProgress `json:"stages,omitempty"`
+	StageOrder []string                 `json:"stage_order,omitempty"`
+}
+
+// unplanned is the phase of a slice no plan seeded (a recon, an ad-hoc add).
+const unplanned = "(unplanned)"
+
+var phasePrefix = regexp.MustCompile(`^(phase-\d+)`)
+
+// phaseOf names the plan a slice belongs to.
+func phaseOf(s *slice.Slice) string {
+	if s.Plan != "" {
+		base := filepath.Base(s.Plan)
+		return strings.TrimSuffix(base, filepath.Ext(base))
+	}
+	if m := phasePrefix.FindString(s.ID); m != "" {
+		return m
+	}
+	return unplanned
+}
+
+var firstNumber = regexp.MustCompile(`\d+`)
+
+// sortPhases orders phases by their first number, unnumbered ones after
+// every numbered one and among themselves by first appearance.
+func sortPhases(order []string) {
+	rank := func(name string) (int, bool) {
+		m := firstNumber.FindString(name)
+		if m == "" {
+			return 0, false
+		}
+		n, err := strconv.Atoi(m)
+		return n, err == nil
+	}
+	appearance := map[string]int{}
+	for i, name := range order {
+		appearance[name] = i
+	}
+	sort.SliceStable(order, func(i, j int) bool {
+		a, b := order[i], order[j]
+		na, oka := rank(a)
+		nb, okb := rank(b)
+		switch {
+		case oka && okb && na != nb:
+			return na < nb
+		case oka != okb:
+			return oka
+		default:
+			return appearance[a] < appearance[b]
+		}
+	})
+}
+
 // Compute builds a Dashboard from a slice list.
 func Compute(slices []slice.Slice) *Dashboard {
 	d := &Dashboard{
 		ByStage: make(map[string]StageProgress),
+		ByPhase: make(map[string]PhaseProgress),
 	}
 
 	for i := range slices {
@@ -45,13 +119,30 @@ func Compute(slices []slice.Slice) *Dashboard {
 		if stage == "" {
 			stage = "(none)"
 		}
-		sp := d.ByStage[stage]
+		sp, seen := d.ByStage[stage]
+		if !seen {
+			d.StageOrder = append(d.StageOrder, stage)
+		}
 		sp.Total++
+		phase := phaseOf(&slices[i])
+		pp, seenPhase := d.ByPhase[phase]
+		if !seenPhase {
+			d.PhaseOrder = append(d.PhaseOrder, phase)
+			pp.Stages = make(map[string]StageProgress)
+		}
+		pp.Total++
+		ps, seenStage := pp.Stages[stage]
+		if !seenStage {
+			pp.StageOrder = append(pp.StageOrder, stage)
+		}
+		ps.Total++
 
 		switch slices[i].Status() {
 		case slice.StatusDone:
 			d.Done++
 			sp.Done++
+			pp.Done++
+			ps.Done++
 		case slice.StatusReviewing:
 			d.Reviewing++
 		case slice.StatusRework:
@@ -61,7 +152,10 @@ func Compute(slices []slice.Slice) *Dashboard {
 		}
 
 		d.ByStage[stage] = sp
+		pp.Stages[stage] = ps
+		d.ByPhase[phase] = pp
 	}
+	sortPhases(d.PhaseOrder)
 
 	return d
 }
@@ -88,9 +182,34 @@ func (d *Dashboard) Render() string {
 		fmt.Fprintf(&b, "  Removed:   %d (retired from the plan, not counted)\n", d.Removed)
 	}
 
+	if len(d.ByPhase) > 1 || (len(d.ByPhase) == 1 && !hasPhase(d.ByPhase, unplanned)) {
+		b.WriteString("\nBy Phase:\n")
+		for _, phase := range d.PhaseOrder {
+			pp := d.ByPhase[phase]
+			pPct := 0.0
+			if pp.Total > 0 {
+				pPct = float64(pp.Done) / float64(pp.Total) * 100
+			}
+			fmt.Fprintf(&b, "  %-12s %d/%d (%.0f%%) %s\n",
+				phase, pp.Done, pp.Total, pPct, progressBar(pp.Done, pp.Total, 20))
+			var stages []string
+			for _, stage := range pp.StageOrder {
+				if stage == "(none)" {
+					continue
+				}
+				ps := pp.Stages[stage]
+				stages = append(stages, fmt.Sprintf("%s %d/%d", stage, ps.Done, ps.Total))
+			}
+			if len(stages) > 0 {
+				fmt.Fprintf(&b, "               %s\n", strings.Join(stages, ", "))
+			}
+		}
+	}
+
 	if len(d.ByStage) > 1 || (len(d.ByStage) == 1 && !hasKey(d.ByStage, "(none)")) {
-		b.WriteString("\nBy Stage:\n")
-		for stage, sp := range d.ByStage {
+		b.WriteString("\nBy Stage (across phases, in the order the plans reached them):\n")
+		for _, stage := range d.StageOrder {
+			sp := d.ByStage[stage]
 			if stage == "(none)" {
 				continue
 			}
@@ -118,6 +237,11 @@ func progressBar(done, total, width int) string {
 }
 
 func hasKey(m map[string]StageProgress, key string) bool {
+	_, ok := m[key]
+	return ok
+}
+
+func hasPhase(m map[string]PhaseProgress, key string) bool {
 	_, ok := m[key]
 	return ok
 }
