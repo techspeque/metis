@@ -27,7 +27,7 @@ Available on every command.
 | `metis status` | — | ✓ | Both |
 | `metis list` | `--type <worktype>` · `--priority <p0-p3>` · `--status <pending\|coding\|reviewing\|done\|rework>` | ✓ | Human |
 | `metis show <id>` | — | ✓ | Human |
-| `metis progress` | — | ✓ | Human |
+| `metis progress [stats\|stage\|phase]` | view; default `stage` · `summary` = `stats` | ✓ | Human |
 
 `next -o json` fields: `active`, `id`, `title`, `type`, `priority`, `risk`,
 `stage`, `role`, `agent_slug`, `agent_label`, `plan`, `plan_section`,
@@ -112,6 +112,7 @@ version** changed since the last generate.
 | `metis findings resolve <finding-id>` | `--note` | — | Agent (reviewer) / Both |
 | `metis rule list` | — | ✓ | Human |
 | `metis rule promote <finding-id>` | — | — | Both |
+| `metis rule remove [rule-number...]` | no args on a terminal: pick from a list | — | Both |
 
 ## Project & User Setup
 

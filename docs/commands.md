@@ -360,10 +360,19 @@ Brief templates adapt based on slice type (feat, refactor, remove, gate, etc.).
 
 ## Observability
 
-### `metis progress`
+### `metis progress [stats|stage|phase]`
 
-Terminal dashboard showing completion stats with progress bars, by-stage
-breakdown, and done/reviewing/rework/pending counts.
+Terminal dashboard with progress bars. Every view opens with the overall
+completion line; the view picks the breakdown under it:
+
+```bash
+metis progress          # by stage (default)
+metis progress stage    # completion per stage, in the order the plans reached them
+metis progress phase    # completion per phase, with each phase's stages
+metis progress stats    # done / reviewing / rework / pending counts (alias: summary)
+```
+
+With `-o json` every view emits the same full dashboard.
 
 ### `metis findings`
 
@@ -400,6 +409,21 @@ Show all accuracy rules (numbered).
 ### `metis rule promote <finding-id>`
 
 Promote a review finding to a permanent accuracy rule.
+
+### `metis rule remove [rule-number...]`
+
+Remove accuracy rules. With no arguments on an interactive terminal, lists
+the current rules as a multi-select (↑/↓ move, space selects, `a` toggles
+all, enter confirms, `q`/esc cancels). Otherwise name the rules by the
+numbers `metis rule list` shows:
+
+```bash
+metis rule remove        # pick from the list
+metis rule remove 2 5    # remove rules #2 and #5
+```
+
+Findings promoted to a removed rule stay `promoted` but lose their
+`promoted_to` pointer; findings promoted to later rules are renumbered.
 
 ### `metis config view`
 
