@@ -410,6 +410,21 @@ Show all accuracy rules (numbered).
 
 Promote a review finding to a permanent accuracy rule.
 
+### `metis rule remove [rule-number...]`
+
+Remove accuracy rules. With no arguments on an interactive terminal, lists
+the current rules as a multi-select (↑/↓ move, space selects, `a` toggles
+all, enter confirms, `q`/esc cancels). Otherwise name the rules by the
+numbers `metis rule list` shows:
+
+```bash
+metis rule remove        # pick from the list
+metis rule remove 2 5    # remove rules #2 and #5
+```
+
+Findings promoted to a removed rule stay `promoted` but lose their
+`promoted_to` pointer; findings promoted to later rules are renumbered.
+
 ### `metis config view`
 
 Show the full effective configuration (defaults applied) as YAML, with a

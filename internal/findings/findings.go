@@ -206,3 +206,39 @@ func (s *Store) GetStats() Stats {
 func (s *Store) OpenFindings() []Finding {
 	return s.FilterStatus("", "", "", "open")
 }
+
+// RenumberRules keeps promoted findings pointing at the right accuracy rule
+// after the rules numbered in removed (1-based) are deleted: a finding
+// promoted to a removed rule loses its pointer but stays promoted, as a
+// record that it once was; one promoted to a later rule shifts down. It
+// reports whether any finding changed.
+func (s *Store) RenumberRules(removed []int) bool {
+	gone := make(map[int]bool, len(removed))
+	for _, n := range removed {
+		gone[n] = true
+	}
+	changed := false
+	for i := range s.Findings {
+		p := s.Findings[i].PromotedTo
+		if p == nil {
+			continue
+		}
+		if gone[*p] {
+			s.Findings[i].PromotedTo = nil
+			changed = true
+			continue
+		}
+		shift := 0
+		for n := range gone {
+			if n < *p {
+				shift++
+			}
+		}
+		if shift > 0 {
+			next := *p - shift
+			s.Findings[i].PromotedTo = &next
+			changed = true
+		}
+	}
+	return changed
+}

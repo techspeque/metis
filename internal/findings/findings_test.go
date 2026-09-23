@@ -153,3 +153,28 @@ func TestStore_FilterByStatus(t *testing.T) {
 		t.Errorf("ByStatus = %v", got)
 	}
 }
+
+func TestRenumberRules(t *testing.T) {
+	ptr := func(n int) *int { return &n }
+	s := &Store{Findings: []Finding{
+		{ID: "f-001", Status: "promoted", PromotedTo: ptr(1)},
+		{ID: "f-002", Status: "promoted", PromotedTo: ptr(2)},
+		{ID: "f-003", Status: "promoted", PromotedTo: ptr(4)},
+		{ID: "f-004", Status: "open"},
+	}}
+	if !s.RenumberRules([]int{2, 3}) {
+		t.Fatal("RenumberRules reported no change")
+	}
+	if p := s.Findings[0].PromotedTo; p == nil || *p != 1 {
+		t.Errorf("rule before the removed ones must keep its number, got %v", p)
+	}
+	if s.Findings[1].PromotedTo != nil || s.Findings[1].Status != "promoted" {
+		t.Errorf("finding promoted to a removed rule = %+v, want no pointer, still promoted", s.Findings[1])
+	}
+	if p := s.Findings[2].PromotedTo; p == nil || *p != 2 {
+		t.Errorf("rule 4 after removing 2 and 3 must become 2, got %v", p)
+	}
+	if s.RenumberRules([]int{9}) {
+		t.Error("removing a rule after every promoted one changes nothing")
+	}
+}

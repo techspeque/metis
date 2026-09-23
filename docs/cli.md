@@ -112,6 +112,7 @@ version** changed since the last generate.
 | `metis findings resolve <finding-id>` | `--note` | — | Agent (reviewer) / Both |
 | `metis rule list` | — | ✓ | Human |
 | `metis rule promote <finding-id>` | — | — | Both |
+| `metis rule remove [rule-number...]` | no args on a terminal: pick from a list | — | Both |
 
 ## Project & User Setup
 
