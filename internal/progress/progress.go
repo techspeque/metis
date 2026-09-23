@@ -9,6 +9,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/techspeque/metis/internal/slice"
 )
@@ -171,10 +172,18 @@ const (
 	ViewStage View = "stage"
 )
 
+// DefaultWidth is the line width a view is laid out for when the caller
+// has no terminal to measure.
+const DefaultWidth = 100
+
 // RenderView produces the overall line and the one breakdown the view
-// names. A view with nothing to break down says so instead of printing an
-// empty section.
-func (d *Dashboard) RenderView(v View) string {
+// names, laid out to fit width columns (DefaultWidth when width is not
+// positive). A view with nothing to break down says so instead of
+// printing an empty section.
+func (d *Dashboard) RenderView(v View, width int) string {
+	if width <= 0 {
+		width = DefaultWidth
+	}
 	var b strings.Builder
 	d.writeHeader(&b)
 	switch v {
@@ -184,7 +193,7 @@ func (d *Dashboard) RenderView(v View) string {
 		if len(d.PhaseOrder) == 0 {
 			b.WriteString("No phases to show.\n")
 		} else {
-			d.writePhases(&b)
+			d.writePhases(&b, width)
 		}
 	default:
 		if !d.hasStages() {
@@ -218,12 +227,27 @@ func (d *Dashboard) hasStages() bool {
 	return len(d.ByStage) > 1 || (len(d.ByStage) == 1 && !hasKey(d.ByStage, "(none)"))
 }
 
-func (d *Dashboard) writePhases(b *strings.Builder) {
-	b.WriteString("By Phase:\n")
-	for _, phase := range d.PhaseOrder {
+// writePhases lays the phases out as a table: the phase, its bar and
+// counts, and its stages in plan order, the stages wrapped at stage
+// boundaries to keep each line within width.
+func (d *Dashboard) writePhases(b *strings.Builder, width int) {
+	const gap = "  "
+	counts := make([]string, len(d.PhaseOrder))
+	nameW, countW := len("Phase"), 0
+	for i, phase := range d.PhaseOrder {
 		pp := d.ByPhase[phase]
-		fmt.Fprintf(b, "  %-12s %d/%d (%.0f%%) %s\n",
-			phase, pp.Done, pp.Total, percent(pp.Done, pp.Total), progressBar(pp.Done, pp.Total, 20))
+		counts[i] = fmt.Sprintf("%d/%d (%.0f%%)", pp.Done, pp.Total, percent(pp.Done, pp.Total))
+		nameW = max(nameW, utf8.RuneCountInString(phase))
+		countW = max(countW, len(counts[i]))
+	}
+	progressW := phaseBarWidth + 2 + 1 + countW // [bar] counts
+	indent := 2 + nameW + len(gap) + progressW + len(gap)
+	stagesW := max(width-indent, minStagesWidth)
+
+	b.WriteString("By Phase:\n")
+	fmt.Fprintf(b, "  %-*s%s%-*s%sStages\n", nameW, "Phase", gap, progressW, "Progress", gap)
+	for i, phase := range d.PhaseOrder {
+		pp := d.ByPhase[phase]
 		var stages []string
 		for _, stage := range pp.StageOrder {
 			if stage == "(none)" {
@@ -232,10 +256,50 @@ func (d *Dashboard) writePhases(b *strings.Builder) {
 			ps := pp.Stages[stage]
 			stages = append(stages, fmt.Sprintf("%s %d/%d", stage, ps.Done, ps.Total))
 		}
-		if len(stages) > 0 {
-			fmt.Fprintf(b, "               %s\n", strings.Join(stages, ", "))
+		lines := wrapItems(stages, stagesW)
+		if len(lines) == 0 {
+			lines = []string{"—"}
+		}
+		progress := progressBar(pp.Done, pp.Total, phaseBarWidth) + " " + fmt.Sprintf("%*s", countW, counts[i])
+		fmt.Fprintf(b, "  %-*s%s%s%s%s\n", nameW, phase, gap, progress, gap, lines[0])
+		for _, line := range lines[1:] {
+			fmt.Fprintf(b, "%s%s\n", strings.Repeat(" ", indent), line)
 		}
 	}
+}
+
+const (
+	// phaseBarWidth is the width of each phase's bar, inside the brackets.
+	phaseBarWidth = 20
+	// minStagesWidth keeps the stages column readable on a narrow terminal;
+	// below it the line overflows rather than wrapping a word a line.
+	minStagesWidth = 24
+)
+
+// wrapItems joins items with ", " into lines of at most width runes,
+// breaking only between items; an item longer than width gets a line to
+// itself. Every line but the last keeps its trailing comma.
+func wrapItems(items []string, width int) []string {
+	var lines []string
+	line := ""
+	for i, item := range items {
+		if i < len(items)-1 {
+			item += ","
+		}
+		switch {
+		case line == "":
+			line = item
+		case utf8.RuneCountInString(line)+1+utf8.RuneCountInString(item) <= width:
+			line += " " + item
+		default:
+			lines = append(lines, line)
+			line = item
+		}
+	}
+	if line != "" {
+		lines = append(lines, line)
+	}
+	return lines
 }
 
 func (d *Dashboard) writeStages(b *strings.Builder) {

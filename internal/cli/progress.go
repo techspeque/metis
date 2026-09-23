@@ -2,8 +2,10 @@ package cli
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/term"
 
 	"github.com/techspeque/metis/internal/progress"
 	"github.com/techspeque/metis/internal/slice"
@@ -89,6 +91,16 @@ func runProgress(cmd *cobra.Command, view progress.View) error {
 		return printJSON(cmd, d)
 	}
 
-	_, err = fmt.Fprint(cmd.OutOrStdout(), d.RenderView(view))
+	_, err = fmt.Fprint(cmd.OutOrStdout(), d.RenderView(view, terminalWidth()))
 	return err
+}
+
+// terminalWidth is stdout's width in columns, or 0 when stdout is not a
+// terminal (the dashboard then lays out at its default width).
+func terminalWidth() int {
+	w, _, err := term.GetSize(int(os.Stdout.Fd()))
+	if err != nil {
+		return 0
+	}
+	return w
 }

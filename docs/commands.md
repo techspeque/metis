@@ -372,6 +372,9 @@ metis progress phase    # completion per phase, with each phase's stages
 metis progress stats    # done / reviewing / rework / pending counts (alias: summary)
 ```
 
+The phase view is a table: phase, bar with done/total counts, and the
+phase's stages in plan order, wrapped to fit the terminal width.
+
 With `-o json` every view emits the same full dashboard.
 
 ### `metis findings`
