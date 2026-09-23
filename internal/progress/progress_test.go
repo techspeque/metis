@@ -3,6 +3,7 @@ package progress
 import (
 	"strings"
 	"testing"
+	"unicode/utf8"
 
 	"github.com/techspeque/metis/internal/slice"
 )
@@ -68,7 +69,7 @@ func TestDashboard_Render(t *testing.T) {
 	}
 
 	d := Compute(slices)
-	out := d.RenderView(ViewStats)
+	out := d.RenderView(ViewStats, 0)
 
 	if !strings.Contains(out, "Metis Progress") {
 		t.Error("render missing header")
@@ -86,7 +87,7 @@ func TestDashboard_Render(t *testing.T) {
 
 func TestDashboard_Render_Empty(t *testing.T) {
 	d := Compute(nil)
-	out := d.RenderView(ViewStats)
+	out := d.RenderView(ViewStats, 0)
 	if !strings.Contains(out, "0/0 done") {
 		t.Error("empty render missing 0/0")
 	}
@@ -124,7 +125,7 @@ func TestRender_StagesInPlanOrder(t *testing.T) {
 		if strings.Join(d.StageOrder, ",") != strings.Join(want, ",") {
 			t.Fatalf("StageOrder = %v, want %v", d.StageOrder, want)
 		}
-		out := d.RenderView(ViewStage)
+		out := d.RenderView(ViewStage, 0)
 		last := -1
 		for _, stage := range want {
 			i := strings.Index(out, "  "+stage+" ")
@@ -136,7 +137,7 @@ func TestRender_StagesInPlanOrder(t *testing.T) {
 	}
 	// A stage-less slice contributes no row and no order entry beyond "(none)".
 	d := Compute([]slice.Slice{{Coded: true, Reviewed: true}})
-	out := d.RenderView(ViewStage)
+	out := d.RenderView(ViewStage, 0)
 	if strings.Contains(out, "By Stage") || !strings.Contains(out, "No slices have a stage.") {
 		t.Errorf("a single stage-less slice must not render a By Stage section:\n%s", out)
 	}
@@ -169,7 +170,7 @@ func TestRender_PhasesInPlanOrder(t *testing.T) {
 	if p := d.ByPhase["phase-6"]; p.Total != 2 || p.Done != 1 || p.Stages["substrate"].Done != 1 || p.Stages["controls"].Total != 1 {
 		t.Errorf("phase-6 = %+v", p)
 	}
-	out := d.RenderView(ViewPhase)
+	out := d.RenderView(ViewPhase, 0)
 	last := -1
 	for _, phase := range want {
 		i := strings.Index(out, "  "+phase+" ")
@@ -201,7 +202,7 @@ func TestRenderView_ShowsOnlyItsBreakdown(t *testing.T) {
 		{ViewStage, []string{"By Stage", "substrate ", "contract "}, []string{"Reviewing:", "By Phase"}},
 	}
 	for _, c := range cases {
-		out := d.RenderView(c.view)
+		out := d.RenderView(c.view, 0)
 		if !strings.Contains(out, "Overall: 1/2 done (50%)") {
 			t.Errorf("%s view is missing the overall line:\n%s", c.view, out)
 		}
@@ -222,11 +223,94 @@ func TestRenderView_ShowsOnlyItsBreakdown(t *testing.T) {
 // shows a lone unplanned bucket rather than nothing; with no slices at all
 // it says there is nothing to show.
 func TestRenderView_PhaseShowsUnplanned(t *testing.T) {
-	out := Compute([]slice.Slice{{ID: "recon-0001"}}).RenderView(ViewPhase)
+	out := Compute([]slice.Slice{{ID: "recon-0001"}}).RenderView(ViewPhase, 0)
 	if !strings.Contains(out, "  "+unplanned+" ") {
 		t.Errorf("phase view should list the unplanned bucket:\n%s", out)
 	}
-	if out := Compute(nil).RenderView(ViewPhase); !strings.Contains(out, "No phases to show.") {
+	if out := Compute(nil).RenderView(ViewPhase, 0); !strings.Contains(out, "No phases to show.") {
 		t.Errorf("empty phase view should say so:\n%s", out)
 	}
+}
+
+func TestWrapItems(t *testing.T) {
+	items := []string{"foundation 1/2", "contract 0/3", "storage 4/4"}
+	cases := map[int][]string{
+		100: {"foundation 1/2, contract 0/3, storage 4/4"},
+		30:  {"foundation 1/2, contract 0/3,", "storage 4/4"},
+		10:  {"foundation 1/2,", "contract 0/3,", "storage 4/4"},
+	}
+	for width, want := range cases {
+		if got := wrapItems(items, width); strings.Join(got, "|") != strings.Join(want, "|") {
+			t.Errorf("width %d: got %q, want %q", width, got, want)
+		}
+	}
+	if got := wrapItems(nil, 10); got != nil {
+		t.Errorf("no items: got %q", got)
+	}
+}
+
+// TestRenderView_PhaseTable: the phase view is three columns — phase, bar
+// with counts, stages — with every row's bar in the same column, the
+// stages wrapped under the stages column, and no line past the width.
+func TestRenderView_PhaseTable(t *testing.T) {
+	var ss []slice.Slice
+	for _, st := range []string{"foundation", "contract", "storage", "adapters", "controls", "observability"} {
+		ss = append(ss, slice.Slice{ID: "phase-1-ws-" + st, Plan: ".metis/plans/phase-1.md", Stage: st, Coded: true, Reviewed: true})
+	}
+	ss = append(ss,
+		slice.Slice{ID: "phase-12-ws-12.1", Plan: ".metis/plans/phase-12.md", Stage: "value"},
+		slice.Slice{ID: "recon-0001", Coded: true, Reviewed: true},
+	)
+	const width = 80
+	out := Compute(ss).RenderView(ViewPhase, width)
+	_, table, found := strings.Cut(out, "By Phase:\n")
+	if !found {
+		t.Fatalf("no By Phase section:\n%s", out)
+	}
+	lines := strings.Split("By Phase:\n"+strings.TrimRight(table, "\n"), "\n")
+
+	header := lines[1]
+	barCol := runeIndex(header, "Progress")
+	stageCol := runeIndex(header, "Stages")
+	if barCol < 0 || stageCol < 0 || !strings.HasPrefix(header, "  Phase") {
+		t.Fatalf("header = %q", header)
+	}
+	rows := map[string]string{}
+	for _, line := range lines[2:] {
+		if n := utf8.RuneCountInString(line); n > width {
+			t.Errorf("line is %d wide, past %d: %q", n, width, line)
+		}
+		if strings.HasPrefix(line, "  ") && !strings.HasPrefix(line, "   ") {
+			name := strings.Fields(line)[0]
+			rows[name] = line
+			if runeIndex(line, "[") != barCol {
+				t.Errorf("%s: bar not under Progress:\n%s\n%s", name, header, line)
+			}
+			continue
+		}
+		// A continuation line carries only stages, starting under Stages.
+		if strings.TrimLeft(line, " ") == "" || utf8.RuneCountInString(line)-utf8.RuneCountInString(strings.TrimLeft(line, " ")) != stageCol {
+			t.Errorf("continuation not under Stages:\n%s\n%s", header, line)
+		}
+	}
+	if continuations := len(lines) - 2 - len(rows); continuations == 0 {
+		t.Errorf("phase-1's six stages should wrap at width %d:\n%s", width, out)
+	}
+	if runeIndex(rows["phase-1"], "foundation 1/1") != stageCol {
+		t.Errorf("phase-1's stages should start under Stages:\n%s", out)
+	}
+	if !strings.HasSuffix(rows[unplanned], "—") {
+		t.Errorf("a phase with no stages shows a dash: %q", rows[unplanned])
+	}
+	if !strings.Contains(rows["phase-12"], "  0/1 (0%)") || !strings.Contains(rows["phase-1"], "6/6 (100%)") {
+		t.Errorf("counts should be right-aligned beside the bars:\n%s", out)
+	}
+}
+
+func runeIndex(s, sub string) int {
+	i := strings.Index(s, sub)
+	if i < 0 {
+		return -1
+	}
+	return utf8.RuneCountInString(s[:i])
 }
