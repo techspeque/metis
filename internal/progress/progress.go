@@ -160,69 +160,101 @@ func Compute(slices []slice.Slice) *Dashboard {
 	return d
 }
 
-// Render produces the text dashboard output.
-func (d *Dashboard) Render() string {
+// View selects which breakdown a rendering shows under the overall line.
+type View string
+
+// The dashboard views: the summary counts, the per-phase breakdown, and
+// the per-stage breakdown (the default).
+const (
+	ViewStats View = "stats"
+	ViewPhase View = "phase"
+	ViewStage View = "stage"
+)
+
+// RenderView produces the overall line and the one breakdown the view
+// names. A view with nothing to break down says so instead of printing an
+// empty section.
+func (d *Dashboard) RenderView(v View) string {
 	var b strings.Builder
-
-	pct := 0.0
-	if d.Total > 0 {
-		pct = float64(d.Done) / float64(d.Total) * 100
-	}
-
-	b.WriteString("═══ Metis Progress ═══\n\n")
-	fmt.Fprintf(&b, "Overall: %d/%d done (%.0f%%)\n", d.Done, d.Total, pct)
-	b.WriteString(progressBar(d.Done, d.Total, 40))
-	b.WriteString("\n\n")
-
-	fmt.Fprintf(&b, "  Done:      %d\n", d.Done)
-	fmt.Fprintf(&b, "  Reviewing: %d\n", d.Reviewing)
-	fmt.Fprintf(&b, "  Rework:    %d\n", d.Rework)
-	fmt.Fprintf(&b, "  Pending:   %d\n", d.Pending)
-	if d.Removed > 0 {
-		fmt.Fprintf(&b, "  Removed:   %d (retired from the plan, not counted)\n", d.Removed)
-	}
-
-	if len(d.ByPhase) > 1 || (len(d.ByPhase) == 1 && !hasPhase(d.ByPhase, unplanned)) {
-		b.WriteString("\nBy Phase:\n")
-		for _, phase := range d.PhaseOrder {
-			pp := d.ByPhase[phase]
-			pPct := 0.0
-			if pp.Total > 0 {
-				pPct = float64(pp.Done) / float64(pp.Total) * 100
-			}
-			fmt.Fprintf(&b, "  %-12s %d/%d (%.0f%%) %s\n",
-				phase, pp.Done, pp.Total, pPct, progressBar(pp.Done, pp.Total, 20))
-			var stages []string
-			for _, stage := range pp.StageOrder {
-				if stage == "(none)" {
-					continue
-				}
-				ps := pp.Stages[stage]
-				stages = append(stages, fmt.Sprintf("%s %d/%d", stage, ps.Done, ps.Total))
-			}
-			if len(stages) > 0 {
-				fmt.Fprintf(&b, "               %s\n", strings.Join(stages, ", "))
-			}
+	d.writeHeader(&b)
+	switch v {
+	case ViewStats:
+		d.writeCounts(&b)
+	case ViewPhase:
+		if len(d.PhaseOrder) == 0 {
+			b.WriteString("No phases to show.\n")
+		} else {
+			d.writePhases(&b)
+		}
+	default:
+		if !d.hasStages() {
+			b.WriteString("No slices have a stage.\n")
+		} else {
+			d.writeStages(&b)
 		}
 	}
+	return b.String()
+}
 
-	if len(d.ByStage) > 1 || (len(d.ByStage) == 1 && !hasKey(d.ByStage, "(none)")) {
-		b.WriteString("\nBy Stage (across phases, in the order the plans reached them):\n")
-		for _, stage := range d.StageOrder {
-			sp := d.ByStage[stage]
+func (d *Dashboard) writeHeader(b *strings.Builder) {
+	b.WriteString("═══ Metis Progress ═══\n\n")
+	fmt.Fprintf(b, "Overall: %d/%d done (%.0f%%)\n", d.Done, d.Total, percent(d.Done, d.Total))
+	b.WriteString(progressBar(d.Done, d.Total, 40))
+	b.WriteString("\n\n")
+}
+
+func (d *Dashboard) writeCounts(b *strings.Builder) {
+	fmt.Fprintf(b, "  Done:      %d\n", d.Done)
+	fmt.Fprintf(b, "  Reviewing: %d\n", d.Reviewing)
+	fmt.Fprintf(b, "  Rework:    %d\n", d.Rework)
+	fmt.Fprintf(b, "  Pending:   %d\n", d.Pending)
+	if d.Removed > 0 {
+		fmt.Fprintf(b, "  Removed:   %d (retired from the plan, not counted)\n", d.Removed)
+	}
+}
+
+// hasStages reports whether any slice carries a stage.
+func (d *Dashboard) hasStages() bool {
+	return len(d.ByStage) > 1 || (len(d.ByStage) == 1 && !hasKey(d.ByStage, "(none)"))
+}
+
+func (d *Dashboard) writePhases(b *strings.Builder) {
+	b.WriteString("By Phase:\n")
+	for _, phase := range d.PhaseOrder {
+		pp := d.ByPhase[phase]
+		fmt.Fprintf(b, "  %-12s %d/%d (%.0f%%) %s\n",
+			phase, pp.Done, pp.Total, percent(pp.Done, pp.Total), progressBar(pp.Done, pp.Total, 20))
+		var stages []string
+		for _, stage := range pp.StageOrder {
 			if stage == "(none)" {
 				continue
 			}
-			sPct := 0.0
-			if sp.Total > 0 {
-				sPct = float64(sp.Done) / float64(sp.Total) * 100
-			}
-			fmt.Fprintf(&b, "  %-12s %d/%d (%.0f%%) %s\n",
-				stage, sp.Done, sp.Total, sPct, progressBar(sp.Done, sp.Total, 20))
+			ps := pp.Stages[stage]
+			stages = append(stages, fmt.Sprintf("%s %d/%d", stage, ps.Done, ps.Total))
+		}
+		if len(stages) > 0 {
+			fmt.Fprintf(b, "               %s\n", strings.Join(stages, ", "))
 		}
 	}
+}
 
-	return b.String()
+func (d *Dashboard) writeStages(b *strings.Builder) {
+	b.WriteString("By Stage (across phases, in the order the plans reached them):\n")
+	for _, stage := range d.StageOrder {
+		if stage == "(none)" {
+			continue
+		}
+		sp := d.ByStage[stage]
+		fmt.Fprintf(b, "  %-12s %d/%d (%.0f%%) %s\n",
+			stage, sp.Done, sp.Total, percent(sp.Done, sp.Total), progressBar(sp.Done, sp.Total, 20))
+	}
+}
+
+func percent(done, total int) float64 {
+	if total == 0 {
+		return 0
+	}
+	return float64(done) / float64(total) * 100
 }
 
 func progressBar(done, total, width int) string {
@@ -237,11 +269,6 @@ func progressBar(done, total, width int) string {
 }
 
 func hasKey(m map[string]StageProgress, key string) bool {
-	_, ok := m[key]
-	return ok
-}
-
-func hasPhase(m map[string]PhaseProgress, key string) bool {
 	_, ok := m[key]
 	return ok
 }

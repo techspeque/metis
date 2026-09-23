@@ -360,10 +360,19 @@ Brief templates adapt based on slice type (feat, refactor, remove, gate, etc.).
 
 ## Observability
 
-### `metis progress`
+### `metis progress [stats|stage|phase]`
 
-Terminal dashboard showing completion stats with progress bars, by-stage
-breakdown, and done/reviewing/rework/pending counts.
+Terminal dashboard with progress bars. Every view opens with the overall
+completion line; the view picks the breakdown under it:
+
+```bash
+metis progress          # by stage (default)
+metis progress stage    # completion per stage, in the order the plans reached them
+metis progress phase    # completion per phase, with each phase's stages
+metis progress stats    # done / reviewing / rework / pending counts (alias: summary)
+```
+
+With `-o json` every view emits the same full dashboard.
 
 ### `metis findings`
 

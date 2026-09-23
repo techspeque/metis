@@ -68,7 +68,7 @@ func TestDashboard_Render(t *testing.T) {
 	}
 
 	d := Compute(slices)
-	out := d.Render()
+	out := d.RenderView(ViewStats)
 
 	if !strings.Contains(out, "Metis Progress") {
 		t.Error("render missing header")
@@ -86,7 +86,7 @@ func TestDashboard_Render(t *testing.T) {
 
 func TestDashboard_Render_Empty(t *testing.T) {
 	d := Compute(nil)
-	out := d.Render()
+	out := d.RenderView(ViewStats)
 	if !strings.Contains(out, "0/0 done") {
 		t.Error("empty render missing 0/0")
 	}
@@ -124,7 +124,7 @@ func TestRender_StagesInPlanOrder(t *testing.T) {
 		if strings.Join(d.StageOrder, ",") != strings.Join(want, ",") {
 			t.Fatalf("StageOrder = %v, want %v", d.StageOrder, want)
 		}
-		out := d.Render()
+		out := d.RenderView(ViewStage)
 		last := -1
 		for _, stage := range want {
 			i := strings.Index(out, "  "+stage+" ")
@@ -136,8 +136,9 @@ func TestRender_StagesInPlanOrder(t *testing.T) {
 	}
 	// A stage-less slice contributes no row and no order entry beyond "(none)".
 	d := Compute([]slice.Slice{{Coded: true, Reviewed: true}})
-	if strings.Contains(d.Render(), "By Stage") {
-		t.Errorf("a single stage-less slice must not render a By Stage section:\n%s", d.Render())
+	out := d.RenderView(ViewStage)
+	if strings.Contains(out, "By Stage") || !strings.Contains(out, "No slices have a stage.") {
+		t.Errorf("a single stage-less slice must not render a By Stage section:\n%s", out)
 	}
 }
 
@@ -168,7 +169,7 @@ func TestRender_PhasesInPlanOrder(t *testing.T) {
 	if p := d.ByPhase["phase-6"]; p.Total != 2 || p.Done != 1 || p.Stages["substrate"].Done != 1 || p.Stages["controls"].Total != 1 {
 		t.Errorf("phase-6 = %+v", p)
 	}
-	out := d.Render()
+	out := d.RenderView(ViewPhase)
 	last := -1
 	for _, phase := range want {
 		i := strings.Index(out, "  "+phase+" ")
@@ -179,5 +180,53 @@ func TestRender_PhasesInPlanOrder(t *testing.T) {
 	}
 	if !strings.Contains(out, "substrate 1/1, contract 1/1") {
 		t.Errorf("phase-1's stages are not listed in plan order:\n%s", out)
+	}
+}
+
+// TestRenderView_ShowsOnlyItsBreakdown: each view carries the overall line
+// and its own section, never another view's.
+func TestRenderView_ShowsOnlyItsBreakdown(t *testing.T) {
+	d := Compute([]slice.Slice{
+		{ID: "phase-1-ws-1.1", Plan: ".metis/plans/phase-1.md", Stage: "substrate", Coded: true, Reviewed: true},
+		{ID: "phase-2-ws-2.1", Plan: ".metis/plans/phase-2.md", Stage: "contract", Coded: true},
+		{ID: "phase-2-ws-2.2", Plan: ".metis/plans/phase-2.md", Stage: "contract", Removed: true},
+	})
+	cases := []struct {
+		view    View
+		want    []string
+		notWant []string
+	}{
+		{ViewStats, []string{"Done:      1", "Reviewing: 1", "Removed:   1"}, []string{"By Phase", "By Stage"}},
+		{ViewPhase, []string{"By Phase:", "phase-1 ", "phase-2 ", "substrate 1/1"}, []string{"Reviewing:", "By Stage"}},
+		{ViewStage, []string{"By Stage", "substrate ", "contract "}, []string{"Reviewing:", "By Phase"}},
+	}
+	for _, c := range cases {
+		out := d.RenderView(c.view)
+		if !strings.Contains(out, "Overall: 1/2 done (50%)") {
+			t.Errorf("%s view is missing the overall line:\n%s", c.view, out)
+		}
+		for _, w := range c.want {
+			if !strings.Contains(out, w) {
+				t.Errorf("%s view is missing %q:\n%s", c.view, w, out)
+			}
+		}
+		for _, n := range c.notWant {
+			if strings.Contains(out, n) {
+				t.Errorf("%s view must not contain %q:\n%s", c.view, n, out)
+			}
+		}
+	}
+}
+
+// TestRenderView_PhaseShowsUnplanned: asked for explicitly, the phase view
+// shows a lone unplanned bucket rather than nothing; with no slices at all
+// it says there is nothing to show.
+func TestRenderView_PhaseShowsUnplanned(t *testing.T) {
+	out := Compute([]slice.Slice{{ID: "recon-0001"}}).RenderView(ViewPhase)
+	if !strings.Contains(out, "  "+unplanned+" ") {
+		t.Errorf("phase view should list the unplanned bucket:\n%s", out)
+	}
+	if out := Compute(nil).RenderView(ViewPhase); !strings.Contains(out, "No phases to show.") {
+		t.Errorf("empty phase view should say so:\n%s", out)
 	}
 }
