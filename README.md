@@ -156,7 +156,7 @@ git checkout -b dev
 # 3. Configure — no YAML editing; at least two agents for cross-vendor
 #    review (or 'metis config set routing.review self' for single-agent)
 metis config set project.overview OVERVIEW.md
-metis config set commands.verify "go test ./..."
+metis config set commands.verify "go test ./..."   # a green run is reused for the same tree; --force re-runs
 metis config set agents.claude-code/opus.surface claude-code
 metis config set agents.claude-code/opus.model opus
 metis config set agents.claude-code/opus.label "Claude Code (Opus)"

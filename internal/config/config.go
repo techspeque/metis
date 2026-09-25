@@ -68,6 +68,15 @@ type CommandsConfig struct {
 	// TimeoutSeconds bounds each configured command; 0 means the runner
 	// default (10 minutes).
 	TimeoutSeconds int `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`
+	// VerifyCache reuses a green verify of the same working-tree content;
+	// unset means on. Set false when the verify command's outcome depends
+	// on more than the tree and the env check.
+	VerifyCache *bool `yaml:"verify_cache,omitempty" json:"verify_cache,omitempty"`
+}
+
+// VerifyCacheEnabled reports whether a green verify may be reused.
+func (c CommandsConfig) VerifyCacheEnabled() bool {
+	return c.VerifyCache == nil || *c.VerifyCache
 }
 
 // CommandTimeout returns the configured command timeout, or 0 for the
