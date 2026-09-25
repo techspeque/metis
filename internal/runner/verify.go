@@ -3,7 +3,6 @@ package runner
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -122,13 +121,11 @@ func Verify(cfg *config.Config, repoRoot string, sliceID string, opts VerifyOpti
 
 	result := Run(cfg.Commands.Verify, repoRoot, cfg.CommandTimeout())
 
-	logRel := ""
+	logData := result.FormatLog(sliceID)
 	if store != nil && sliceID != "" {
-		logData := result.FormatLog(sliceID)
 		if err := store.Write(sliceID, logName, logData, result.ExitCode); err != nil {
 			return 0, outcome, fmt.Errorf("storing verify log: %w", err)
 		}
-		logRel = filepath.ToSlash(filepath.Join(cfg.Paths.Runs, sliceID, logName+".log"))
 	}
 
 	if result.ExitCode != 0 {
@@ -144,7 +141,7 @@ func Verify(cfg *config.Config, repoRoot string, sliceID string, opts VerifyOpti
 		switch {
 		case err != nil:
 		case after == key:
-			if err := RecordGreen(repoRoot, &Green{Key: key, Tree: tree, At: time.Now().UTC(), Slice: sliceID, Log: logRel}); err != nil {
+			if err := RecordGreen(repoRoot, &Green{Key: key, Tree: tree, At: time.Now().UTC(), Slice: sliceID}, logData); err != nil {
 				fmt.Fprintf(os.Stderr, "metis: verify cache not recorded: %v\n", err)
 			}
 		default:

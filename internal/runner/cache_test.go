@@ -76,8 +76,15 @@ func TestVerifyReusesAGreenRunOfTheSameTree(t *testing.T) {
 		t.Fatalf("same tree: code %d, cached %v, runs %d", code, out.Cached, count(t, counter))
 	}
 	log, exit, err := store.Read("s-1", "verify-post")
-	if err != nil || exit != 0 || !strings.Contains(string(log), "cached: tree "+out.Cached.Tree) || !strings.Contains(string(log), "verify-pre.log") {
+	if err != nil || exit != 0 || !strings.Contains(string(log), "cached: tree "+out.Cached.Tree) || !strings.Contains(string(log), "log: "+out.Cached.Log) {
 		t.Fatalf("cached log: exit %d err %v\n%s", exit, err, log)
+	}
+	// The same label again: the slice's log is now the pointer, the green
+	// run's own log survives where the pointer says.
+	verify(t, cfg, dir, store, VerifyOptions{Label: "post"})
+	kept, err := os.ReadFile(filepath.Join(dir, out.Cached.Log))
+	if err != nil || !strings.Contains(string(kept), "command: echo run >>") || strings.Contains(string(kept), "cached:") {
+		t.Fatalf("the green run's log was not kept at %s: %v\n%s", out.Cached.Log, err, kept)
 	}
 
 	if _, out := verify(t, cfg, dir, store, VerifyOptions{Force: true}); out.Cached != nil || count(t, counter) != 2 {
@@ -128,5 +135,18 @@ func TestVerifyStillRunsTheEnvCheckOnACachedTree(t *testing.T) {
 	must(t, os.Remove(up))
 	if code, _ := verify(t, cfg, dir, store, VerifyOptions{}); code != ExitEnvFailure {
 		t.Fatalf("a service gone down on a cached tree exited %d", code)
+	}
+}
+
+func TestAReusedRunUnderTheSameLabelKeepsTheGreenLog(t *testing.T) {
+	cfg, dir, _, store := cacheRepo(t, "echo run >> COUNTER")
+	verify(t, cfg, dir, store, VerifyOptions{Label: "pre"})
+	_, out := verify(t, cfg, dir, store, VerifyOptions{Label: "pre"})
+	if out.Cached == nil {
+		t.Fatal("the second run was not reused")
+	}
+	kept, err := os.ReadFile(filepath.Join(dir, out.Cached.Log))
+	if err != nil || strings.Contains(string(kept), "cached:") || !strings.Contains(string(kept), "command: echo run >>") {
+		t.Fatalf("the reused run's log points at itself, not the green run (%s): %v\n%s", out.Cached.Log, err, kept)
 	}
 }

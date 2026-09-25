@@ -72,24 +72,40 @@ func LookupGreen(repoRoot, key string) *Green {
 	return nil
 }
 
-// RecordGreen remembers a passing run, newest first.
-func RecordGreen(repoRoot string, g *Green) error {
+// RecordGreen remembers a passing run, newest first, with a copy of its
+// log beside the record: the slice's own log is rewritten by later runs.
+func RecordGreen(repoRoot string, g *Green, log []byte) error {
 	path, err := cachePath(repoRoot)
 	if err != nil {
 		return err
 	}
+	dir := filepath.Dir(path)
+	logDir := filepath.Join(dir, "verify-logs")
+	if err := os.MkdirAll(logDir, 0o755); err != nil {
+		return fmt.Errorf("verify cache: %w", err)
+	}
+	logPath := filepath.Join(logDir, g.Key+".log")
+	if err := os.WriteFile(logPath, log, 0o644); err != nil {
+		return fmt.Errorf("verify cache: %w", err)
+	}
+	g.Log = logPath
+	if rel, err := filepath.Rel(repoRoot, logPath); err == nil {
+		g.Log = filepath.ToSlash(rel)
+	}
+
 	entries := []Green{*g}
 	for _, e := range readCache(path) {
-		if e.Key != g.Key && len(entries) < cacheEntries {
+		switch {
+		case e.Key == g.Key:
+		case len(entries) < cacheEntries:
 			entries = append(entries, e)
+		default:
+			_ = os.Remove(filepath.Join(logDir, e.Key+".log"))
 		}
 	}
 	data, err := json.MarshalIndent(entries, "", "  ")
 	if err != nil {
 		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return fmt.Errorf("verify cache: %w", err)
 	}
 	return os.WriteFile(path, append(data, '\n'), 0o644)
 }
