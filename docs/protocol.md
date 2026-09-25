@@ -113,6 +113,23 @@ metis verify --pre
 - **Exit 1 (code failure before your changes):** STOP. Report pre-existing
   breakage. Do not fix it — scope violation.
 
+### Verify cache
+
+A green `metis verify` is remembered by what it verified: the working tree's
+content as git would stage it (tracked and untracked files; `.gitignore`d
+files such as caches and build output excluded; metis's own ledger, archive,
+briefs, findings and runs excluded) plus the configured `verify` and
+`env_check` commands. The record lives in the clone's git directory
+(`.git/metis/verify-cache.json`), never in the tree.
+
+On the same content the env check still runs and the earlier green run is
+reused: the log for this slice and label says so and points at the original.
+Any change to a verified file is a new run. A run that rewrites tracked or
+unignored files is not remembered, and metis names those files: a cache or
+build output the verify writes belongs in `.gitignore`. `metis verify --force` runs the command
+regardless; `commands.verify_cache: false` turns reuse off for projects whose
+verify depends on more than the tree and the env check.
+
 ---
 
 ## Step 6a: Coder Flow
@@ -159,10 +176,7 @@ If `metis next` assigned role = **Reviewer**:
 
 2. **Read brief** — `metis brief <id>` (reads the committed brief)
 
-3. **Independent verify** — `metis verify --post`
-   (You MUST verify independently — stored logs are evidence, not proof)
-
-3b. **Audit scope** — `metis log <id> --validate`: deterministic check that
+3. **Audit scope** — `metis log <id> --validate`: deterministic check that
    every commit matches the format and every touched file falls inside the
    brief's declared `owned_paths` (gate slices are exempt from the scope
    portion). FAIL → block with category `scope`. This is enforced:
@@ -176,8 +190,13 @@ If `metis next` assigned role = **Reviewer**:
    5. Architectural fit — no duplicated/hallucinated interfaces; matches ADRs
    6. Maintainability
 
+4b. **Verify before passing** — `metis verify --post`, only on the way to a
+   pass. The env check always runs; the verify command runs unless this
+   working tree's content already passed (see Verify cache). `--force` runs it
+   regardless. A block needs no verify.
+
 5. **Verdict:**
-   - **Pass:** `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`
+   - **Pass:** verify green, then `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`
    - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."`
 
    Both paths are atomic — `block` and `archive` commit the ledger and

@@ -1474,8 +1474,8 @@ metis verify --pre
 
 1. **Locate commits** — `git log --oneline --grep "<slice-id>"`
 2. **Read brief** — `metis brief <id>` (reads existing)
-3. **Independent verify** — `metis verify --post`
-4. **Walk checklist** — one-line verdict per item, citing `file:line`
+3. **Walk checklist** — one-line verdict per item, citing `file:line`
+4. **Verify before passing** — `metis verify --post` (reuses a green run of the same tree; a block needs none)
 5. **Verdict:**
    - Pass → `metis commit --flip reviewed` then `metis archive`
    - Block → `metis block <id> --severity ... --category ... --finding "..."`
