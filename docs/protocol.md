@@ -123,7 +123,8 @@ briefs, findings and runs excluded) plus the configured `verify` and
 (`.git/metis/verify-cache.json`), never in the tree.
 
 On the same content the env check still runs and the earlier green run is
-reused: the log for this slice and label says so and points at the original.
+reused: the log for this slice and label says so and points at the green
+run's own log, kept beside the record (`.git/metis/verify-logs/`).
 Any change to a verified file is a new run. A run that rewrites tracked or
 unignored files is not remembered, and metis names those files: a cache or
 build output the verify writes belongs in `.gitignore`. `metis verify --force` runs the command
