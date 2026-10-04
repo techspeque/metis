@@ -72,10 +72,26 @@ type CommandsConfig struct {
 	// unset means on. Set false when the verify command's outcome depends
 	// on more than the tree and the env check.
 	VerifyCache *bool `yaml:"verify_cache,omitempty" json:"verify_cache,omitempty"`
+	// VerifyScopes splits verify by the paths each part covers: a scope
+	// whose paths' content already passed with its command is reused, a
+	// changed scope runs its own command, and a change outside every scope
+	// runs the whole verify. Unset means verify is one command.
+	VerifyScopes []VerifyScope `yaml:"verify_scopes,omitempty" json:"verify_scopes,omitempty"`
+}
+
+// VerifyScope is one part of a scoped verify: the paths it answers for
+// and the command that verifies them.
+type VerifyScope struct {
+	Name string `yaml:"name" json:"name"`
+	// Paths are repository-relative: a directory (trailing slash or not),
+	// a file, or a glob where * matches within a segment and ** across
+	// segments. A path may belong to several scopes.
+	Paths   []string `yaml:"paths" json:"paths"`
+	Command string   `yaml:"command" json:"command"`
 }
 
 // VerifyCacheEnabled reports whether a green verify may be reused.
-func (c CommandsConfig) VerifyCacheEnabled() bool {
+func (c *CommandsConfig) VerifyCacheEnabled() bool {
 	return c.VerifyCache == nil || *c.VerifyCache
 }
 

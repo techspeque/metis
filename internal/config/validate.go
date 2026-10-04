@@ -44,6 +44,22 @@ func (c *Config) Validate() []error {
 	if c.Commands.Verify == "" {
 		errs = append(errs, fmt.Errorf("commands.verify is required"))
 	}
+	seen := map[string]bool{}
+	for i, scope := range c.Commands.VerifyScopes {
+		switch {
+		case scope.Name == "":
+			errs = append(errs, fmt.Errorf("commands.verify_scopes[%d]: name is required", i))
+		case seen[scope.Name]:
+			errs = append(errs, fmt.Errorf("commands.verify_scopes: scope %q is declared twice", scope.Name))
+		}
+		seen[scope.Name] = true
+		if len(scope.Paths) == 0 {
+			errs = append(errs, fmt.Errorf("commands.verify_scopes[%d]: paths are required", i))
+		}
+		if scope.Command == "" {
+			errs = append(errs, fmt.Errorf("commands.verify_scopes[%d]: command is required", i))
+		}
+	}
 
 	// Commit prefixes must be non-empty
 	if len(c.Commits.Prefixes) == 0 {

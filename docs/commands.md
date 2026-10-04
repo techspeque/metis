@@ -232,7 +232,14 @@ metis verify --pre     # pre-flight (before changes), stored as verify-pre.log
 metis verify --post    # post-implementation, stored as verify-post.log
 metis verify --env     # environment soundness check only
 metis verify           # stored as verify-latest.log
+metis verify --force   # run the whole command even if this tree passed
+metis verify --scope web --scope api   # run named scopes (commands.verify_scopes)
 ```
+
+A green run is remembered by the working tree's content and reused on the
+same content. With `commands.verify_scopes` ([configuration](configuration.md#scoped-verify)),
+only the scopes whose files changed run, and a change outside every scope
+runs the whole command.
 
 **Exit codes:**
 - 0: all pass

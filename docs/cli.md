@@ -80,7 +80,7 @@ Finding categories: `auth`, `protocol`, `scope`, `tests`, `arch-dup`,
 
 | Command | Flags | JSON | Audience |
 |---|---|---|---|
-| `metis verify` | `--pre` · `--post` · `--env` (environment check only) | — | Agent, Both |
+| `metis verify` | `--pre` · `--post` · `--env` (environment check only) · `--force` · `--scope <name>` | — | Agent, Both |
 | `metis interfaces` | — | — | Agent |
 | `metis check` | `--config` · `--ledger` | ✓ | Both |
 

@@ -14,7 +14,7 @@ import (
 )
 
 // cacheEntries bounds the record of green runs.
-const cacheEntries = 50
+const cacheEntries = 200
 
 // Green is one passing verify, keyed by what it verified.
 type Green struct {
@@ -23,6 +23,8 @@ type Green struct {
 	At    time.Time `json:"at"`
 	Slice string    `json:"slice,omitempty"`
 	Log   string    `json:"log,omitempty"`
+	// Scope is the verify scope this run covered; empty is the whole verify.
+	Scope string `json:"scope,omitempty"`
 }
 
 // VerifyKey identifies what a verify run would verify: the working tree's
