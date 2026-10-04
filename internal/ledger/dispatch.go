@@ -1,6 +1,8 @@
 package ledger
 
 import (
+	"time"
+
 	"github.com/techspeque/metis/internal/slice"
 )
 
@@ -12,15 +14,17 @@ type DispatchResult struct {
 }
 
 // Next finds the active slice using the dispatch algorithm:
-// 1. Filter to unblocked slices (no blocked_by with incomplete deps)
-// 2. Sort by priority (p0 > p1 > p2 > p3)
-// 3. Within same priority, declaration order
-// 4. First slice with coded=false -> role Coder
-// 5. If coded but reviewed=false -> role Reviewer
-// 6. If both true -> skip (should be archived)
+//  1. Filter to unblocked slices (no blocked_by with incomplete deps) that
+//     are not waiting (metis wait)
+//  2. Sort by priority (p0 > p1 > p2 > p3)
+//  3. Within same priority, declaration order
+//  4. First slice with coded=false -> role Coder
+//  5. If coded but reviewed=false -> role Reviewer
+//  6. If both true -> skip (should be archived)
 //
 // Returns nil if no active slice exists (backlog empty or all done).
 func (l *Ledger) Next() *DispatchResult {
+	now := time.Now()
 	// Build a set of completed slice IDs for blocked_by resolution
 	doneIDs := make(map[string]bool)
 	for i := range l.Slices {
@@ -42,8 +46,8 @@ func (l *Ledger) Next() *DispatchResult {
 			continue
 		}
 
-		// Check if blocked
-		if isBlocked(s, doneIDs) {
+		// Check if blocked, or parked on something outside the repository
+		if isBlocked(s, doneIDs) || s.IsWaiting(now) {
 			continue
 		}
 
@@ -100,6 +104,19 @@ func (l *Ledger) DoneSlices() []slice.Slice {
 	var result []slice.Slice
 	for i := range l.Slices {
 		if l.Slices[i].IsDone() {
+			result = append(result, l.Slices[i])
+		}
+	}
+	return result
+}
+
+// WaitingSlices returns the slices parked by metis wait whose wait has not
+// passed, in ledger order.
+func (l *Ledger) WaitingSlices() []slice.Slice {
+	now := time.Now()
+	var result []slice.Slice
+	for i := range l.Slices {
+		if !l.Slices[i].IsDone() && l.Slices[i].IsWaiting(now) {
 			result = append(result, l.Slices[i])
 		}
 	}

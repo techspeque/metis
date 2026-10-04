@@ -224,9 +224,43 @@ commands:
 | `env_check` | No | Environment soundness check (exit ≠ 0 means env is broken) |
 | `interfaces` | No | Regenerate API summary for anti-hallucination archaeology |
 | `timeout_seconds` | No | Bounds each command (default 600) — a hung command is killed, not waited on forever |
+| `verify_cache` | No | Reuse a green verify of the same working-tree content (default true) |
+| `verify_scopes` | No | Split verify by the paths each part covers (below) |
 
 Commands are opaque strings — Metis runs them via `sh -c` and captures output.
 Technology-agnostic: use whatever your stack needs.
+
+#### Scoped verify
+
+A large repository rarely changes everywhere at once. `verify_scopes`
+declares which command answers for which paths:
+
+```yaml
+commands:
+  verify: make verify                      # still required: the whole
+  verify_scopes:
+    - name: api
+      paths: [api/, "**/openapi.json"]
+      command: make verify-api
+    - name: web
+      paths: [web/, api/openapi.json]      # a path may belong to several scopes
+      command: make verify-web
+    - name: docs
+      paths: ["**/*.md", docs/]
+      command: make docs-check
+```
+
+Paths are repository-relative: a directory (with or without a trailing
+slash), a file, or a glob where `*` matches within one path segment and
+`**` across segments. On each run Metis keys every scope by the content of
+its files in the working tree and by its command: a scope that already
+passed is reused, a scope whose content changed runs its own command, and
+a change to a file outside every scope (a root Makefile, `go.work`)
+runs the whole `verify`, which then counts as green for every scope.
+`metis verify --force` always runs the whole; `--scope <name>` runs named
+scopes regardless. The slice's log says which scopes ran and which were
+reused, and a reviewer reads it the same way: green means green for what
+the tree touched.
 
 ---
 

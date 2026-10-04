@@ -5,10 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/techspeque/metis/internal/git"
+	"github.com/techspeque/metis/internal/ledger"
 	"github.com/techspeque/metis/internal/runs"
 	"github.com/techspeque/metis/internal/slice"
 )
@@ -46,6 +48,11 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 			return err
 		}
 		result := l.Next()
+		claimed, _ := cmd.Flags().GetString("slice")
+		// A slice parked by metis wait is still its agent's: --slice names it.
+		if parked := l.FindByID(claimed); parked != nil && parked.IsWaiting(time.Now()) {
+			result = &ledger.DispatchResult{Slice: parked, Role: parked.ActiveRole()}
+		}
 		if result == nil {
 			return fmt.Errorf("no active slice — cannot commit")
 		}
@@ -56,7 +63,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		// Bind to the dispatched slice: an agent passes the ID it received
 		// from 'metis next'; if a higher-priority slice arrived in between,
 		// fail loudly instead of silently acting on the wrong slice.
-		if claimed, _ := cmd.Flags().GetString("slice"); claimed != "" && claimed != sliceID {
+		if claimed != "" && claimed != sliceID {
 			return fmt.Errorf("slice mismatch: the active slice is %s but you passed --slice %s — if %s is what you were dispatched, dispatch has moved on; re-run 'metis next' and report to the human", sliceID, claimed, claimed)
 		}
 

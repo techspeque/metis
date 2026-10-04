@@ -122,3 +122,75 @@ func TestRemoveCommitsState(t *testing.T) {
 		t.Errorf("last commit = %q, want remove state commit", strings.TrimSpace(log))
 	}
 }
+
+// TestASecondBlockAddsAFindingToTheCycle pins that a review can carry
+// several blocking findings: the second block records a finding without a
+// new cycle, and a bare second block is refused.
+func TestASecondBlockAddsAFindingToTheCycle(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	replaceInFile(t, filepath.Join(dir, ".metis", "slices.yaml"), "coded: false", "coded: true")
+	gitOut(t, dir, "commit", "-aqm", "chore(feat-0001): coded")
+	setOutputFlag(t, "")
+	t.Cleanup(func() { rootCmd.SetArgs([]string{}) })
+
+	rootCmd.SetArgs([]string{"block", "feat-0001", "--severity", "P1", "--category", "security", "--finding", "token echoed"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("first block: %v", err)
+	}
+	rootCmd.SetArgs([]string{"block", "feat-0001", "--finding", ""})
+	if err := rootCmd.Execute(); err == nil || !strings.Contains(err.Error(), "already blocked") {
+		t.Fatalf("a bare second block: %v", err)
+	}
+	rootCmd.SetArgs([]string{"block", "feat-0001", "--severity", "P2", "--category", "tests", "--finding", "no refusal test"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("second block: %v", err)
+	}
+
+	ledgerText, err := os.ReadFile(filepath.Join(dir, ".metis", "slices.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(ledgerText), "review_cycles: 1") {
+		t.Errorf("a second block must not start a cycle:\n%s", ledgerText)
+	}
+	findingsText, err := os.ReadFile(filepath.Join(dir, ".metis", "findings.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(findingsText), "status: open") != 2 {
+		t.Errorf("two open findings expected:\n%s", findingsText)
+	}
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("tree dirty after the second block:\n%s", status)
+	}
+}
+
+// TestWaitParksTheSliceAndNextSaysSo pins the wait command end to end: the
+// ledger records it, next reports it, --clear returns the slice.
+func TestWaitParksTheSliceAndNextSaysSo(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	setOutputFlag(t, "")
+	t.Cleanup(func() { rootCmd.SetArgs([]string{}) })
+
+	rootCmd.SetArgs([]string{"wait", "feat-0001", "--reason", "lab run until the hour closes", "--for", "90m"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("wait: %v", err)
+	}
+	ledgerText, err := os.ReadFile(filepath.Join(dir, ".metis", "slices.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(ledgerText), "reason: lab run until the hour closes") || !strings.Contains(string(ledgerText), "until:") {
+		t.Errorf("wait not in the ledger:\n%s", ledgerText)
+	}
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("tree dirty after wait:\n%s", status)
+	}
+	rootCmd.SetArgs([]string{"wait", "feat-0001", "--clear"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("clear: %v", err)
+	}
+	if log := gitOut(t, dir, "log", "-1", "--format=%s"); !strings.Contains(log, "wait cleared") {
+		t.Errorf("last commit = %q", strings.TrimSpace(log))
+	}
+}

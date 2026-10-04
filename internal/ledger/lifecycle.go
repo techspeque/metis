@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/techspeque/metis/internal/slice"
 )
@@ -16,6 +17,7 @@ func (l *Ledger) FlipCoded(id string) error {
 		return fmt.Errorf("slice %q is already coded", id)
 	}
 	s.Coded = true
+	s.Waiting = nil
 	return nil
 }
 
@@ -35,10 +37,55 @@ func (l *Ledger) FlipReviewed(id string, agent string) error {
 		return fmt.Errorf("slice %q: reviewer (%s) cannot be the same as coder (%s)", id, agent, s.Coder)
 	}
 	s.Reviewed = true
+	s.Waiting = nil
 	return nil
 }
 
 // Block rejects a slice during review: resets coded, increments review_cycles.
+// BlockedForReview reports whether a review has already blocked the slice
+// in its current cycle: another blocking finding joins that cycle.
+func (l *Ledger) BlockedForReview(id string) bool {
+	s := l.FindByID(id)
+	return s != nil && !s.Coded && !s.Reviewed && s.ReviewCycles > 0
+}
+
+// Wait parks a slice on something outside the repository until it is
+// cleared, or until the given instant when one is set.
+func (l *Ledger) Wait(id, reason string, until time.Time, now time.Time) error {
+	s := l.FindByID(id)
+	if s == nil {
+		return fmt.Errorf("slice %q not found", id)
+	}
+	if s.IsDone() {
+		return fmt.Errorf("slice %q is already done", id)
+	}
+	if reason == "" {
+		return fmt.Errorf("slice %q: a wait needs a reason", id)
+	}
+	w := &slice.Wait{Reason: reason, Since: now.UTC().Format(time.RFC3339)}
+	if !until.IsZero() {
+		if !until.After(now) {
+			return fmt.Errorf("slice %q: --until %s is not in the future", id, until.UTC().Format(time.RFC3339))
+		}
+		w.Until = until.UTC().Format(time.RFC3339)
+	}
+	s.Waiting = w
+	return nil
+}
+
+// ClearWait returns a parked slice to dispatch.
+func (l *Ledger) ClearWait(id string) error {
+	s := l.FindByID(id)
+	if s == nil {
+		return fmt.Errorf("slice %q not found", id)
+	}
+	if s.Waiting == nil {
+		return fmt.Errorf("slice %q is not waiting", id)
+	}
+	s.Waiting = nil
+	return nil
+}
+
 func (l *Ledger) Block(id string) error {
 	s := l.FindByID(id)
 	if s == nil {

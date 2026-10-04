@@ -60,6 +60,7 @@ they change, so the tree is never left dirty between protocol steps.
 | `metis log <id>` | `--validate` (scope + format audit; exit 1 on violations) | ✓ | Agent (reviewer), Both |
 | `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` | — | Agent (reviewer) |
 | `metis skip <id>` | `--reason`\* | — | Both (recon) |
+| `metis wait <id>` | `--reason`\* · `--until <RFC 3339>` · `--for <duration>` · `--clear` | — | Agent, Both |
 | `metis remove <id>` | `--reason`\* | — | Human |
 | `metis reopen <id>` | `--reason`\* | — | Human |
 | `metis archive` | — | — | Agent (reviewer) |
@@ -80,7 +81,7 @@ Finding categories: `auth`, `protocol`, `scope`, `tests`, `arch-dup`,
 
 | Command | Flags | JSON | Audience |
 |---|---|---|---|
-| `metis verify` | `--pre` · `--post` · `--env` (environment check only) | — | Agent, Both |
+| `metis verify` | `--pre` · `--post` · `--env` (environment check only) · `--force` · `--scope <name>` | — | Agent, Both |
 | `metis interfaces` | — | — | Agent |
 | `metis check` | `--config` · `--ledger` | ✓ | Both |
 

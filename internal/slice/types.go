@@ -1,7 +1,10 @@
 // Package slice defines the core domain types for Metis work slices.
 package slice
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+)
 
 // WorkType represents the kind of work a slice performs.
 type WorkType string
@@ -157,6 +160,30 @@ type Slice struct {
 	Notes        string   `yaml:"notes,omitempty" json:"notes,omitempty"`
 	Removed      bool     `yaml:"removed,omitempty" json:"removed,omitempty"`
 	Created      string   `yaml:"created" json:"created"`
+	// Waiting is set while the slice waits on something outside the
+	// repository (a lab run, an approval, a window that must close); dispatch
+	// passes it over until the wait is cleared or its until has passed.
+	Waiting *Wait `yaml:"waiting,omitempty" json:"waiting,omitempty"`
+}
+
+// Wait records why a slice is parked and, optionally, until when.
+type Wait struct {
+	Reason string `yaml:"reason" json:"reason"`
+	Since  string `yaml:"since" json:"since"`
+	Until  string `yaml:"until,omitempty" json:"until,omitempty"`
+}
+
+// IsWaiting reports whether the slice is still parked at now: a wait with
+// no until holds until it is cleared; one with an until expires by itself.
+func (s *Slice) IsWaiting(now time.Time) bool {
+	if s.Waiting == nil {
+		return false
+	}
+	if s.Waiting.Until == "" {
+		return true
+	}
+	until, err := time.Parse(time.RFC3339, s.Waiting.Until)
+	return err != nil || now.Before(until)
 }
 
 // Status returns the computed lifecycle status of the slice.
@@ -227,6 +254,19 @@ func (s *Slice) Validate(allowSelfReview bool) []error {
 	}
 	if s.Reviewed && !s.Coded {
 		errs = append(errs, fmt.Errorf("%s: reviewed=true but coded=false (invalid state)", s.ID))
+	}
+	if w := s.Waiting; w != nil {
+		if w.Reason == "" {
+			errs = append(errs, fmt.Errorf("%s: waiting without a reason", s.ID))
+		}
+		if _, err := time.Parse(time.RFC3339, w.Since); err != nil {
+			errs = append(errs, fmt.Errorf("%s: waiting.since %q is not RFC 3339", s.ID, w.Since))
+		}
+		if w.Until != "" {
+			if _, err := time.Parse(time.RFC3339, w.Until); err != nil {
+				errs = append(errs, fmt.Errorf("%s: waiting.until %q is not RFC 3339", s.ID, w.Until))
+			}
+		}
 	}
 
 	return errs

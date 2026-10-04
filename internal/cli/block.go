@@ -20,8 +20,10 @@ func init() {
 var blockCmd = &cobra.Command{
 	Use:   "block <id>",
 	Short: "Block a slice during review",
-	Long:  `Block a slice: resets coded=false, increments review_cycles, and records the finding.`,
-	Args:  cobra.ExactArgs(1),
+	Long: `Block a slice: resets coded=false, increments review_cycles, and records the finding.
+On a slice already blocked in this cycle, records another blocking finding
+without starting a new cycle, so one review can carry several blocks.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, err := loadContext()
 		if err != nil {
@@ -33,19 +35,26 @@ var blockCmd = &cobra.Command{
 			return err
 		}
 
-		if err := l.Block(args[0]); err != nil {
-			return err
+		findingText, _ := cmd.Flags().GetString("finding")
+		// A review carries every blocking finding of its cycle: once the
+		// slice is blocked, another block adds a finding to that cycle.
+		again := l.BlockedForReview(args[0])
+		if again {
+			if findingText == "" {
+				return fmt.Errorf("slice %s is already blocked (cycle %d) — pass --finding to add another blocking finding to this cycle", args[0], l.FindByID(args[0]).ReviewCycles)
+			}
+			fmt.Printf("Already blocked: %s (review_cycles=%d); adding a finding to this cycle\n", args[0], l.FindByID(args[0]).ReviewCycles)
+		} else {
+			if err := l.Block(args[0]); err != nil {
+				return err
+			}
+			if err := ctx.saveLedger(l); err != nil {
+				return err
+			}
+			fmt.Printf("Blocked slice: %s (review_cycles=%d)\n", args[0], l.FindByID(args[0]).ReviewCycles)
 		}
-
-		if err := ctx.saveLedger(l); err != nil {
-			return err
-		}
-
-		s := l.FindByID(args[0])
-		fmt.Printf("Blocked slice: %s (review_cycles=%d)\n", args[0], s.ReviewCycles)
 
 		// Record finding if provided
-		findingText, _ := cmd.Flags().GetString("finding")
 		if findingText != "" {
 			severity, _ := cmd.Flags().GetString("severity")
 			category, _ := cmd.Flags().GetString("category")
@@ -66,7 +75,7 @@ var blockCmd = &cobra.Command{
 
 		// State transitions are atomic: commit the ledger and findings so
 		// the block never leaves the tree dirty between sessions.
-		s = l.FindByID(args[0])
+		s := l.FindByID(args[0])
 		paths := []string{ctx.ledgerPath()}
 		if findingText != "" {
 			paths = append(paths, filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Findings))

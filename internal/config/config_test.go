@@ -229,6 +229,37 @@ func TestValidate_MissingVerifyCommand(t *testing.T) {
 	}
 }
 
+func TestValidate_VerifyScopes(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Project.Name = "test"
+	cfg.Agents["agent"] = Agent{Surface: "s", Model: "m", Label: "l"}
+	cfg.Commands.VerifyScopes = []VerifyScope{
+		{Name: "api", Paths: []string{"api/"}, Command: "make api"},
+		{Name: "api", Paths: nil, Command: ""},
+		{Name: "", Paths: []string{"web/"}, Command: "make web"},
+	}
+	var got []string
+	for _, e := range cfg.Validate() {
+		got = append(got, e.Error())
+	}
+	for _, want := range []string{
+		`commands.verify_scopes: scope "api" is declared twice`,
+		"commands.verify_scopes[1]: paths are required",
+		"commands.verify_scopes[1]: command is required",
+		"commands.verify_scopes[2]: name is required",
+	} {
+		found := false
+		for _, g := range got {
+			if g == want {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("missing %q in %v", want, got)
+		}
+	}
+}
+
 func TestLoad_FromFile(t *testing.T) {
 	// Use the testdata fixture
 	path := filepath.Join("..", "..", "testdata", "metis.yaml")
