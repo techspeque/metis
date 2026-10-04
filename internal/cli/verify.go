@@ -56,11 +56,16 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 		if result != nil {
 			sliceID = result.Slice.ID
 		}
+		claimed, _ := cmd.Flags().GetString("slice")
+		// A slice parked by metis wait is still its agent's: --slice names it.
+		if parked := l.FindByID(claimed); parked != nil && parked.IsWaiting(time.Now()) {
+			sliceID = parked.ID
+		}
 
 		// Bind to the dispatched slice: without this, a p0 slice arriving
 		// mid-session would silently key this run's log to the wrong slice
 		// and pre-satisfy its flip-coded precondition.
-		if claimed, _ := cmd.Flags().GetString("slice"); claimed != "" && claimed != sliceID {
+		if claimed != "" && claimed != sliceID {
 			return fmt.Errorf("slice mismatch: the active slice is %s but you passed --slice %s — if %s is what you were dispatched, dispatch has moved on; re-run 'metis next' and report to the human", sliceID, claimed, claimed)
 		}
 

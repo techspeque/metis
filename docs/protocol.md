@@ -198,7 +198,7 @@ If `metis next` assigned role = **Reviewer**:
 
 5. **Verdict:**
    - **Pass:** verify green, then `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`
-   - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."`
+   - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."` — once per blocking finding; later calls join the cycle
 
    Both paths are atomic — `block` and `archive` commit the ledger and
    findings changes themselves, so the session always ends with a clean tree.

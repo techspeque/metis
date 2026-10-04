@@ -107,7 +107,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("5. **Verify before passing** — `metis verify --post`; a tree that already passed is not re-run (`--force` re-runs it). A block needs no verify.\n")
 		b.WriteString("6. **Verdict:**\n")
 		b.WriteString("   - Pass (verify green) -> " + reviewedCmd + " then `metis archive`\n")
-		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"` (finding text: `file:line`, the defect, the required change — precise and short)\n")
+		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"` (finding text: `file:line`, the defect, the required change — precise and short); run it once per blocking finding — later ones join the same cycle\n")
 		b.WriteString("   - Non-blocking observations -> `metis findings record <id> --finding \"...\"` (advisory; no state change)\n")
 		b.WriteString("   - On pass, close findings you verified fixed: `metis findings resolve <f-id> --note <how>`\n")
 		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next; facts only, short\n\n")
@@ -352,7 +352,8 @@ func sectionToolingMap() string {
 | ` + "`metis commit --brief`" + ` | Commit the brief |
 | ` + "`metis commit --flip coded`" + ` | Flip coded and commit |
 | ` + "`metis commit --flip reviewed --agent <slug>`" + ` | Flip reviewed and commit (identity required) |
-| ` + "`metis block <id>`" + ` | Block a slice during review |
+| ` + "`metis block <id>`" + ` | Block a slice during review; again for each further blocking finding |
+| ` + "`metis wait <id> --reason ... [--for 90m]`" + ` | Park a slice on something outside the repository (a lab run, an approval); ` + "`--clear`" + ` returns it |
 | ` + "`metis archive`" + ` | Move done slices to archive |
 | ` + "`metis check`" + ` | Validate config + ledger |
 | ` + "`metis status`" + ` | One-line progress summary |

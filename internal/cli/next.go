@@ -35,14 +35,20 @@ var nextCmd = &cobra.Command{
 		}
 
 		result := l.Next()
+		waiting := waitingOutput(l)
 		if result == nil {
 			if nextQuiet {
 				return nil
 			}
 			if nextJSON || jsonOutput() {
-				return printJSON(cmd, map[string]bool{"active": false})
+				return printJSON(cmd, map[string]any{"active": false, "waiting": waiting})
 			}
-			fmt.Println("No active slices. The backlog is empty.")
+			if len(waiting) == 0 {
+				fmt.Println("No active slices. The backlog is empty.")
+			} else {
+				fmt.Println("No active slice: every pending slice is waiting.")
+				printWaiting(waiting)
+			}
 			return nil
 		}
 
@@ -52,11 +58,43 @@ var nextCmd = &cobra.Command{
 		}
 
 		if nextJSON || jsonOutput() {
-			return printNextJSON(cmd, result, ctx)
+			return printNextJSON(cmd, result, ctx, waiting)
 		}
 
-		return printNextText(result, ctx)
+		if err := printNextText(result, ctx); err != nil {
+			return err
+		}
+		printWaiting(waiting)
+		return nil
 	},
+}
+
+// waitJSON is one parked slice as next and status report it.
+type waitJSON struct {
+	ID     string `json:"id"`
+	Reason string `json:"reason"`
+	Since  string `json:"since"`
+	Until  string `json:"until,omitempty"`
+}
+
+func waitingOutput(l *ledger.Ledger) []waitJSON {
+	var out []waitJSON
+	waiting := l.WaitingSlices()
+	for i := range waiting {
+		s := &waiting[i]
+		out = append(out, waitJSON{ID: s.ID, Reason: s.Waiting.Reason, Since: s.Waiting.Since, Until: s.Waiting.Until})
+	}
+	return out
+}
+
+func printWaiting(waiting []waitJSON) {
+	for _, w := range waiting {
+		line := fmt.Sprintf("Waiting: %s — %s (since %s", w.ID, w.Reason, w.Since)
+		if w.Until != "" {
+			line += ", until " + w.Until
+		}
+		fmt.Println(line + ")")
+	}
 }
 
 func printNextText(result *ledger.DispatchResult, ctx *context) error {
@@ -108,9 +146,11 @@ type nextJSONOutput struct {
 	PlanSection  string `json:"plan_section,omitempty"`
 	ReviewCycles int    `json:"review_cycles"`
 	ReadingRule  string `json:"reading_rule"`
+	// Waiting lists the pending slices parked by metis wait.
+	Waiting []waitJSON `json:"waiting,omitempty"`
 }
 
-func printNextJSON(cmd *cobra.Command, result *ledger.DispatchResult, ctx *context) error {
+func printNextJSON(cmd *cobra.Command, result *ledger.DispatchResult, ctx *context, waiting []waitJSON) error {
 	s := result.Slice
 	agent, ok := ctx.cfg.Agents[result.AgentSlug]
 	agentLabel := result.AgentSlug
@@ -133,6 +173,7 @@ func printNextJSON(cmd *cobra.Command, result *ledger.DispatchResult, ctx *conte
 		PlanSection:  s.PlanSection,
 		ReviewCycles: s.ReviewCycles,
 		ReadingRule:  readingRule(s.Risk),
+		Waiting:      waiting,
 	}
 
 	return printJSON(cmd, out)

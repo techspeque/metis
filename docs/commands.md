@@ -179,6 +179,27 @@ Blocking is atomic: the ledger and findings changes are committed in the
 same step (`chore(<id>): block review (cycle N)`), so a block never leaves
 the tree dirty between sessions.
 
+A review with several blocking findings runs `metis block` once per
+finding: on a slice already blocked in this cycle, each further call
+records another open finding without starting a new cycle, so the ledger
+carries the whole verdict. A bare second call is refused.
+
+### `metis wait <id> --reason "..." [--until <RFC 3339> | --for <duration>]`
+
+Park a slice on something outside the repository: a lab run that must
+cross the hour, an approval, a deploy. Dispatch passes a waiting slice
+over, `metis next` and `metis status` list it with its reason, and the
+elapsed time reads as a wait rather than a stalled agent.
+
+```bash
+metis wait feat-0001 --reason "lab run; the detector sweeps after the hour" --for 90m
+metis wait feat-0001 --clear      # back to dispatch; a flip clears it too
+```
+
+Without `--until` or `--for` the wait holds until `--clear`. While a slice
+waits, `metis commit --slice <id>` and `metis verify --slice <id>` still
+bind to it: it is its agent's slice, only parked.
+
 ### `metis findings record <slice-id>` / `metis findings resolve <finding-id>`
 
 `record` files an advisory (non-blocking) observation — unlike `block`, it
