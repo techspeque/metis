@@ -76,6 +76,8 @@ func (c *Config) Validate() []error {
 		errs = append(errs, fmt.Errorf("paths.ledger is required"))
 	}
 
+	errs = append(errs, c.validateAuto()...)
+
 	return errs
 }
 

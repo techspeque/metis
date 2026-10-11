@@ -71,7 +71,7 @@ var seedCmd = &cobra.Command{
 		// Validate at write time — seeding must never produce slices that
 		// 'metis check' rejects one command later.
 		slugs := ctx.agentSlugs()
-		var problems []string
+		problems := append([]string{}, result.Errors...)
 		for _, s := range slices {
 			switch {
 			case s.Coder == "":

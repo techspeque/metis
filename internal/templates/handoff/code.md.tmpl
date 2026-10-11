@@ -1,0 +1,32 @@
+# Code {{.Slice.ID}}
+
+{{template "header" .}}
+
+## Start
+
+Run `metis kickoff --role coder` and follow it from step 1.
+
+## Brief
+
+{{if .BriefCommitted -}}
+The brief at `{{.BriefPath}}` is committed and governs this slice. Read it first; do not widen it.
+{{- else if .BriefExists -}}
+A brief draft exists at `{{.BriefPath}}` but is not committed. Finish it from the plan section, then `metis commit --brief`, before any code.
+{{- else -}}
+There is no brief yet. Write it before any code: `metis brief {{.Slice.ID}} --write`, fill it from the plan section (goal, owned_paths, definition of done, test plan), then `metis commit --brief`.
+{{- end}}
+
+## Scope
+
+Edit only the files the brief's owned_paths declare. A fix genuinely needed outside them goes in the brief's "Out-of-scope touches" with what, where and why.
+
+## Verify and flip
+
+1. Commit your work with `metis commit -m "<message>"` (stage the files first).
+2. `metis verify --post --slice {{.Slice.ID}}` must be green.
+3. `metis commit --flip coded --slice {{.Slice.ID}}`.
+
+{{template "stuck" .}}
+
+{{template "conventions" .}}
+Report: files changed, the verify result. Facts only, short.

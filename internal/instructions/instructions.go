@@ -44,7 +44,7 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 
 	b.WriteString("## Step 1: Establish State\n\n")
 	b.WriteString("```bash\n")
-	fmt.Fprintf(&b, "git rev-parse --abbrev-ref HEAD   # must be '%s'\n", cfg.Project.IntegrationBranch)
+	fmt.Fprintf(&b, "git rev-parse --abbrev-ref HEAD   # must be '%s' (or auto/<slice-id> when metis auto runs the session)\n", cfg.Project.IntegrationBranch)
 	b.WriteString("git status                        # check for uncommitted changes\n")
 	b.WriteString("metis status                      # quick orientation\n")
 	b.WriteString("```\n\n")
@@ -108,7 +108,11 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("6. **Verdict:**\n")
 		b.WriteString("   - Pass (verify green) -> " + reviewedCmd + " then `metis archive`\n")
 		b.WriteString("   - Block -> `metis block <id> --severity ... --category ... --finding \"...\"` (finding text: `file:line`, the defect, the required change — precise and short); run it once per blocking finding — later ones join the same cycle\n")
+		b.WriteString("   - A finding blocks only when it is: " + strings.Join(cfg.Review.Reasons(), "; ") + "\n")
 		b.WriteString("   - Non-blocking observations -> `metis findings record <id> --finding \"...\"` (advisory; no state change)\n")
+		if n := cfg.Review.NarrowAfterCycles(); n > 0 {
+			fmt.Fprintf(&b, "   - From review_cycles %d on, the review is narrowed: confirm (`metis findings resolve`) or re-raise (`metis block ... --finding \"re-raise <f-id>: ...\"`) the open findings; a new blocking finding only at P1, anything else is advisory\n", n)
+		}
 		b.WriteString("   - On pass, close findings you verified fixed: `metis findings resolve <f-id> --note <how>`\n")
 		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next; facts only, short\n\n")
 	}
@@ -314,15 +318,25 @@ func sectionAccuracyRules(cfg *config.Config) string {
 }
 
 func sectionReviewChecklist(cfg *config.Config) string {
-	if len(cfg.ReviewChecklist) == 0 {
-		return "## Review Checklist\n\n(None configured)"
-	}
 	var b strings.Builder
-	b.WriteString("## Review Checklist\n\nWalk in order; one-line verdict per item citing file:line evidence:\n")
-	for i, item := range cfg.ReviewChecklist {
-		fmt.Fprintf(&b, "%d. %s\n", i+1, item)
+	b.WriteString("## Review Checklist\n\n")
+	if len(cfg.ReviewChecklist) == 0 {
+		b.WriteString("(None configured)\n")
+	} else {
+		b.WriteString("Walk in order; one-line verdict per item citing file:line evidence (a brief's `## Review` section replaces this list for its slice):\n")
+		for i, item := range cfg.ReviewChecklist {
+			fmt.Fprintf(&b, "%d. %s\n", i+1, item)
+		}
 	}
-	return b.String()
+	b.WriteString("\nRecord every issue in one review — one `metis block` per blocking finding. A finding blocks only when it is one of:\n")
+	for _, r := range cfg.Review.Reasons() {
+		fmt.Fprintf(&b, "- %s\n", r)
+	}
+	b.WriteString("Anything else is an advisory (`metis findings record`).\n")
+	if n := cfg.Review.NarrowAfterCycles(); n > 0 {
+		fmt.Fprintf(&b, "\nFrom review_cycles %d on, a review is narrowed: confirm or re-raise the open findings; a new blocking finding only at P1; other new observations are advisories.\n", n)
+	}
+	return strings.TrimRight(b.String(), "\n")
 }
 
 func sectionFeedbackLoop() string {

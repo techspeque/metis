@@ -178,3 +178,18 @@ func TestRenumberRules(t *testing.T) {
 		t.Error("removing a rule after every promoted one changes nothing")
 	}
 }
+
+func TestFileRef(t *testing.T) {
+	cases := map[string]string{
+		"internal/sign/sign.go:40 — use hmac.Equal":    "internal/sign/sign.go",
+		"`cmd/metis/main.go` lacks a flag":             "cmd/metis/main.go",
+		"README.md:3 says v1.2 but the code says v1.3": "README.md",
+		"re-raise f-012: still compares with ==":       "",
+		"e.g. the retry bound is 3.5 seconds":          "",
+	}
+	for text, want := range cases {
+		if got := FileRef(text); got != want {
+			t.Errorf("FileRef(%q) = %q, want %q", text, got, want)
+		}
+	}
+}

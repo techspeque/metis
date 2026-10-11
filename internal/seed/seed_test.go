@@ -264,3 +264,42 @@ Composition scenarios to validate:
 		t.Errorf("gate agents = %s/%s", gate.Coder, gate.Reviewer)
 	}
 }
+
+func TestParseAutoLines(t *testing.T) {
+	plan := `# Phase 2 — Payments
+
+## Workstream 2.1: Charge
+
+- **Risk:** high
+- **Coder:** a
+- **Reviewer:** b
+- **Auto:** manual
+
+## Workstream 2.2: Refund
+
+- **Coder:** a
+- **Reviewer:** b
+Auto: auto, max_review_cycles=4
+
+## Workstream 2.3: Receipt
+
+Auto: sometimes
+`
+	r := Parse(plan)
+	if len(r.Workstreams) != 3 {
+		t.Fatalf("workstreams = %d", len(r.Workstreams))
+	}
+	if r.Workstreams[0].AutoMode != "manual" {
+		t.Errorf("2.1 mode = %q", r.Workstreams[0].AutoMode)
+	}
+	if w := r.Workstreams[1]; w.AutoMode != "auto" || w.MaxReviewCycles != 4 {
+		t.Errorf("2.2 = %q / %d", w.AutoMode, w.MaxReviewCycles)
+	}
+	if len(r.Errors) != 1 {
+		t.Errorf("an unknown Auto setting is reported: %v", r.Errors)
+	}
+	slices := ToSlices(r, "plan.md", "feat")
+	if slices[1].AutoMode != "auto" || slices[1].MaxReviewCycles != 4 {
+		t.Errorf("slice 2.2 = %+v", slices[1])
+	}
+}

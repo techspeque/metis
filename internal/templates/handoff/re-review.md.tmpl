@@ -1,0 +1,47 @@
+# Re-review {{.Slice.ID}}
+
+{{template "header" .}}
+
+## Start
+
+Run `metis kickoff --role reviewer` and follow it from step 1. The brief at `{{.BriefPath}}` is the source of truth.
+
+## What this review covers
+
+This is review {{.NextReview}}. Review {{.Cycle}} blocked the slice with:
+
+{{template "findings" .LastCycleFindings}}
+{{- if .EarlierOpenFindings}}
+Still open from earlier reviews:
+
+{{template "findings" .EarlierOpenFindings}}
+{{- end}}
+{{if .Commits}}
+The commits since that review:
+
+{{range .Commits}}- {{.Hash}} {{.Subject}}
+{{end}}{{else}}
+No commits name the slice since that review.
+{{end}}
+For each finding above, in this one review:
+
+- Fixed: `metis findings resolve <f-id> --note "<commit>"`.
+- Not fixed: re-raise it, citing its id: `metis block {{.Slice.ID}} --severity <as before> --category <as before> --finding "re-raise <f-id>: <what is still wrong>"`.
+
+{{if .Narrowed -}}
+**Narrowed review.** Do not re-review the whole slice. A new blocking finding is allowed only at P1 (a demonstrated defect that matters); every other new observation is an advisory. Do not reopen what the brief decides or what an earlier review accepted.
+{{- else -}}
+New findings follow the same rules as a first review.
+{{- end}}
+
+{{template "blockreasons" .}}
+
+## Verdict
+
+1. `metis log {{.Slice.ID}} --validate` — a FAIL is a block.
+2. Pass: every finding resolved, `metis verify --post --slice {{.Slice.ID}}` green, then {{.ReviewedCommand}}, then `metis archive`.
+3. Block: the `metis block` calls above, all in this session.
+
+{{template "stuck" .}}
+
+Report: each finding id with resolved or re-raised, any new finding. Facts only, short.

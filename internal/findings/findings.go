@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strings"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -24,6 +26,12 @@ type Finding struct {
 	Status     string `yaml:"status" json:"status"`                               // open, advisory, resolved, promoted
 	PromotedTo *int   `yaml:"promoted_to,omitempty" json:"promoted_to,omitempty"` // accuracy_rule index if promoted
 	ResolvedBy string `yaml:"resolved_by,omitempty" json:"resolved_by,omitempty"` // note/commit recorded at resolution
+	// Cycle is the review (1-based) that raised the finding; 0 on findings
+	// recorded before metis tracked it.
+	Cycle int `yaml:"cycle,omitempty" json:"cycle,omitempty"`
+	// File is the repository path the finding is about: given with --file,
+	// or the first file:line reference in its text.
+	File string `yaml:"file,omitempty" json:"file,omitempty"`
 }
 
 // Store holds all findings.
@@ -116,6 +124,47 @@ func (s *Store) Resolve(id, resolvedBy string) error {
 	f.Status = "resolved"
 	f.ResolvedBy = resolvedBy
 	return nil
+}
+
+// Blocking reports whether the finding was raised by a block (open, or
+// later resolved or promoted) rather than recorded as an advisory.
+func (f *Finding) Blocking() bool {
+	return f.Status != "advisory"
+}
+
+// fileRefRe matches a path-like token whose extension starts with a
+// letter, optionally followed by :line — the "file:line" a finding is
+// asked to lead with.
+var fileRefRe = regexp.MustCompile(`(?:[\w\-]+/)*[\w\-.]*\w\.[A-Za-z][A-Za-z0-9]*(?::\d+)?`)
+
+// FileRef extracts the first file reference from a finding's text,
+// without its line number. Empty when the text names no file.
+func FileRef(text string) string {
+	for _, m := range fileRefRe.FindAllString(text, -1) {
+		if i := strings.LastIndex(m, ":"); i > 0 {
+			m = m[:i]
+		}
+		if m == "e.g" || m == "i.e" {
+			continue
+		}
+		return m
+	}
+	return ""
+}
+
+// ForSlice returns every finding of a slice, in recorded order.
+func (s *Store) ForSlice(sliceID string) []Finding {
+	return s.FilterStatus("", "", sliceID, "")
+}
+
+// Place records the review a finding belongs to and the file it names.
+// file overrides the reference extracted from the text.
+func (f *Finding) Place(cycle int, file string) {
+	f.Cycle = cycle
+	if file == "" {
+		file = FileRef(f.Finding)
+	}
+	f.File = file
 }
 
 // FindByID returns a pointer to a finding by ID.

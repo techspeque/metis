@@ -1,0 +1,27 @@
+# Rework {{.Slice.ID}}
+
+{{template "header" .}}
+
+## Start
+
+Run `metis kickoff --role coder` and follow it from step 1. The brief at `{{.BriefPath}}` still governs.
+
+## The findings to fix
+
+Review {{.Cycle}} blocked this slice. The open findings, verbatim:
+
+{{template "findings" .OpenFindings}}
+Fix only these. Do not refactor, rename or extend beyond what a finding asks: anything else reopens the review.
+
+- One commit per finding, its message naming the finding: `metis commit -m "fix <finding-id>: <what changed>"`.
+- A finding you cannot fix inside the brief's scope, or one that asks for what the brief rules out, is a decision for a person (below), not a reason to widen the scope.
+
+## Verify and flip
+
+1. `metis verify --post --slice {{.Slice.ID}}` must be green.
+2. `metis commit --flip coded --slice {{.Slice.ID}}`.
+
+{{template "stuck" .}}
+
+{{template "conventions" .}}
+Report: each finding id and the commit that fixes it, the verify result. Facts only, short.

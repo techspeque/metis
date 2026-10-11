@@ -52,6 +52,12 @@ func (l *Ledger) BlockedForReview(id string) bool {
 // Wait parks a slice on something outside the repository until it is
 // cleared, or until the given instant when one is set.
 func (l *Ledger) Wait(id, reason string, until time.Time, now time.Time) error {
+	return l.WaitFor(id, reason, until, now, false)
+}
+
+// WaitFor is Wait with the human flag: a human wait is one only a person
+// clears, and metis auto stops on it.
+func (l *Ledger) WaitFor(id, reason string, until time.Time, now time.Time, human bool) error {
 	s := l.FindByID(id)
 	if s == nil {
 		return fmt.Errorf("slice %q not found", id)
@@ -62,7 +68,7 @@ func (l *Ledger) Wait(id, reason string, until time.Time, now time.Time) error {
 	if reason == "" {
 		return fmt.Errorf("slice %q: a wait needs a reason", id)
 	}
-	w := &slice.Wait{Reason: reason, Since: now.UTC().Format(time.RFC3339)}
+	w := &slice.Wait{Reason: reason, Since: now.UTC().Format(time.RFC3339), Human: human}
 	if !until.IsZero() {
 		if !until.After(now) {
 			return fmt.Errorf("slice %q: --until %s is not in the future", id, until.UTC().Format(time.RFC3339))

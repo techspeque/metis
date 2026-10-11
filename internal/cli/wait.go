@@ -12,6 +12,7 @@ func init() {
 	waitCmd.Flags().String("until", "", "When the wait ends by itself (RFC 3339); without it the wait holds until --clear")
 	waitCmd.Flags().Duration("for", 0, "How long the wait lasts from now, e.g. 90m")
 	waitCmd.Flags().Bool("clear", false, "End the wait and return the slice to dispatch")
+	waitCmd.Flags().Bool("human", false, "Only a person clears this wait: a decision is needed (metis auto stops on it)")
 	rootCmd.AddCommand(waitCmd)
 }
 
@@ -22,7 +23,11 @@ var waitCmd = &cobra.Command{
 close — so dispatch passes it over and the time reads as a wait, not as a
 stalled agent. The wait ends at --until / --for, or at --clear; a flip
 clears it too. Commits and verify may still name the waiting slice with
---slice.`,
+--slice.
+
+--human marks a wait only a person clears — an agent that needs a decision
+runs it and stops; next and status show the slice as "needs you", and
+metis auto stops there.`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		id := args[0]
@@ -30,6 +35,7 @@ clears it too. Commits and verify may still name the waiting slice with
 		untilText, _ := cmd.Flags().GetString("until")
 		forDuration, _ := cmd.Flags().GetDuration("for")
 		clear, _ := cmd.Flags().GetBool("clear")
+		human, _ := cmd.Flags().GetBool("human")
 
 		ctx, err := loadContext()
 		if err != nil {
@@ -69,15 +75,18 @@ clears it too. Commits and verify may still name the waiting slice with
 		case forDuration != 0:
 			until = now.Add(forDuration)
 		}
-		if err := l.Wait(id, reason, until, now); err != nil {
+		if err := l.WaitFor(id, reason, until, now, human); err != nil {
 			return err
 		}
 		if err := ctx.saveLedger(l); err != nil {
 			return err
 		}
-		if until.IsZero() {
+		switch {
+		case human:
+			fmt.Printf("Needs you: %s — %s (until a person runs metis wait %s --clear)\n", id, reason, id)
+		case until.IsZero():
 			fmt.Printf("Waiting: %s — %s (until metis wait %s --clear)\n", id, reason, id)
-		} else {
+		default:
 			fmt.Printf("Waiting: %s — %s (until %s)\n", id, reason, until.UTC().Format(time.RFC3339))
 		}
 		ctx.commitStateSoft(id, "wait: "+reason, ctx.ledgerPath())

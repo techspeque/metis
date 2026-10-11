@@ -47,6 +47,11 @@ type StageProgress struct {
 // PhaseProgress holds progress for one plan's slices, and its stages in
 // the order the plan reached them.
 type PhaseProgress struct {
+	// AutoMode is the phase's metis auto mode (and AutoModeSource where it
+	// came from), when the caller resolved it.
+	AutoMode       string `json:"auto_mode,omitempty"`
+	AutoModeSource string `json:"auto_mode_source,omitempty"`
+
 	Total      int                      `json:"total"`
 	Done       int                      `json:"done"`
 	Stages     map[string]StageProgress `json:"stages,omitempty"`
@@ -58,8 +63,9 @@ const unplanned = "(unplanned)"
 
 var phasePrefix = regexp.MustCompile(`^(phase-\d+)`)
 
-// phaseOf names the plan a slice belongs to.
-func phaseOf(s *slice.Slice) string {
+// PhaseOf names the phase a slice belongs to: the plan file's name, else
+// the id's phase-N prefix, else "(unplanned)".
+func PhaseOf(s *slice.Slice) string {
 	if s.Plan != "" {
 		base := filepath.Base(s.Plan)
 		return strings.TrimSuffix(base, filepath.Ext(base))
@@ -125,7 +131,7 @@ func Compute(slices []slice.Slice) *Dashboard {
 			d.StageOrder = append(d.StageOrder, stage)
 		}
 		sp.Total++
-		phase := phaseOf(&slices[i])
+		phase := PhaseOf(&slices[i])
 		pp, seenPhase := d.ByPhase[phase]
 		if !seenPhase {
 			d.PhaseOrder = append(d.PhaseOrder, phase)
@@ -233,11 +239,16 @@ func (d *Dashboard) hasStages() bool {
 func (d *Dashboard) writePhases(b *strings.Builder, width int) {
 	const gap = "  "
 	counts := make([]string, len(d.PhaseOrder))
+	names := make([]string, len(d.PhaseOrder))
 	nameW, countW := len("Phase"), 0
 	for i, phase := range d.PhaseOrder {
 		pp := d.ByPhase[phase]
 		counts[i] = fmt.Sprintf("%d/%d (%.0f%%)", pp.Done, pp.Total, percent(pp.Done, pp.Total))
-		nameW = max(nameW, utf8.RuneCountInString(phase))
+		names[i] = phase
+		if pp.AutoMode != "" {
+			names[i] += " (" + pp.AutoMode + ")"
+		}
+		nameW = max(nameW, utf8.RuneCountInString(names[i]))
 		countW = max(countW, len(counts[i]))
 	}
 	progressW := phaseBarWidth + 2 + 1 + countW // [bar] counts
@@ -261,7 +272,7 @@ func (d *Dashboard) writePhases(b *strings.Builder, width int) {
 			lines = []string{"—"}
 		}
 		progress := progressBar(pp.Done, pp.Total, phaseBarWidth) + " " + fmt.Sprintf("%*s", countW, counts[i])
-		fmt.Fprintf(b, "  %-*s%s%s%s%s\n", nameW, phase, gap, progress, gap, lines[0])
+		fmt.Fprintf(b, "  %-*s%s%s%s%s\n", nameW, names[i], gap, progress, gap, lines[0])
 		for _, line := range lines[1:] {
 			fmt.Fprintf(b, "%s%s\n", strings.Repeat(" ", indent), line)
 		}

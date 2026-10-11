@@ -1,0 +1,42 @@
+# Review {{.Slice.ID}}
+
+{{template "header" .}}
+
+## Start
+
+Run `metis kickoff --role reviewer` and follow it from step 1.
+
+## The contract of this review
+
+- **This slice only.** Judge the slice's commits against its brief. Earlier slices, the wider codebase and decided mechanisms are out of this review.
+- **The brief is the source of truth:** `{{.BriefPath}}`. What the brief decides is not reopened here.
+- **Read everything first:** the brief, every commit (`metis log {{.Slice.ID}}`), and the files they touch, before you record anything.
+- **One review, every issue.** Record all findings in this one review: one `metis block {{.Slice.ID}} --severity P1|P2|P3 --category <category> --finding "<file:line> — <the defect> — <the required change>"` per blocking finding; the second and later blocks join the same cycle. Do not hold findings back for a later review.
+
+{{template "blockreasons" .}}
+
+## Checklist
+
+{{if .ReviewSection -}}
+From the brief's Review section, in place of the project checklist:
+
+{{.ReviewSection}}
+{{- else -}}
+{{range $i, $item := .Checklist}}{{inc $i}}. {{$item}}
+{{end}}{{- end}}
+
+One line per item, citing file:line.
+{{if .Commits}}
+## Commits
+
+{{range .Commits}}- {{.Hash}} {{.Subject}}
+{{end}}{{end}}
+## Verdict
+
+1. `metis log {{.Slice.ID}} --validate` — a FAIL is a block.
+2. Pass: `metis verify --post --slice {{.Slice.ID}}` green, then {{.ReviewedCommand}}, then `metis archive`. Close the findings you verified fixed: `metis findings resolve <f-id> --note "<how>"`.
+3. Block: the `metis block` calls above, all in this session.
+
+{{template "stuck" .}}
+
+Report: the verdict and the finding ids. Facts only, short.

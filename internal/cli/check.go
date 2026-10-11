@@ -11,6 +11,8 @@ import (
 	"github.com/techspeque/metis/internal/adr"
 	"github.com/techspeque/metis/internal/git"
 	"github.com/techspeque/metis/internal/ledger"
+	"github.com/techspeque/metis/internal/progress"
+	"github.com/techspeque/metis/internal/slice"
 	"github.com/techspeque/metis/internal/surface"
 )
 
@@ -67,6 +69,7 @@ var checkCmd = &cobra.Command{
 			errs := l.Validate(ctx.agentSlugs(), ctx.allowSelfReview())
 			if archive, aerr := ctx.loadArchive(); aerr == nil {
 				errs = append(errs, ledger.ValidateArchive(archive)...)
+				errs = append(errs, unknownPhaseKeys(ctx, l, archive)...)
 			}
 			section := &checkSection{OK: len(errs) == 0, Errors: []string{}, Slices: len(l.Slices)}
 			for _, e := range errs {
@@ -113,7 +116,7 @@ var checkCmd = &cobra.Command{
 				for _, w := range adr.CheckCitations(ctx.repoRoot, ctx.cfg.Paths.ADR, scanRels) {
 					fmt.Printf("WARNING: %s\n", w)
 				}
-				if branch, err := git.CurrentBranch(ctx.repoRoot); err == nil && branch != ctx.cfg.Project.IntegrationBranch {
+				if branch, err := git.CurrentBranch(ctx.repoRoot); err == nil && branch != ctx.cfg.Project.IntegrationBranch && !strings.HasPrefix(branch, git.AutoBranchPrefix) {
 					fmt.Printf("WARNING: current branch is %q but agents only work on %q — git checkout -b %s\n",
 						branch, ctx.cfg.Project.IntegrationBranch, ctx.cfg.Project.IntegrationBranch)
 				}
@@ -179,4 +182,31 @@ type checkSection struct {
 	OK     bool     `json:"ok"`
 	Errors []string `json:"errors"`
 	Slices int      `json:"slices,omitempty"`
+}
+
+// unknownPhaseKeys rejects an auto.phases key that names no phase: none
+// of the ledger's or archive's slices belongs to it and no plan file in
+// paths.plans has its name.
+func unknownPhaseKeys(ctx *context, l *ledger.Ledger, archive *ledger.Archive) []error {
+	if len(ctx.cfg.Auto.Phases) == 0 {
+		return nil
+	}
+	known := map[string]bool{}
+	for _, list := range [][]slice.Slice{l.Slices, archive.Slices} {
+		for i := range list {
+			known[progress.PhaseOf(&list[i])] = true
+		}
+	}
+	if entries, err := os.ReadDir(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Plans)); err == nil {
+		for _, e := range entries {
+			known[strings.TrimSuffix(e.Name(), filepath.Ext(e.Name()))] = true
+		}
+	}
+	var errs []error
+	for _, phase := range sortedKeys(ctx.cfg.Auto.Phases) {
+		if !known[phase] {
+			errs = append(errs, fmt.Errorf("auto.phases.%s matches no plan or slice phase (phases: the plan file's name, or the id's phase-N prefix — see metis progress phase)", phase))
+		}
+	}
+	return errs
 }

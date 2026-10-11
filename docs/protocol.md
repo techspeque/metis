@@ -42,7 +42,9 @@ metis status                      # quick orientation
 ### Branch Check
 
 If the current branch is not the configured `integration_branch`: **STOP**.
-Report to human. Agents never switch branches.
+Report to human. Agents never switch branches. The one exception is a
+session `metis auto` started on `auto/<slice-id>` for the slice it hands
+over: the handoff prompt names that branch, and `metis commit` accepts it.
 
 ### Dirty Tree Handling
 
@@ -198,7 +200,7 @@ If `metis next` assigned role = **Reviewer**:
 
 5. **Verdict:**
    - **Pass:** verify green, then `metis commit --flip reviewed --agent <your-slug> --slice <id>` then `metis archive`
-   - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."` — once per blocking finding; later calls join the cycle
+   - **Block:** `metis block <id> --severity P1 --category <cat> --finding "..."` — once per blocking finding; later calls join the cycle. A finding blocks only on a `review.block_reasons` ground (default: a deviation from the brief, a missing or failing test the brief lists, a broken accuracy rule, a demonstrated defect); anything else is `metis findings record`. From `review.narrow_after` blocked reviews on (default 1), a review confirms or re-raises the open findings and opens a new blocking one only at P1
 
    Both paths are atomic — `block` and `archive` commit the ledger and
    findings changes themselves, so the session always ends with a clean tree.

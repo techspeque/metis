@@ -1,0 +1,30 @@
+package cli
+
+// The stop rules of metis auto, by the name each stop reports.
+const (
+	ruleBacklogEmpty    = "backlog_empty"
+	ruleAllWaiting      = "all_waiting"
+	ruleManual          = "manual"
+	ruleStepDone        = "step_done"
+	ruleUntil           = "until"
+	ruleMaxSlices       = "max_slices"
+	ruleGate            = "gate"
+	ruleMaxReviewCycles = "max_review_cycles"
+	ruleRepeatFinding   = "repeat_finding"
+	ruleGrowingFindings = "growing_findings"
+	ruleP1              = "p1"
+	ruleNeedsHuman      = "needs_human"
+	ruleVerifyEnv       = "verify_env"
+	ruleScope           = "scope"
+	ruleDirtyTree       = "dirty_tree"
+	ruleSessionFailed   = "session_failed"
+	ruleNoProgress      = "no_progress"
+	ruleBudget          = "budget"
+	ruleHumanAgent      = "human_agent"
+	ruleNoLauncher      = "no_launcher"
+	rulePlanning        = "planning"
+	ruleMerge           = "merge"
+	ruleBranch          = "branch"
+	rulePROpened        = "pr_opened"
+	ruleInterrupted     = "interrupted"
+)

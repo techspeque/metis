@@ -31,15 +31,30 @@ Available on every command.
 
 `next -o json` fields: `active`, `id`, `title`, `type`, `priority`, `risk`,
 `stage`, `role`, `agent_slug`, `agent_label`, `plan`, `plan_section`,
-`review_cycles`, `reading_rule`. `{"active": false}` means the backlog is
+`review_cycles`, `reading_rule`, `template` (the handoff template),
+`auto` (`ok` or the metis auto stop rule that would fire), `auto_mode`,
+`auto_mode_source`, `waiting`. `{"active": false}` means the backlog is
 empty.
+
+## Auto
+
+| Command | Flags | JSON | Audience |
+|---|---|---|---|
+| `metis handoff [<id>]` | `--role <coder\|reviewer>` · `--template <code\|rework\|review\|re-review\|gate-review>` | ✓ | Human |
+| `metis launch [<id>]` | `--dry-run` · `--role` · `--template` | ✓ | Human |
+| `metis auto` | `--until <gate\|phase\|empty\|slice:<id>>` · `--max-slices <n>` · `--dry-run` · `--mode <manual\|step\|auto>` · `--step` · `--slice <id>` · `--phase <phase>` · `--status` | ✓ | Human |
+| `metis mode [<id>] [<mode>]` | `--phase <phase>` · `--clear` | ✓ | Human |
+
+`metis auto` exits 0 when it stops where it was asked to (or has nothing to
+do), 3 when it stopped and needs a person, 130 when interrupted. See
+[commands.md](commands.md#metis-auto).
 
 ## Work Management
 
 | Command | Flags | JSON | Audience |
 |---|---|---|---|
 | `metis add <type>` | `--title`\* · `--coder`\* · `--reviewer`\* · `--risk <low\|medium\|high>` · `--priority <p0-p3>` · `--stage` · `--plan` · `--plan-section` · `--blocked-by <id,id>` · `--id` · `--notes` · `--after <id>` · `--before <id>` | — | Both (recon) |
-| `metis edit <id>` | `--title` · `--risk` · `--priority` · `--stage` · `--coder` · `--reviewer` · `--plan` · `--plan-section` · `--blocked-by` (replaces list) · `--notes` | — | Both (recon) |
+| `metis edit <id>` | `--title` · `--risk` · `--priority` · `--stage` · `--coder` · `--reviewer` · `--plan` · `--plan-section` · `--blocked-by` (replaces list) · `--notes` · `--max-review-cycles <n>` | — | Both (recon) |
 | `metis seed <plan-file>` | `--append` · `--dry-run` · `--phase <n>` · `--type <worktype>` | — | Human |
 | `metis recon` | `--coder` · `--reviewer` · `--priority` | — | Human |
 
@@ -58,9 +73,9 @@ they change, so the tree is never left dirty between protocol steps.
 |---|---|---|---|
 | `metis commit` | `-m/--message` · `--prefix` · `--brief` · `--flip <coded\|reviewed>` · `--agent <slug>` (identity, required for reviewed flips) · `--slice <id>` (dispatch binding) · `--amend` | — | Agent |
 | `metis log <id>` | `--validate` (scope + format audit; exit 1 on violations) | ✓ | Agent (reviewer), Both |
-| `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` | — | Agent (reviewer) |
+| `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` · `--file <path>` | — | Agent (reviewer) |
 | `metis skip <id>` | `--reason`\* | — | Both (recon) |
-| `metis wait <id>` | `--reason`\* · `--until <RFC 3339>` · `--for <duration>` · `--clear` | — | Agent, Both |
+| `metis wait <id>` | `--reason`\* · `--until <RFC 3339>` · `--for <duration>` · `--clear` · `--human` (only a person clears it) | — | Agent, Both |
 | `metis remove <id>` | `--reason`\* | — | Human |
 | `metis reopen <id>` | `--reason`\* | — | Human |
 | `metis archive` | — | — | Agent (reviewer) |
@@ -109,7 +124,7 @@ version** changed since the last generate.
 | `metis config get <key>` | dotted path, e.g. `project.name`, `agents.<slug>.model` | ✓ | Both |
 | `metis config set <key> <value>` | comments preserved; lists comma-separated | — | Human |
 | `metis rule add "<text>"` | — | — | Both |
-| `metis findings record <slice-id>` | `--severity` · `--category` · `--finding`\* | — | Agent (reviewer) — advisory, no state change |
+| `metis findings record <slice-id>` | `--severity` · `--category` · `--finding`\* · `--file` | — | Agent (reviewer) — advisory, no state change |
 | `metis findings resolve <finding-id>` | `--note` | — | Agent (reviewer) / Both |
 | `metis rule list` | — | ✓ | Human |
 | `metis rule promote <finding-id>` | — | — | Both |
@@ -119,7 +134,7 @@ version** changed since the last generate.
 
 | Command | Subcommands / flags | JSON | Audience |
 |---|---|---|---|
-| `metis init` | `--from <config-path>` | — | Human |
+| `metis init` | `--from <config-path>` · `--auto-mode <step\|auto\|manual>` | — | Human |
 | `metis findings` | `--severity` · `--category` · `--slice` · `--stats` | ✓ | Human |
 | `metis workspace` (`ws`) | `add <name> [path]` · `remove <name>` · `use <name>` · `current` · `list` | ✓ (`list`, `current`) | Human only |
 | `metis version` | — | ✓ | Both |

@@ -33,6 +33,7 @@ var listCmd = &cobra.Command{
 		filterPri, _ := cmd.Flags().GetString("priority")
 		filterStatus, _ := cmd.Flags().GetString("status")
 
+		modes := newModeResolver(ctx, modeOverrides{})
 		var matched []listRow
 		for _, s := range l.Slices {
 			status := s.Status()
@@ -48,7 +49,7 @@ var listCmd = &cobra.Command{
 				continue
 			}
 
-			matched = append(matched, listRow{Slice: s, Status: string(status)})
+			matched = append(matched, listRow{Slice: s, Status: string(status), Mode: modes.of(&s)})
 		}
 
 		if jsonOutput() {
@@ -63,8 +64,8 @@ var listCmd = &cobra.Command{
 			return nil
 		}
 
-		fmt.Printf("%-20s %-8s %-4s %-8s %-10s %s\n",
-			"ID", "Type", "Pri", "Risk", "Status", "Title")
+		fmt.Printf("%-20s %-8s %-4s %-8s %-10s %-7s %s\n",
+			"ID", "Type", "Pri", "Risk", "Status", "Mode", "Title")
 		fmt.Println("─────────────────────────────────────────────────────────────────────────────")
 
 		for _, row := range matched {
@@ -73,8 +74,8 @@ var listCmd = &cobra.Command{
 				title = title[:37] + "..."
 			}
 
-			fmt.Printf("%-20s %-8s %-4s %-8s %-10s %s\n",
-				row.ID, row.Type, row.Priority, row.Risk, row.Status, title)
+			fmt.Printf("%-20s %-8s %-4s %-8s %-10s %-7s %s\n",
+				row.ID, row.Type, row.Priority, row.Risk, row.Status, row.Mode.Mode, title)
 		}
 
 		return nil
@@ -85,4 +86,6 @@ var listCmd = &cobra.Command{
 type listRow struct {
 	slice.Slice
 	Status string `json:"status"`
+	// Mode is the slice's effective metis auto mode and its source.
+	Mode modeChoice `json:"mode"`
 }

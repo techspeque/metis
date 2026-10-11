@@ -1,0 +1,20 @@
+version: 1
+project:
+  name: fixture
+  integration_branch: dev
+agents:
+  claude-code/opus:
+    surface: claude-code
+    model: opus
+    label: Claude Code (Opus)
+  codex/gpt:
+    surface: codex
+    model: gpt-5
+    label: Codex (GPT)
+conventions:
+  - Comments say why, not what
+review_checklist:
+  - Behavioral correctness
+  - Test sufficiency
+commands:
+  verify: go test ./...

@@ -240,6 +240,46 @@ This is fully documented in [protocol.md](protocol.md).
 
 ---
 
+## Driving Sessions: by Hand or with `metis auto`
+
+Between "coded" and "reviewed" three steps are mechanical: reading
+`metis next` and switching to the right agent, writing the reviewer's
+prompt, and waiting for a flip or a block. Metis does each, in layers:
+
+```bash
+metis handoff            # 1. the prompt for the next session — paste it into the agent it names
+metis launch             # 2. run that session headless, with that prompt
+metis auto               # 3. loop sessions until a slice needs a person
+```
+
+`metis auto` never owns the agent: each session is the agent's own CLI,
+started headless with one prompt (`agents.<slug>.launch`), and the ledger
+is the only state — kill it at any point and a person can continue by
+hand. It stops on rules, not judgment: a review-cycle cap, a re-raised
+finding, a growing finding count, a P1, an agent asking for a person
+(`metis wait <id> --human`), a broken environment, a scope violation, a
+budget. Each stop parks the slice and writes
+`.metis/runs/<slice>/auto/escalation.md` with the commands that resolve it.
+Planning and gates stay manual.
+
+How far one run goes is a mode, chosen at `metis init` (default `step`:
+one slice per run) and overridable per phase and per slice, in either
+direction:
+
+```bash
+metis mode --phase phase-9 auto          # phase 9 unattended from now on
+metis mode phase-9-ws-9.4 manual         # except this slice: I drive it
+metis auto                               # runs phase 9, stops before 9.4 and at the gate
+metis auto --slice phase-9-ws-9.4 --mode auto   # this run only: that slice, unattended
+```
+
+With `auto.branch: slice` (the default) each slice's work lands on
+`auto/<slice-id>` and reaches the work branch only once reviewed. See
+[commands.md](commands.md#metis-auto) for the stop rules and
+[configuration.md](configuration.md#auto) for the settings.
+
+---
+
 ## When Plans Change Mid-Execution
 
 - **Completed slices:** immutable (archived, never modified)

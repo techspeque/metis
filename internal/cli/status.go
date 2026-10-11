@@ -91,9 +91,20 @@ func waitingSuffix(l *ledger.Ledger) string {
 	if len(waiting) == 0 {
 		return ""
 	}
-	ids := make([]string, 0, len(waiting))
+	var ids, human []string
 	for i := range waiting {
-		ids = append(ids, waiting[i].ID)
+		if waiting[i].Waiting.Human {
+			human = append(human, waiting[i].ID)
+		} else {
+			ids = append(ids, waiting[i].ID)
+		}
 	}
-	return fmt.Sprintf(" | waiting: %s", strings.Join(ids, ", "))
+	out := ""
+	if len(human) > 0 {
+		out += fmt.Sprintf(" | needs you: %s", strings.Join(human, ", "))
+	}
+	if len(ids) > 0 {
+		out += fmt.Sprintf(" | waiting: %s", strings.Join(ids, ", "))
+	}
+	return out
 }

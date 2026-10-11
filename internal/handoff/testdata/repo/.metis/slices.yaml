@@ -1,0 +1,41 @@
+version: 1
+slices:
+  - id: phase-1-ws-1.1
+    title: Retry the webhook
+    type: feat
+    priority: p2
+    risk: medium
+    coder: claude-code/opus
+    reviewer: codex/gpt
+    plan: .metis/plans/phase-1.md
+    plan_section: §1.1
+    coded: false
+    reviewed: false
+    review_cycles: 0
+    created: 2026-10-01
+  - id: phase-1-ws-1.2
+    title: Sign the payload
+    type: feat
+    priority: p2
+    risk: high
+    coder: claude-code/opus
+    reviewer: codex/gpt
+    plan: .metis/plans/phase-1.md
+    plan_section: §1.2
+    coded: false
+    reviewed: false
+    review_cycles: 2
+    created: 2026-10-01
+  - id: phase-1-gate
+    title: Phase 1 gate
+    type: gate
+    priority: p2
+    risk: high
+    coder: claude-code/opus
+    reviewer: codex/gpt
+    plan: .metis/plans/phase-1.md
+    plan_section: Phase Gate
+    coded: true
+    reviewed: false
+    review_cycles: 0
+    created: 2026-10-01
