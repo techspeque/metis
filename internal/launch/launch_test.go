@@ -20,7 +20,7 @@ func TestTemplateAndArgv(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := Argv(tmpl, Vars{Prompt: "do it; rm -rf /", Model: "opus", Slice: "s-1"})
-	want := []string{"claude", "-p", "do it; rm -rf /", "--model", "opus", "--permission-mode", "acceptEdits"}
+	want := []string{"claude", "-p", "do it; rm -rf /", "--model", "opus", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(metis:*)", "Bash(git:*)"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("Argv = %q", got)
 	}

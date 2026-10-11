@@ -185,8 +185,32 @@ func BuildData(in *Input, tmpl string) Data {
 	if len(d.LastCycleFindings) == 0 {
 		d.LastCycleFindings, d.EarlierOpenFindings = d.OpenFindings, nil
 	}
-	d.Commits = commitsFor(in.Commits, tmpl)
+	d.Commits = commitsFor(workCommits(cfg, in.Commits), tmpl)
 	return d
+}
+
+// workCommits drops the commits that only record metis state — waits,
+// mode and edit changes, findings — which say nothing about the slice's
+// work. Flips and blocks stay: they mark where reviews begin and end.
+func workCommits(cfg *config.Config, commits []git.SliceCommit) []git.SliceCommit {
+	state := map[string]bool{}
+	for _, p := range []string{cfg.Paths.Ledger, cfg.Paths.Archive, cfg.Paths.Findings, config.FileName} {
+		state[filepath.ToSlash(filepath.Clean(p))] = true
+	}
+	var out []git.SliceCommit
+	for _, c := range commits {
+		marker := strings.Contains(c.Subject, "flip ") || strings.Contains(c.Subject, "block review")
+		onlyState := len(c.Files) > 0
+		for _, f := range c.Files {
+			if !state[f] {
+				onlyState = false
+			}
+		}
+		if marker || !onlyState {
+			out = append(out, c)
+		}
+	}
+	return out
 }
 
 // commitsFor picks the commits a template lists: every commit for a first

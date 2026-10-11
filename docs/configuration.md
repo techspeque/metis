@@ -103,12 +103,12 @@ agents:
     surface: claude-code
     model: opus
     label: "Claude Code (Opus)"
-    launch: ["claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "acceptEdits"]
+    launch: ["claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(metis:*)", "Bash(git:*)"]
   codex/gpt:
     surface: codex
     model: gpt-5
     label: "Codex"
-    launch: ["codex", "exec", "--model", "{model}", "{prompt}"]
+    launch: ["codex", "exec", "--full-auto", "--model", "{model}", "{prompt}"]
   human:
     surface: human              # a person: never launched; metis auto stops before its sessions
     model: human
@@ -122,16 +122,19 @@ quoted or expanded. Unset, the built-in default for the surface applies:
 
 | Surface | Default `launch` |
 |---|---|
-| `claude-code` | `claude -p {prompt} --model {model} --permission-mode acceptEdits` |
-| `codex` | `codex exec --model {model} {prompt}` |
+| `claude-code` | `claude -p {prompt} --model {model} --permission-mode acceptEdits --allowedTools Bash(metis:*) Bash(git:*)` |
+| `codex` | `codex exec --full-auto --model {model} {prompt}` |
 | `opencode` | `opencode run --model {model} {prompt}` |
 
 Any other surface needs its own `launch`. Sandbox and permission flags are
-the project's choice and belong in `launch`. **A reviewer must be able to
-commit** — `metis block` and the flips commit — and every session runs
-`metis` and `git`: check that the flags you choose allow that (the
-defaults above are a starting point; `acceptEdits` alone, for one, does not
-pre-approve shell commands). `metis launch --dry-run` shows the argv.
+the project's choice and belong in `launch`. A headless session cannot
+answer a permission prompt, and **every session must run `metis` and
+`git`** — the flips and blocks commit — so the defaults grant exactly that:
+Claude Code accepts edits and pre-approves `metis` and `git`; Codex runs in
+its workspace-write sandbox. An agent that may run other commands (a test
+runner, a build tool) needs them allowed in its own `launch`. A session
+that cannot run `metis` makes no progress and stops the run
+(`no_progress`); `metis launch --dry-run` shows the argv.
 The `model` fills `{model}`, so two slices on the same surface can run
 different models. `metis init` adds the `human` agent and writes the
 default `launch` for each agent whose surface it knows.
