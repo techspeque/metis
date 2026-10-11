@@ -76,6 +76,11 @@ func LoadArchive(path string) (*Archive, error) {
 		}
 		return nil, fmt.Errorf("reading archive: %w", err)
 	}
+	return ParseArchive(data)
+}
+
+// ParseArchive parses archive content from bytes.
+func ParseArchive(data []byte) (*Archive, error) {
 	var a Archive
 	if err := yaml.Unmarshal(data, &a); err != nil {
 		return nil, fmt.Errorf("parsing archive: %w", err)

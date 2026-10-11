@@ -1,6 +1,8 @@
 package cli
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,5 +39,31 @@ func TestHandoffJSON(t *testing.T) {
 	captureJSON(t, handoffCmd, []string{"feat-0001"}, &out)
 	if out.Role != "Reviewer" || out.AgentSlug != "opencode/opus" || out.Template != "review" {
 		t.Errorf("forced review = %+v", out)
+	}
+}
+
+func TestLaunchDryRunAndNextAutoFields(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	cfg := "version: 1\nagents:\n  claude-code/opus: {surface: claude-code, model: opus, label: O}\n  opencode/opus: {surface: opencode, model: opus, label: OC}\n"
+	if err := os.WriteFile(filepath.Join(dir, ".metis", "project.yaml"), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	setOutputFlag(t, "json")
+	resetFlags(t, launchCmd.Flags())
+	_ = launchCmd.Flags().Set("dry-run", "true")
+	var v sessionView
+	captureJSON(t, launchCmd, nil, &v)
+	if v.AgentSlug != "claude-code/opus" || v.Model != "opus" || len(v.Argv) == 0 || v.Argv[0] != "claude" || v.Argv[2] != "{prompt}" {
+		t.Errorf("dry run = %+v", v)
+	}
+	if !strings.HasSuffix(v.Log, filepath.Join("feat-0001", "auto", "1-coder.log")) {
+		t.Errorf("log = %s", v.Log)
+	}
+
+	var next nextJSONOutput
+	captureJSON(t, nextCmd, nil, &next)
+	// The fixture slice has no plan section: auto would not run it.
+	if next.Template != "code" || next.Auto != rulePlanning || next.AutoMode != "step" || next.AutoModeSource != "default" {
+		t.Errorf("next = %+v", next)
 	}
 }

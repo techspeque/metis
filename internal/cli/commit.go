@@ -37,11 +37,6 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 			return err
 		}
 
-		// Validate branch
-		if err := git.ValidateBranch(ctx.repoRoot, ctx.cfg.Project.IntegrationBranch); err != nil {
-			return fmt.Errorf("branch check failed: %w", err)
-		}
-
 		// Get active slice
 		l, err := ctx.loadLedger()
 		if err != nil {
@@ -49,6 +44,17 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		}
 		result := l.Next()
 		claimed, _ := cmd.Flags().GetString("slice")
+
+		// Validate branch: the integration branch, or the auto branch metis
+		// auto cut for the slice being committed.
+		branchSlice := claimed
+		if branchSlice == "" && result != nil {
+			branchSlice = result.Slice.ID
+		}
+		if err := git.ValidateWorkBranch(ctx.repoRoot, ctx.cfg.Project.IntegrationBranch, branchSlice); err != nil {
+			return fmt.Errorf("branch check failed: %w", err)
+		}
+
 		// A slice parked by metis wait is still its agent's: --slice names it.
 		if parked := l.FindByID(claimed); parked != nil && parked.IsWaiting(time.Now()) {
 			result = &ledger.DispatchResult{Slice: parked, Role: parked.ActiveRole()}

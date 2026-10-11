@@ -266,6 +266,14 @@ func (s *Slice) Validate(allowSelfReview bool) []error {
 	if s.Reviewed && !s.Coded {
 		errs = append(errs, fmt.Errorf("%s: reviewed=true but coded=false (invalid state)", s.ID))
 	}
+	switch s.AutoMode {
+	case "", "manual", "step", "auto":
+	default:
+		errs = append(errs, fmt.Errorf("%s: auto_mode %q is not a mode (valid: manual, step, auto)", s.ID, s.AutoMode))
+	}
+	if s.MaxReviewCycles < 0 {
+		errs = append(errs, fmt.Errorf("%s: max_review_cycles must not be negative", s.ID))
+	}
 	if w := s.Waiting; w != nil {
 		if w.Reason == "" {
 			errs = append(errs, fmt.Errorf("%s: waiting without a reason", s.ID))

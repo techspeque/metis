@@ -3,8 +3,12 @@ package cli
 import (
 	"fmt"
 
+	"github.com/techspeque/metis/internal/config"
+	"github.com/techspeque/metis/internal/launch"
+
 	"github.com/spf13/cobra"
 
+	"github.com/techspeque/metis/internal/handoff"
 	"github.com/techspeque/metis/internal/ledger"
 	"github.com/techspeque/metis/internal/slice"
 )
@@ -127,6 +131,8 @@ func printNextText(result *ledger.DispatchResult, ctx *context) error {
 		fmt.Printf("  Plan:           (bespoke)\n")
 	}
 	fmt.Printf("  Review cycles:  %d\n", s.ReviewCycles)
+	mc := newModeResolver(ctx, modeOverrides{}).of(s)
+	fmt.Printf("  Auto mode:      %s (from %s)\n", mc.Mode, mc.Source)
 	fmt.Printf("  Reading rule:   %s\n", readingRule(s.Risk))
 
 	if result.Role == slice.RoleReviewer {
@@ -152,6 +158,15 @@ type nextJSONOutput struct {
 	PlanSection  string `json:"plan_section,omitempty"`
 	ReviewCycles int    `json:"review_cycles"`
 	ReadingRule  string `json:"reading_rule"`
+	// Template is the handoff template that applies (metis handoff).
+	Template string `json:"template"`
+	// Auto is "ok", or the metis auto stop rule that would fire before
+	// this slice's next session.
+	Auto string `json:"auto"`
+	// AutoMode is the slice's effective metis auto mode and
+	// AutoModeSource the level it came from.
+	AutoMode       string `json:"auto_mode"`
+	AutoModeSource string `json:"auto_mode_source"`
 	// Waiting lists the pending slices parked by metis wait.
 	Waiting []waitJSON `json:"waiting,omitempty"`
 }
@@ -179,8 +194,12 @@ func printNextJSON(cmd *cobra.Command, result *ledger.DispatchResult, ctx *conte
 		PlanSection:  s.PlanSection,
 		ReviewCycles: s.ReviewCycles,
 		ReadingRule:  readingRule(s.Risk),
+		Template:     handoff.Choose(s, result.Role),
 		Waiting:      waiting,
 	}
+	mc := newModeResolver(ctx, modeOverrides{}).of(s)
+	out.AutoMode, out.AutoModeSource = mc.Mode, mc.Source
+	out.Auto = autoVerdict(ctx, s, result.Role, mc.Mode)
 
 	return printJSON(cmd, out)
 }
@@ -196,4 +215,24 @@ func readingRule(risk slice.Risk) string {
 	default:
 		return "unknown risk — read full contract"
 	}
+}
+
+// autoVerdict is the stop rule metis auto would report before the slice's
+// next session, from the checks that have no side effects, or "ok".
+func autoVerdict(ctx *context, s *slice.Slice, role slice.Role, mode string) string {
+	if st := staticStop(ctx, s, mode, ctx.readAutoEvents()); st != nil {
+		return st.Rule
+	}
+	slug := agentFor(ctx, s, role)
+	agent, ok := ctx.cfg.Agents[slug]
+	switch {
+	case !ok:
+		return ruleNoLauncher
+	case agent.Surface == config.SurfaceHuman:
+		return ruleHumanAgent
+	}
+	if _, err := launch.Template(agent); err != nil {
+		return ruleNoLauncher
+	}
+	return "ok"
 }

@@ -20,6 +20,7 @@ func init() {
 	editCmd.Flags().String("plan-section", "", "New plan section")
 	editCmd.Flags().String("blocked-by", "", "Comma-separated slice IDs this depends on (replaces the list)")
 	editCmd.Flags().String("notes", "", "New clarification text")
+	editCmd.Flags().Int("max-review-cycles", 0, "metis auto's review-cycle cap for this slice (0: the project's auto.stop.max_review_cycles)")
 	rootCmd.AddCommand(editCmd)
 }
 
@@ -86,6 +87,15 @@ Done slices cannot be edited — 'metis reopen' them first.`,
 			}
 			s.Priority = p
 			changed = append(changed, "priority")
+		}
+
+		if cmd.Flags().Changed("max-review-cycles") {
+			v, _ := cmd.Flags().GetInt("max-review-cycles")
+			if v < 0 {
+				return fmt.Errorf("--max-review-cycles must not be negative")
+			}
+			s.MaxReviewCycles = v
+			changed = append(changed, "max-review-cycles")
 		}
 
 		if cmd.Flags().Changed("blocked-by") {

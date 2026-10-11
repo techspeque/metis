@@ -86,6 +86,12 @@ func runProgress(cmd *cobra.Command, view progress.View) error {
 	allSlices = append(allSlices, archive.Slices...)
 	allSlices = append(allSlices, l.Slices...)
 	d := progress.Compute(allSlices)
+	modes := newModeResolver(ctx, modeOverrides{})
+	for phase, pp := range d.ByPhase {
+		mc := modes.phaseChoice(phase, planOf(allSlices, phase))
+		pp.AutoMode, pp.AutoModeSource = mc.Mode, mc.Source
+		d.ByPhase[phase] = pp
+	}
 
 	if jsonOutput() {
 		return printJSON(cmd, d)

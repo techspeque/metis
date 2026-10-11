@@ -21,45 +21,51 @@ var archiveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
-
-		l, err := ctx.loadLedger()
-		if err != nil {
-			return err
-		}
-
-		archive, err := ctx.loadArchive()
-		if err != nil {
-			return err
-		}
-
-		archived := l.Archive(archive)
-		if len(archived) == 0 {
-			fmt.Println("Nothing to archive.")
-			return nil
-		}
-
-		// Archive first, then shrink the ledger: if the second write fails,
-		// slices exist in both files (recoverable) rather than neither.
-		if err := ctx.saveArchive(archive); err != nil {
-			return err
-		}
-		if err := ctx.saveLedger(l); err != nil {
-			return err
-		}
-
-		fmt.Printf("Archived %d slice(s): %s\n", len(archived), strings.Join(archived, ", "))
-
-		// State transitions are atomic: commit the ledger and archive so
-		// the protocol ends with a clean tree.
-		if err := git.Add(ctx.repoRoot, ctx.ledgerPath(), ctx.archivePath()); err != nil {
-			return fmt.Errorf("staging archive state: %w", err)
-		}
-		message := git.FormatCommitMessage(ctx.cfg, archived[0], "chore",
-			fmt.Sprintf("archive %d slice(s)", len(archived)))
-		if err := git.CommitPaths(ctx.repoRoot, message, ctx.ledgerPath(), ctx.archivePath()); err != nil {
-			return fmt.Errorf("committing archive state: %w", err)
-		}
-		fmt.Printf("Committed: %s\n", message)
-		return nil
+		_, err = archiveDone(ctx)
+		return err
 	},
+}
+
+// archiveDone moves every done slice to the archive and commits both
+// files, returning the archived IDs (none: nothing to do).
+func archiveDone(ctx *context) ([]string, error) {
+	l, err := ctx.loadLedger()
+	if err != nil {
+		return nil, err
+	}
+
+	archive, err := ctx.loadArchive()
+	if err != nil {
+		return nil, err
+	}
+
+	archived := l.Archive(archive)
+	if len(archived) == 0 {
+		fmt.Println("Nothing to archive.")
+		return nil, nil
+	}
+
+	// Archive first, then shrink the ledger: if the second write fails,
+	// slices exist in both files (recoverable) rather than neither.
+	if err := ctx.saveArchive(archive); err != nil {
+		return nil, err
+	}
+	if err := ctx.saveLedger(l); err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Archived %d slice(s): %s\n", len(archived), strings.Join(archived, ", "))
+
+	// State transitions are atomic: commit the ledger and archive so
+	// the protocol ends with a clean tree.
+	if err := git.Add(ctx.repoRoot, ctx.ledgerPath(), ctx.archivePath()); err != nil {
+		return archived, fmt.Errorf("staging archive state: %w", err)
+	}
+	message := git.FormatCommitMessage(ctx.cfg, archived[0], "chore",
+		fmt.Sprintf("archive %d slice(s)", len(archived)))
+	if err := git.CommitPaths(ctx.repoRoot, message, ctx.ledgerPath(), ctx.archivePath()); err != nil {
+		return archived, fmt.Errorf("committing archive state: %w", err)
+	}
+	fmt.Printf("Committed: %s\n", message)
+	return archived, nil
 }

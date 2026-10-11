@@ -1,13 +1,17 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
 	"github.com/techspeque/metis/internal/config"
+	"github.com/techspeque/metis/internal/launch"
+	"github.com/techspeque/metis/internal/prompt"
 	"github.com/techspeque/metis/internal/surface"
 	"github.com/techspeque/metis/internal/templates"
 	"github.com/techspeque/metis/internal/userconfig"
@@ -15,6 +19,7 @@ import (
 
 func init() {
 	initCmd.Flags().String("from", "", "Non-interactive: read existing .metis/project.yaml and scaffold")
+	initCmd.Flags().String("auto-mode", "", "How metis auto runs: step (slice by slice), auto (unattended up to each gate) or manual (not at all); asked when interactive")
 	rootCmd.AddCommand(initCmd)
 }
 
@@ -27,9 +32,15 @@ steps it prints are copy-pasteable). Use --from <config> to scaffold from
 an existing configuration file.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		from, _ := cmd.Flags().GetString("from")
+		autoMode, _ := cmd.Flags().GetString("auto-mode")
+		if autoMode != "" && !config.ValidMode(autoMode) {
+			return fmt.Errorf("--auto-mode %q is not a mode (valid: step, auto, manual)", autoMode)
+		}
 
 		var cfg *config.Config
 		var repoRoot string
+		var cfgPath string
+		created := false
 
 		if from != "" {
 			// Non-interactive: load existing config
@@ -38,6 +49,7 @@ an existing configuration file.`,
 				return err
 			}
 			cfg = loaded
+			cfgPath = from
 
 			abs, err := filepath.Abs(from)
 			if err != nil {
@@ -91,7 +103,7 @@ an existing configuration file.`,
 
 			// The config lives at .metis/project.yaml; migrate a legacy
 			// root metis.yaml if present, otherwise create or reuse.
-			cfgPath := filepath.Join(repoRoot, config.FileName)
+			cfgPath = filepath.Join(repoRoot, config.FileName)
 			legacyPath := filepath.Join(repoRoot, config.LegacyFileName)
 			if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 				return fmt.Errorf("creating .metis directory: %w", err)
@@ -116,11 +128,31 @@ an existing configuration file.`,
 					return err
 				}
 			default:
+				if autoMode == "" {
+					autoMode = askAutoMode()
+				}
+				cfg.Auto.Mode = autoMode
+				cfg.Agents["human"] = humanAgentConfig
 				if err := writeConfig(cfgPath, cfg); err != nil {
 					return err
 				}
-				fmt.Printf("Created %s\n", config.FileName)
+				if err := appendAutoExamples(cfgPath); err != nil {
+					return err
+				}
+				created = true
+				fmt.Printf("Created %s (metis auto mode: %s)\n", config.FileName, autoMode)
 			}
+		}
+
+		if !created {
+			if err := ensureAutoSetup(cfgPath, cfg, autoMode); err != nil {
+				return err
+			}
+			reloaded, err := config.Load(cfgPath)
+			if err != nil {
+				return err
+			}
+			cfg = reloaded
 		}
 
 		// Scaffold .metis/ directory
@@ -215,6 +247,7 @@ an existing configuration file.`,
 		fmt.Println("  metis config set agents.claude-code/opus.model opus")
 		fmt.Println("  metis config set agents.claude-code/opus.label \"Claude Code (Opus)\"")
 		fmt.Println("  metis surface generate   # regenerate adapters after config changes")
+		fmt.Println("  metis config set auto.mode step   # how metis auto runs: step | auto | manual")
 		fmt.Println("  metis check              # green means ready to plan")
 		fmt.Println("\nThen write OVERVIEW.md and ask an agent to plan Phase 0 using")
 		fmt.Println("the template in .metis/templates/plan.md — seed it with 'metis seed'.")
@@ -278,4 +311,80 @@ func splitLines(s string) []string {
 		lines = append(lines, s[start:])
 	}
 	return lines
+}
+
+// humanAgentConfig is the agent a person reviews or codes as: metis auto
+// stops before its sessions, and an escalation's human review override
+// flips as it.
+var humanAgentConfig = config.Agent{Surface: config.SurfaceHuman, Model: "human", Label: "Human"}
+
+// askAutoMode asks a person at a terminal how metis auto should run; the
+// answer defaults to step, as does a non-interactive init.
+func askAutoMode() string {
+	if !prompt.IsTerminal(os.Stdin) {
+		return config.ModeStep
+	}
+	fmt.Print("How should `metis auto` run? slice by slice (step) / unattended up to each gate (auto) / not at all (manual) [step]: ")
+	line, _ := bufio.NewReader(os.Stdin).ReadString('\n')
+	switch strings.ToLower(strings.TrimSpace(line)) {
+	case "a", "auto", "unattended":
+		return config.ModeAuto
+	case "m", "manual", "not at all":
+		return config.ModeManual
+	default:
+		return config.ModeStep
+	}
+}
+
+// autoExamples are appended to a new project.yaml, under its auto section.
+const autoExamples = `  # Per phase and per risk, overriding auto.mode (metis mode sets these):
+  # phases: { phase-9: auto, phase-10: manual }
+  # by_risk: { high: step }
+`
+
+func appendAutoExamples(path string) error {
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return err
+	}
+	if _, err := f.WriteString(autoExamples); err != nil {
+		_ = f.Close()
+		return err
+	}
+	return f.Close()
+}
+
+// ensureAutoSetup brings an existing project.yaml up to what init writes
+// for metis auto, changing only what is missing: auto.mode when one was
+// chosen, the human agent, and a launch for each agent whose surface metis
+// knows.
+func ensureAutoSetup(path string, cfg *config.Config, mode string) error {
+	if mode != "" && mode != cfg.Auto.Mode {
+		if err := config.SetInFile(path, "auto.mode", mode); err != nil {
+			return err
+		}
+		fmt.Printf("Set auto.mode = %s\n", mode)
+	}
+	if humanAgent(cfg) == "" {
+		if _, taken := cfg.Agents["human"]; !taken {
+			for key, v := range map[string]string{"surface": humanAgentConfig.Surface, "model": humanAgentConfig.Model, "label": humanAgentConfig.Label} {
+				if err := config.SetInFile(path, "agents.human."+key, v); err != nil {
+					return err
+				}
+			}
+			fmt.Println("Added the human agent (agents.human)")
+		}
+	}
+	for _, slug := range sortedKeys(cfg.Agents) {
+		a := cfg.Agents[slug]
+		argv, known := launch.Defaults[a.Surface]
+		if !known || len(a.Launch) > 0 || strings.Contains(slug, ".") {
+			continue
+		}
+		if err := config.SetInFile(path, "agents."+slug+".launch", strings.Join(argv, ",")); err != nil {
+			return err
+		}
+		fmt.Printf("Wrote the default launcher for %s (agents.%s.launch)\n", slug, slug)
+	}
+	return nil
 }

@@ -24,6 +24,13 @@ type DispatchResult struct {
 //
 // Returns nil if no active slice exists (backlog empty or all done).
 func (l *Ledger) Next() *DispatchResult {
+	return l.NextWhere(nil)
+}
+
+// NextWhere is Next among the slices for which keep returns true (all of
+// them when keep is nil): metis auto narrows dispatch to one slice, one
+// phase, or away from slices whose pull request is pending.
+func (l *Ledger) NextWhere(keep func(*slice.Slice) bool) *DispatchResult {
 	now := time.Now()
 	// Build a set of completed slice IDs for blocked_by resolution
 	doneIDs := make(map[string]bool)
@@ -42,7 +49,7 @@ func (l *Ledger) Next() *DispatchResult {
 		s := &l.Slices[i]
 
 		// Skip done slices
-		if s.IsDone() {
+		if s.IsDone() || (keep != nil && !keep(s)) {
 			continue
 		}
 

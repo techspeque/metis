@@ -21,6 +21,10 @@ type Workstream struct {
 	Stage      string
 	Tasks      []string
 	Acceptance []string
+	// AutoMode and MaxReviewCycles come from an "Auto:" line in the
+	// workstream (e.g. "Auto: manual" or "Auto: max_review_cycles=4").
+	AutoMode        string
+	MaxReviewCycles int
 }
 
 // ParseResult holds the output of parsing a plan file.
@@ -42,6 +46,30 @@ var wsHeadingRe = regexp.MustCompile(`^#{2,3}\s+Workstream\s+(\d+\.\d+):\s*(.+)`
 var metadataRe = regexp.MustCompile(`^-\s+\*\*(\w+):\*\*\s*(.+)`)
 var frontmatterPhaseRe = regexp.MustCompile(`^phase:\s*(\d+)\s*$`)
 var gateHeadingRe = regexp.MustCompile(`^#{2,3}\s+Phase Gate\b`)
+var autoLineRe = regexp.MustCompile(`^(?:-\s+)?(?:\*\*)?Auto:(?:\*\*)?\s*(.+)$`)
+
+// applyAuto reads an Auto: line's tokens: a mode, and max_review_cycles=N.
+// Unknown tokens are reported.
+func applyAuto(ws *Workstream, value string) []string {
+	var problems []string
+	for _, tok := range strings.FieldsFunc(value, func(r rune) bool { return r == ',' || r == ' ' || r == ';' }) {
+		tok = strings.TrimSpace(strings.ToLower(tok))
+		switch {
+		case tok == "manual" || tok == "step" || tok == "auto":
+			ws.AutoMode = tok
+		case strings.HasPrefix(tok, "max_review_cycles="):
+			var n int
+			if _, err := fmt.Sscanf(strings.TrimPrefix(tok, "max_review_cycles="), "%d", &n); err != nil || n < 1 {
+				problems = append(problems, fmt.Sprintf("workstream %s: Auto: %q is not a positive number", ws.Workstream, tok))
+				continue
+			}
+			ws.MaxReviewCycles = n
+		default:
+			problems = append(problems, fmt.Sprintf("workstream %s: Auto: unknown setting %q (valid: manual, step, auto, max_review_cycles=N)", ws.Workstream, tok))
+		}
+	}
+	return problems
+}
 
 // Parse parses a structured plan file and extracts workstreams.
 func Parse(content string) *ParseResult {
@@ -121,6 +149,12 @@ func Parse(content string) *ParseResult {
 			continue
 		}
 
+		// Auto line: the slice's own mode and review-cycle cap
+		if m := autoLineRe.FindStringSubmatch(trimmed); m != nil {
+			result.Errors = append(result.Errors, applyAuto(currentWS, m[1])...)
+			continue
+		}
+
 		// Metadata lines
 		if m := metadataRe.FindStringSubmatch(trimmed); m != nil {
 			key := strings.ToLower(m[1])
@@ -192,6 +226,9 @@ func ToSlices(result *ParseResult, planFile string, sliceType slice.WorkType) []
 			Reviewer:    w.Reviewer,
 			Plan:        planFile,
 			PlanSection: fmt.Sprintf("§%s", w.Workstream),
+
+			AutoMode:        w.AutoMode,
+			MaxReviewCycles: w.MaxReviewCycles,
 		}
 		slices = append(slices, s)
 		byPhase[w.Phase] = append(byPhase[w.Phase], id)
