@@ -103,6 +103,10 @@ func parseValueNode(t reflect.Type, raw string) (*yaml.Node, error) {
 	}
 
 	switch t.Kind() {
+	case reflect.Pointer:
+		// Optional settings (unset means the default) take the value
+		// their pointee would.
+		return parseValueNode(t.Elem(), raw)
 	case reflect.String:
 		return scalar("!!str", raw), nil
 	case reflect.Bool:

@@ -26,6 +26,8 @@ type Config struct {
 	Commands        CommandsConfig   `yaml:"commands" json:"commands"`
 	Commits         CommitsConfig    `yaml:"commits" json:"commits"`
 	Paths           PathsConfig      `yaml:"paths" json:"paths"`
+	Review          ReviewConfig     `yaml:"review,omitempty" json:"review,omitempty"`
+	Auto            AutoConfig       `yaml:"auto,omitempty" json:"auto,omitempty"`
 }
 
 // ProjectConfig holds project-level settings.
@@ -50,6 +52,10 @@ type Agent struct {
 	Surface string `yaml:"surface" json:"surface"`
 	Model   string `yaml:"model" json:"model"`
 	Label   string `yaml:"label" json:"label"`
+	// Launch is the argv that starts one headless session of this agent
+	// ({prompt}, {prompt_file}, {model} and {slice} are substituted; no
+	// shell). Unset means the built-in default for the surface, if any.
+	Launch []string `yaml:"launch,omitempty" json:"launch,omitempty"`
 }
 
 // RoutingConfig determines which agents handle which risk levels.

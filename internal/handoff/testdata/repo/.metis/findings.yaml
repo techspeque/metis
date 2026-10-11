@@ -1,0 +1,36 @@
+findings:
+  - id: f-001
+    date: "2026-10-02"
+    slice: phase-1-ws-1.2
+    severity: P2
+    category: tests
+    finding: "internal/sign/sign_test.go:12 — no test for an expired key — add one"
+    status: resolved
+    cycle: 1
+    file: internal/sign/sign_test.go
+  - id: f-002
+    date: "2026-10-02"
+    slice: phase-1-ws-1.2
+    severity: P2
+    category: behavior
+    finding: "internal/sign/sign.go:40 — the HMAC compares with == — use hmac.Equal"
+    status: open
+    cycle: 1
+    file: internal/sign/sign.go
+  - id: f-003
+    date: "2026-10-03"
+    slice: phase-1-ws-1.2
+    severity: P1
+    category: security
+    finding: "internal/sign/keys.go:8 — the key is logged at debug — drop the log line"
+    status: open
+    cycle: 2
+    file: internal/sign/keys.go
+  - id: f-004
+    date: "2026-10-03"
+    slice: phase-1-ws-1.2
+    severity: P3
+    category: maint
+    finding: "internal/sign/sign.go — name the constant"
+    status: advisory
+    cycle: 2

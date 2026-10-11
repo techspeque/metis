@@ -160,6 +160,9 @@ func TestASecondBlockAddsAFindingToTheCycle(t *testing.T) {
 	if strings.Count(string(findingsText), "status: open") != 2 {
 		t.Errorf("two open findings expected:\n%s", findingsText)
 	}
+	if strings.Count(string(findingsText), "cycle: 1") != 2 {
+		t.Errorf("both findings belong to review 1:\n%s", findingsText)
+	}
 	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
 		t.Errorf("tree dirty after the second block:\n%s", status)
 	}
@@ -192,5 +195,29 @@ func TestWaitParksTheSliceAndNextSaysSo(t *testing.T) {
 	}
 	if log := gitOut(t, dir, "log", "-1", "--format=%s"); !strings.Contains(log, "wait cleared") {
 		t.Errorf("last commit = %q", strings.TrimSpace(log))
+	}
+}
+
+// TestWaitHumanNeedsYou pins --human: the ledger marks the wait, and status
+// names the slice as needing a person.
+func TestWaitHumanNeedsYou(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	setOutputFlag(t, "")
+	resetFlags(t, waitCmd.Flags())
+	t.Cleanup(func() { rootCmd.SetArgs([]string{}) })
+	rootCmd.SetArgs([]string{"wait", "feat-0001", "--reason", "which vendor?", "--human"})
+	if err := rootCmd.Execute(); err != nil {
+		t.Fatalf("wait --human: %v", err)
+	}
+	if !strings.Contains(ledgerText(t, dir), "human: true") {
+		t.Errorf("human wait not in the ledger:\n%s", ledgerText(t, dir))
+	}
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	l, _ := ctx.loadLedger()
+	if got := waitingSuffix(l); !strings.Contains(got, "needs you: feat-0001") {
+		t.Errorf("status suffix = %q", got)
 	}
 }

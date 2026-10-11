@@ -75,6 +75,8 @@ type waitJSON struct {
 	Reason string `json:"reason"`
 	Since  string `json:"since"`
 	Until  string `json:"until,omitempty"`
+	// Human is set on a wait only a person clears ("needs you").
+	Human bool `json:"human,omitempty"`
 }
 
 func waitingOutput(l *ledger.Ledger) []waitJSON {
@@ -82,14 +84,18 @@ func waitingOutput(l *ledger.Ledger) []waitJSON {
 	waiting := l.WaitingSlices()
 	for i := range waiting {
 		s := &waiting[i]
-		out = append(out, waitJSON{ID: s.ID, Reason: s.Waiting.Reason, Since: s.Waiting.Since, Until: s.Waiting.Until})
+		out = append(out, waitJSON{ID: s.ID, Reason: s.Waiting.Reason, Since: s.Waiting.Since, Until: s.Waiting.Until, Human: s.Waiting.Human})
 	}
 	return out
 }
 
 func printWaiting(waiting []waitJSON) {
 	for _, w := range waiting {
-		line := fmt.Sprintf("Waiting: %s — %s (since %s", w.ID, w.Reason, w.Since)
+		label := "Waiting"
+		if w.Human {
+			label = "Needs you"
+		}
+		line := fmt.Sprintf("%s: %s — %s (since %s", label, w.ID, w.Reason, w.Since)
 		if w.Until != "" {
 			line += ", until " + w.Until
 		}

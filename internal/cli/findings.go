@@ -19,6 +19,7 @@ func init() {
 	findingsRecordCmd.Flags().String("severity", "P3", "Severity: P1|P2|P3")
 	findingsRecordCmd.Flags().String("category", "", "Category (same set as metis block)")
 	findingsRecordCmd.Flags().String("finding", "", "Description of the observation (required)")
+	findingsRecordCmd.Flags().String("file", "", "The file the observation is about (default: the first file:line in its text)")
 	findingsCmd.AddCommand(findingsRecordCmd)
 
 	findingsCmd.Flags().String("severity", "", "Filter by severity: P1|P2|P3")
@@ -123,6 +124,12 @@ worth-remembering observations that don't warrant blocking the review.`,
 			return err
 		}
 		id := store.AddWithStatus(args[0], severity, category, text, "advisory")
+		file, _ := cmd.Flags().GetString("file")
+		cycle := 0
+		if l, err := ctx.loadLedger(); err == nil {
+			cycle = reviewOf(l.FindByID(args[0]))
+		}
+		store.FindByID(id).Place(cycle, file)
 		if err := store.Save(path); err != nil {
 			return err
 		}
@@ -223,6 +230,18 @@ var findingsCmd = &cobra.Command{
 		}
 		return nil
 	},
+}
+
+// reviewOf is the review (1-based) a finding recorded now belongs to: the
+// review in progress on a coded slice, or the one that just blocked it.
+func reviewOf(s *slice.Slice) int {
+	if s == nil {
+		return 0
+	}
+	if s.Coded {
+		return s.ReviewCycles + 1
+	}
+	return s.ReviewCycles
 }
 
 // sortedKeys is a map's keys in ascending order, so a listing reads the

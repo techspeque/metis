@@ -164,6 +164,13 @@ type Slice struct {
 	// repository (a lab run, an approval, a window that must close); dispatch
 	// passes it over until the wait is cleared or its until has passed.
 	Waiting *Wait `yaml:"waiting,omitempty" json:"waiting,omitempty"`
+	// AutoMode is the slice's own metis auto mode (manual, step or auto),
+	// set by 'metis mode' or an Auto: line in its plan section; it beats
+	// every other level. Empty defers to the phase, risk and project.
+	AutoMode string `yaml:"auto_mode,omitempty" json:"auto_mode,omitempty"`
+	// MaxReviewCycles overrides auto.stop.max_review_cycles for this slice;
+	// 0 means the project's setting.
+	MaxReviewCycles int `yaml:"max_review_cycles,omitempty" json:"max_review_cycles,omitempty"`
 }
 
 // Wait records why a slice is parked and, optionally, until when.
@@ -171,6 +178,10 @@ type Wait struct {
 	Reason string `yaml:"reason" json:"reason"`
 	Since  string `yaml:"since" json:"since"`
 	Until  string `yaml:"until,omitempty" json:"until,omitempty"`
+	// Human marks a wait only a person clears: metis auto stopped here,
+	// or an agent asked for a decision. next and status show it as
+	// "needs you".
+	Human bool `yaml:"human,omitempty" json:"human,omitempty"`
 }
 
 // IsWaiting reports whether the slice is still parked at now: a wait with

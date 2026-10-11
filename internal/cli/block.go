@@ -14,6 +14,7 @@ func init() {
 	blockCmd.Flags().String("severity", "P2", "Severity: P1|P2|P3")
 	blockCmd.Flags().String("category", "", "Category: auth|protocol|scope|tests|arch-dup|arch-fit|data|maint|security|behavior|performance")
 	blockCmd.Flags().String("finding", "", "Description of the finding")
+	blockCmd.Flags().String("file", "", "The file the finding is about (default: the first file:line in its text)")
 	rootCmd.AddCommand(blockCmd)
 }
 
@@ -66,6 +67,8 @@ without starting a new cycle, so one review can carry several blocks.`,
 			}
 
 			id := store.Add(args[0], severity, category, findingText)
+			file, _ := cmd.Flags().GetString("file")
+			store.FindByID(id).Place(reviewOf(l.FindByID(args[0])), file)
 			if err := store.Save(findingsPath); err != nil {
 				return err
 			}

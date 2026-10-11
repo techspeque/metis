@@ -1,0 +1,23 @@
+{{define "header"}}metis handoff · template {{.Template}} · slice {{.Slice.ID}} · role {{.Role}} · agent {{.Agent.Slug}}
+
+You run as `{{.Agent.Slug}}`{{with .Agent.Label}} ({{.}}){{end}}. That is the slug to state when `metis kickoff` asks you to self-identify; it matches the `agent_slug` of `metis next -o json`.
+
+Slice: `{{.Slice.ID}}` — {{.Slice.Title}} (type {{.Slice.Type}}, risk {{.Slice.Risk}}{{if .Slice.Plan}}, plan {{.Slice.Plan}} {{.Slice.PlanSection}}{{end}}).
+Branch: work on `{{.Branch}}`.{{if ne .Branch .IntegrationBranch}} metis auto cut it from `{{.IntegrationBranch}}` for this slice; `metis commit` accepts it.{{end}}{{end}}
+
+{{define "stuck"}}## If you need a person
+
+A decision only a person can make (the brief is silent or contradicts the plan, a finding asks for what the brief rules out): run `metis wait {{.Slice.ID}} --reason "<the question, one line>" --human` and stop. Do not guess. An environment failure (`metis verify` exit 2) is reported verbatim; do not change code to work around it.{{end}}
+
+{{define "conventions"}}{{if .Conventions}}## Conventions
+
+{{range .Conventions}}- {{.}}
+{{end}}{{end}}{{end}}
+
+{{define "blockreasons"}}A finding blocks only when it is one of:
+{{range .BlockReasons}}- {{.}}
+{{end}}
+Anything else is an advisory: `metis findings record {{.Slice.ID}} --severity P3 --category <category> --finding "..."` (no state change).{{end}}
+
+{{define "findings"}}{{range .}}- **{{.ID}}** [{{.Severity}}/{{.Category}}{{if .Cycle}}, review {{.Cycle}}{{end}}] {{.Finding}}
+{{end}}{{end}}

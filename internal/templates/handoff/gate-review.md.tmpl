@@ -1,0 +1,39 @@
+# Gate review {{.Slice.ID}}
+
+{{template "header" .}}
+
+## Start
+
+Run `metis kickoff --role reviewer` and follow it from step 1.
+
+## The contract of this review
+
+- **This gate only.** Judge the gate report against its brief: does the evidence show the phase works as a composed system?
+- **The brief is the source of truth:** `{{.BriefPath}}`.
+- **Run nothing unless the brief says so.** The evidence is in the report; re-running suites or auditing tooling line by line is out of this review.
+- **One review, every issue.** One `metis block {{.Slice.ID}} --severity P1|P2|P3 --category <category> --finding "<where> — <the gap> — <the evidence required>"` per blocking finding, all in this session.
+
+{{template "blockreasons" .}}
+{{if .EvidenceIndex}}
+## Evidence index (from the brief)
+
+{{.EvidenceIndex}}
+{{end}}
+## Checklist
+
+{{if .ReviewSection -}}
+From the brief's Review section:
+
+{{.ReviewSection}}
+{{- else -}}
+{{range $i, $item := .Checklist}}{{inc $i}}. {{$item}}
+{{end}}{{- end}}
+
+## Verdict
+
+1. Pass: {{.ReviewedCommand}}, then `metis archive`.
+2. Block: the `metis block` calls above.
+
+{{template "stuck" .}}
+
+Report: the verdict and the finding ids. Facts only, short.
