@@ -95,6 +95,47 @@ session protocol. The slug appears in `metis next` output and in ledger
 
 At least one agent must be defined.
 
+#### `launch` — how `metis launch` and `metis auto` start a session
+
+```yaml
+agents:
+  claude-code/opus:
+    surface: claude-code
+    model: opus
+    label: "Claude Code (Opus)"
+    launch: ["claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "acceptEdits"]
+  codex/gpt:
+    surface: codex
+    model: gpt-5
+    label: "Codex"
+    launch: ["codex", "exec", "--model", "{model}", "{prompt}"]
+  human:
+    surface: human              # a person: never launched; metis auto stops before its sessions
+    model: human
+    label: "Human"
+```
+
+`launch` is an argv, not a shell line: `{prompt}`, `{prompt_file}` (the
+prompt written to `.metis/runs/<slice>/auto/<n>-<role>.prompt.md`),
+`{model}` and `{slice}` are substituted inside each element, and nothing is
+quoted or expanded. Unset, the built-in default for the surface applies:
+
+| Surface | Default `launch` |
+|---|---|
+| `claude-code` | `claude -p {prompt} --model {model} --permission-mode acceptEdits` |
+| `codex` | `codex exec --model {model} {prompt}` |
+| `opencode` | `opencode run --model {model} {prompt}` |
+
+Any other surface needs its own `launch`. Sandbox and permission flags are
+the project's choice and belong in `launch`. **A reviewer must be able to
+commit** — `metis block` and the flips commit — and every session runs
+`metis` and `git`: check that the flags you choose allow that (the
+defaults above are a starting point; `acceptEdits` alone, for one, does not
+pre-approve shell commands). `metis launch --dry-run` shows the argv.
+The `model` fills `{model}`, so two slices on the same surface can run
+different models. `metis init` adds the `human` agent and writes the
+default `launch` for each agent whose surface it knows.
+
 ---
 
 ### `routing`
@@ -302,6 +343,75 @@ only if you have a reason to.
 
 ---
 
+### `review`
+
+```yaml
+review:
+  narrow_after: 1           # from this many blocked reviews on, a review is narrowed; 0 disables
+  block_reasons:            # the only grounds for a blocking finding
+    - a deviation from the brief
+    - a missing or failing test the brief lists
+    - a broken accuracy rule
+    - a demonstrated defect
+```
+
+Every review handoff prompt and the generated instructions state both. A
+finding outside `block_reasons` is recorded as an advisory
+(`metis findings record`). A narrowed review confirms or re-raises the open
+findings and may open a new blocking one only at P1; other new
+observations are advisories.
+
+---
+
+### `auto`
+
+Configures [`metis auto`](commands.md#metis-auto). Every key is optional;
+a project with launchable agents and no `auto:` section gets one slice per
+run.
+
+```yaml
+auto:
+  mode: step                # manual | step | auto (metis init asks)
+  phases: {}                # e.g. { phase-9: auto, phase-10: manual } — metis mode --phase writes these
+  by_risk: {}               # e.g. { high: step }
+  until: gate               # gate | phase | empty | slice:<id>
+  session_timeout: 2h       # per session; the process group is terminated after it
+  branch: slice             # slice | pr | off
+  pr_command: [gh, pr, create, --fill]   # branch: pr
+  notify: []                # argv run on a stop: {slice} {rule} {detail} {escalation}
+  stop:
+    gate: true
+    planning: true
+    max_review_cycles: 3    # a slice may set its own (Auto: max_review_cycles=4, metis edit --max-review-cycles)
+    repeat_finding: true
+    growing_findings: true
+    p1: true
+    needs_human: true
+    verify_env: true
+    scope: true
+    dirty_tree: true
+    session_failed: 1       # retries of a failed (or idle) session before the stop
+    budget: { wall_clock: 6h, sessions: 8 }   # per slice, between stops
+```
+
+Mode precedence: slice, phase (`auto.phases`, then a `> Auto: <mode>` line
+in the plan file's header), risk (`auto.by_risk`), project (`auto.mode`),
+then `step` — an upgrade never makes a project unattended. A phase name is
+what `metis progress phase` shows: the plan file's name, or the id's
+`phase-N` prefix. `metis config set auto.mode auto` changes the project
+mode; `metis mode` the phase and slice ones.
+
+A plan's workstream may carry an `Auto:` line, read at seeding:
+
+```markdown
+## Workstream 9.4: Rotate keys
+
+- **Risk:** high
+- **Auto:** manual, max_review_cycles=4
+```
+
+---
+
 ## Defaults Applied
 
 When a field is omitted, these defaults are used:
@@ -343,6 +453,10 @@ Run `metis check --config` to validate:
 - `commits.prefixes` has at least one entry
 - `commits.format` is non-empty
 - `paths.ledger` is set
+- `auto.mode`, `auto.phases.*` and `auto.by_risk.*` are modes; `auto.by_risk` keys are risks; `auto.branch` and `auto.until` are known values; durations parse; counts are not negative; a `human` agent has no `launch`
+
+`metis check` (with the ledger) also rejects an `auto.phases` key that
+matches no plan or slice phase, and a slice whose `auto_mode` is not a mode.
 
 ---
 

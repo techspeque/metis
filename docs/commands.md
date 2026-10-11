@@ -23,7 +23,8 @@ consumers read the same repo at the same time.
 JSON is emitted on stdout; exit codes are unchanged. Commands with JSON
 support: `status`, `next`, `list`, `show`, `progress`, `findings`, `check`,
 `version`, `config view`, `config get`, `rule list`, `brief`, `kickoff`,
-`instructions`, `workspace list`, `workspace current`.
+`instructions`, `workspace list`, `workspace current`, `handoff`, `launch`,
+`auto`, `mode`.
 
 **For programmatic consumers (agents, editors, scripts): always pass
 `--output json` explicitly and parse fields from it — never parse the
@@ -52,7 +53,184 @@ human-readable text, which may change between versions.**
 6. If both true → skip (should be archived)
 
 Returns the slice ID, title, type, risk, role, required agent slug, plan
-reference, review cycles count, and reading rule.
+reference, review cycles count, and reading rule. `-o json` adds the
+handoff `template` that applies, the slice's effective `auto_mode` and
+`auto_mode_source`, and `auto`: `ok`, or the [`metis auto`](#metis-auto)
+stop rule that would fire before the slice's next session.
+
+A slice parked with `metis wait --human` is listed as **Needs you** by
+`next` and `status`.
+
+---
+
+## Auto: Handoff, Launch and the Loop
+
+Three layers, each usable alone. Planning and gates stay manual.
+
+| Command | Does |
+|---|---|
+| `metis handoff [<id>]` | prints the prompt for the slice's next session |
+| `metis launch [<id>]` | runs that session: the role's agent, headless, with that prompt |
+| `metis auto` | loops: dispatch, stop rules, launch, check progress, until a slice needs a person |
+| `metis mode` | shows or sets how far `metis auto` takes a slice or a phase |
+
+### `metis handoff [<slice-id>]`
+
+Prints the prompt for the active slice's next role (or the named slice's),
+chosen from ledger state:
+
+| State | Template | Content |
+|---|---|---|
+| not coded, review_cycles 0 | `code` | kickoff, the brief or the instruction to write it, scope, verify, flip |
+| not coded, review_cycles ≥ 1 | `rework` | the slice's open findings verbatim; fix only these; one commit per finding; flip |
+| coded, review_cycles 0 | `review` | this slice only; the brief governs; read everything first; every issue in one review, one `metis block` per finding; the block reasons |
+| coded, review_cycles ≥ 1 | `re-review` | the last review's findings and the commits since; confirm or re-raise each; new blocking findings only at P1 (narrowed) |
+| gate, reviewer | `gate-review` | the review contract plus the brief's evidence index; run nothing unless the brief says so |
+
+```bash
+metis handoff                       # paste into the agent the prompt names
+metis handoff feat-0012 --template review
+metis handoff -o json               # {slice, role, agent_slug, template, prompt}
+```
+
+Every prompt states the slug the session runs as, so `metis kickoff`'s
+self-identification matches. A brief's `## Review` section replaces the
+project checklist in a review prompt; `review.block_reasons` and
+`review.narrow_after` ([configuration](configuration.md#review)) are stated
+in it. Templates are overridable: copy one to
+`.metis/templates/handoff/<name>.md.tmpl` (Go `text/template`; the shared
+definitions live in `_header.md.tmpl`).
+
+### `metis launch [<slice-id>] [--dry-run]`
+
+Renders the handoff prompt, starts the role's agent headless with it in
+the project root, streams its output to
+`.metis/runs/<slice>/auto/<n>-<role>.log` (the prompt beside it as
+`<n>-<role>.prompt.md`), and exits with the agent's exit code.
+
+```bash
+metis launch --dry-run              # the argv, the prompt elided
+metis launch feat-0012
+```
+
+The agent is the slice's own `coder` or `reviewer`, else the routing for
+its risk. Its argv is `agents.<slug>.launch`, else the built-in default for
+its surface ([configuration](configuration.md#agents)). Metis never
+substitutes an agent: an unconfigured slug, a `surface: human` agent, or a
+surface with no launcher is refused before anything starts. A session ends
+at `auto.session_timeout` (default 2h); its whole process group is then
+terminated.
+
+A reviewer must be able to commit — `metis block` and the flips commit —
+so the agent's sandbox and permission flags in `launch` must allow running
+`metis` and `git`. They are the project's choice; metis passes none.
+
+### `metis auto`
+
+```bash
+metis auto                                   # until a stop rule or auto.until
+metis auto --until phase                     # stop when the phase changes
+metis auto --until slice:phase-9-ws-9.2
+metis auto --max-slices 3
+metis auto --dry-run                         # the next session, launched by nobody
+metis auto --step                            # this run: one slice
+metis auto --phase phase-10 --mode auto      # this run: phase 10 unattended, stop at its end
+metis auto --slice phase-10-ws-10.2 --mode auto
+metis auto --status                          # the last run
+```
+
+One iteration: dispatch the next slice (a waiting slice is skipped);
+check the stop rules; launch the role's agent; read the ledger again.
+Progress is a flip, a block, a new wait, a new finding or a new commit
+naming the slice; a session without progress, or one that fails (exit
+non-zero or timeout), is retried once and then stops the run. A reviewed
+slice is archived (`metis archive`) and the run goes on.
+
+**Modes.** How far a run goes is the slice's effective mode — `manual`
+(the loop stops before it), `step` (one slice to reviewed and archived,
+then stop), `auto` (continue). The narrowest setting wins:
+
+| Precedence | Level | Persistent | One run only |
+|---|---|---|---|
+| 1 | slice | `metis mode <id> <mode>`, or `Auto: <mode>` in the plan section (read at seeding) | `--slice <id> --mode <mode>` |
+| 2 | phase | `metis mode --phase <phase> <mode>` (`auto.phases`), or `> Auto: <mode>` in the plan file's header | `--phase <phase> --mode <mode>` |
+| 3 | risk | `auto.by_risk` | — |
+| 4 | project | `auto.mode` | `--mode <mode>`, `--step` |
+| 5 | default | `step` | — |
+
+A scoped one-run override (`--slice`, `--phase`) wins in either direction
+and also limits the run to that slice or phase. The unscoped `--mode` and
+`--step` replace only the project level, so they never carry a run into a
+phase or slice set to `manual`. Moving from an `auto` slice into a `step`
+or `manual` one ends the run.
+
+**Stop rules.** Each is a key under `auto.stop`
+([configuration](configuration.md#auto)):
+
+| Rule | Fires when | Parks |
+|---|---|---|
+| `manual` | the next slice's mode is manual (exit 0) | no |
+| `step_done` | a step slice reached reviewed, or the next slice is step after another finished (exit 0) | no |
+| `gate` | the next slice is a gate: the person runs gates | no |
+| `planning` | the slice has no plan section, or is a recon | no |
+| `max_review_cycles` | the slice has had as many blocked reviews as the cap (default 3; `Auto: max_review_cycles=4` in the plan or `metis edit --max-review-cycles`) | yes |
+| `repeat_finding` | a new blocking finding re-raises one from an earlier review: it cites its id, or names the same file and reads alike | yes |
+| `growing_findings` | review N opens more blocking findings than review N−1 | yes |
+| `p1` | a P1 finding is recorded | yes |
+| `needs_human` | an agent ran `metis wait <id> --reason … --human`, or the brief's `## Human decisions` has an unchecked `- [ ]` item | yes |
+| `verify_env` | the env check fails before a session, or `metis verify` exits 2 during one | yes |
+| `scope` | `metis log <id> --validate` fails after a coder flipped coded | yes |
+| `dirty_tree` | uncommitted files outside the slice's scope before a session | no |
+| `session_failed` | a session exits non-zero or times out, after the retries (`auto.stop.session_failed`, default 1) | yes |
+| `no_progress` | a session made no progress, after the retries | yes |
+| `budget` | the slice used 8 sessions or 6h of sessions since its last stop | yes |
+| `human_agent` | the role's agent has `surface: human` | no |
+| `no_launcher` | the role's agent is not configured or has no launcher | no |
+
+With `auto.until: gate` (the default) and the gate rule on, a run normally
+ends at the phase gate with `gate`.
+
+**Escalation.** A stop that needs a person exits 3. It parks the slice
+(`metis wait <id> --reason "auto: <rule>" --human`) where the table says
+so, writes `.metis/runs/<slice>/auto/escalation.md` — the rule, the slice
+state, the findings by review with what repeats what, the last session's
+final output, and the ways out as commands (resume with `metis wait <id>
+--clear` then `metis auto`, resolve findings by decision, raise the cycle
+cap, or the human review override: `metis edit <id> --reviewer human`,
+`metis commit --flip reviewed --agent human --slice <id>`, `metis
+archive`) — prints it, and runs `auto.notify`. `step_done`, `manual`, a
+reached `--until`, `--max-slices` and an empty backlog exit 0.
+
+Each session is one line of `.metis/runs/auto.jsonl` (time, slice, role,
+agent and model, template, duration, exit code, outcome, findings opened
+and resolved); `metis auto --status` summarises the last run.
+
+**Branching** (`auto.branch`): with `slice` (default) a slice's sessions
+work on `auto/<slice-id>`, cut from the work branch; once reviewed it is
+rebased if the work branch moved, verified, fast-forward merged and
+deleted. A stopped slice's branch is left checked out: `metis auto` there
+resumes it. `pr` pushes the branch and opens a pull request
+(`auto.pr_command`, default `gh pr create --fill`) instead of merging;
+`off` commits on the work branch. `metis commit` accepts a slice's own
+auto branch.
+
+Interrupting `metis auto` (Ctrl-C) terminates the running session and
+leaves the repository as the ledger says; run it again to resume.
+
+### `metis mode [<slice-id>] [manual|step|auto]`
+
+```bash
+metis mode                              # every open slice's effective mode, by phase, and its source
+metis mode --phase phase-9 auto         # phase 9 unattended from now on
+metis mode phase-9-ws-9.4 manual        # except this slice
+metis mode phase-9-ws-9.4 --clear       # back to the phase's mode
+metis mode --phase phase-9 --clear
+```
+
+A slice's mode is stored in the ledger, a phase's in `auto.phases`; both
+writes are committed. A phase is what `metis progress phase` shows: the
+plan file's name, or the id's `phase-N` prefix. `metis list` shows each
+slice's mode and `metis progress phase` each phase's.
 
 ---
 
@@ -112,7 +290,8 @@ metis edit feat-0003 --coder opencode/opus --reviewer claude-code/opus
 ```
 
 Flags: `--title`, `--risk`, `--priority`, `--stage`, `--coder`, `--reviewer`,
-`--plan`, `--plan-section`, `--blocked-by` (replaces the list), `--notes`.
+`--plan`, `--plan-section`, `--blocked-by` (replaces the list), `--notes`,
+`--max-review-cycles` (metis auto's cap for this slice; 0 = the project's).
 
 Guard rails: done slices are immutable (`metis reopen` first), `blocked-by`
 entries must exist and cannot self-reference, coder and reviewer must differ,
@@ -184,6 +363,11 @@ finding: on a slice already blocked in this cycle, each further call
 records another open finding without starting a new cycle, so the ledger
 carries the whole verdict. A bare second call is refused.
 
+Each finding records the review that raised it (`cycle`) and the file it
+is about (`file`: `--file`, else the first `file:line` in its text) —
+`metis handoff` lists the last review's findings by them, and `metis auto`
+detects a re-raised finding with them.
+
 ### `metis wait <id> --reason "..." [--until <RFC 3339> | --for <duration>]`
 
 Park a slice on something outside the repository: a lab run that must
@@ -199,6 +383,11 @@ metis wait feat-0001 --clear      # back to dispatch; a flip clears it too
 Without `--until` or `--for` the wait holds until `--clear`. While a slice
 waits, `metis commit --slice <id>` and `metis verify --slice <id>` still
 bind to it: it is its agent's slice, only parked.
+
+`--human` marks a wait only a person clears: an agent that needs a
+decision runs `metis wait <id> --reason "<the question>" --human` and
+stops. `next` and `status` show it as **Needs you**, and `metis auto` stops
+on it (`needs_human`).
 
 ### `metis findings record <slice-id>` / `metis findings resolve <finding-id>`
 
@@ -317,7 +506,7 @@ metis commit --amend                            # amend previous commit
 ```
 
 **Enforces:**
-- Current branch must be `project.integration_branch`
+- Current branch must be `project.integration_branch`, or `auto/<slice-id>` for the slice being committed (the branch `metis auto` cuts)
 - Commit format: `{prefix}({slice_id}): {message}`
 - Prefix must be in `commits.prefixes` list
 - `--flip coded`: the slice's brief must exist and the last `verify --post` must have passed
@@ -561,8 +750,17 @@ Scaffold a new Metis project.
 
 ```bash
 metis init                    # interactive (creates minimal .metis/project.yaml)
+metis init --auto-mode step   # non-interactive answer to the metis auto question
 metis init --from .metis/project.yaml  # non-interactive (reads existing config, scaffolds state)
 ```
+
+At a terminal, init asks how `metis auto` should run — slice by slice
+(`step`, the default), unattended up to each gate (`auto`), or not at all
+(`manual`) — and writes `auto.mode`. A new `project.yaml` gets a `human`
+agent (for the human review override) and commented `auto.phases` /
+`auto.by_risk` examples. On an existing one, init adds only what is
+missing: `auto.mode` when given, the `human` agent, and a `launch` for
+each agent whose surface metis knows.
 
 Creates:
 - `.metis/project.yaml` (if not present)
