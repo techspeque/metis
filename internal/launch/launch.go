@@ -24,9 +24,16 @@ import (
 // Defaults are the built-in launchers per known surface, used when an
 // agent sets no launch of its own. They are versioned with metis; a
 // project that needs other flags (sandbox, permissions) sets launch.
+//
+// A headless session cannot answer a permission prompt, and every session
+// must run metis and git (the flips and blocks commit), so each default
+// grants exactly that much: Claude Code accepts edits and pre-approves
+// metis and git; Codex runs in its workspace-write sandbox (--full-auto),
+// which can commit. Without these the agent stops at its first metis
+// command.
 var Defaults = map[string][]string{
-	"claude-code": {"claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "acceptEdits"},
-	"codex":       {"codex", "exec", "--model", "{model}", "{prompt}"},
+	"claude-code": {"claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(metis:*)", "Bash(git:*)"},
+	"codex":       {"codex", "exec", "--full-auto", "--model", "{model}", "{prompt}"},
 	"opencode":    {"opencode", "run", "--model", "{model}", "{prompt}"},
 }
 

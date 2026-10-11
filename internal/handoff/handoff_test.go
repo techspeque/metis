@@ -78,7 +78,11 @@ func TestGoldenTemplates(t *testing.T) {
 		{"review", "phase-1-ws-1.1", Review, func(in *Input) {
 			in.Slice.Coded = true
 			in.Role, in.AgentSlug = slice.RoleReviewer, in.Slice.Reviewer
-			in.Commits = []git.SliceCommit{{Hash: "abc1234", Subject: "feat(phase-1-ws-1.1): retry with backoff"}}
+			in.Commits = []git.SliceCommit{
+				{Hash: "0000000", Subject: "chore(phase-1-ws-1.1): wait: auto: no_progress", Files: []string{".metis/slices.yaml"}},
+				{Hash: "abc1234", Subject: "feat(phase-1-ws-1.1): retry with backoff", Files: []string{"webhook/retry.go"}},
+				{Hash: "def5678", Subject: "chore(phase-1-ws-1.1): flip coded", Files: []string{".metis/slices.yaml"}},
+			}
 		}},
 		{"re-review", "phase-1-ws-1.2", ReReview, func(in *Input) {
 			in.Slice.Coded = true
