@@ -126,8 +126,25 @@ already. Overrides:
 | `METIS_INSTALL_DIR` | Install somewhere other than `~/.local/bin` |
 | `METIS_NO_MODIFY_PATH=1` | Never touch shell profile files |
 
-On Windows, download the zip from the
-[latest release](https://github.com/techspeque/metis/releases/latest).
+### Install script (Windows)
+
+```powershell
+irm https://raw.githubusercontent.com/techspeque/metis/main/scripts/install.ps1 | iex
+```
+
+Works in Windows PowerShell 5.1 and PowerShell 7, and needs nothing else:
+no administrator rights, no package manager, no Go toolchain. The script
+downloads the latest release for your architecture, verifies its checksum,
+installs `metis.exe` under `%LOCALAPPDATA%\Programs\metis`, and adds that
+directory to your user PATH (open a new terminal afterwards). Requests go
+through the system proxy. The same overrides apply as environment
+variables: `METIS_VERSION`, `METIS_INSTALL_DIR`, `METIS_NO_MODIFY_PATH=1`.
+
+Metis runs a project's `commands.verify` under `sh -c` on Linux and macOS;
+on Windows it uses the bash that Git for Windows installs when present, so
+the same verify line works on every machine, and `cmd /C` otherwise. A
+project written for PowerShell sets `commands.shell` — see
+[configuration](docs/configuration.md#commands).
 
 ### With Go
 
