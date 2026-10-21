@@ -1,0 +1,9 @@
+# Line endings are LF in the repository and on every checkout: the tests
+# compare generated documents against fixtures byte for byte, and a
+# Windows checkout with CRLF would fail them for no reason of its own.
+* text=auto eol=lf
+
+# PowerShell reads either, but the Windows tools that open a .ps1 expect CRLF.
+*.ps1 text eol=crlf
+
+*.png binary
