@@ -368,6 +368,13 @@ is about (`file`: `--file`, else the first `file:line` in its text) —
 `metis handoff` lists the last review's findings by them, and `metis auto`
 detects a re-raised finding with them.
 
+A finding that continues an earlier one — a recurrence, or a fix that did
+not finish the job — says so with `--follow-on <finding-id>` (`follow_on`
+in the store; `metis findings` shows the chain as `↳ f-012`). The link is
+the reviewer's statement, never inferred from the text, and a fresh defect
+found during a follow-on review is recorded without it. `metis findings
+--stats` counts follow-ons as `recurrences`.
+
 ### `metis wait <id> --reason "..." [--until <RFC 3339> | --for <duration>]`
 
 Park a slice on something outside the repository: a lab run that must
@@ -392,14 +399,52 @@ on it (`needs_human`).
 ### `metis findings record <slice-id>` / `metis findings resolve <finding-id>`
 
 `record` files an advisory (non-blocking) observation — unlike `block`, it
-never touches the slice lifecycle. `resolve` closes a finding after its fix
-is verified, keeping the findings ledger a complete audit trail instead of
-accumulating stale "open" entries.
+never touches the slice lifecycle (`--follow-on` links it as `block` does).
+`resolve` closes a finding with the evidence of its fix, keeping the
+findings ledger a record of fixes rather than of claims.
 
 ```bash
 metis findings record feat-0012 --severity P3 --category maint \
   --finding "footer landmark trade-off forced by plan — revisit in phase 1"
-metis findings resolve f-002 --note "fixed in 4e16005"
+metis findings resolve f-002 --commit 4e16005 --test TestFooterIsALandmark
+metis findings resolve f-002 --commit 4e16005 --ref src/footer.go:41 --note "landmark role added"
+metis findings resolve f-007 --duplicate-of f-002
+metis findings resolve f-009 --superseded-by f-020
+```
+
+A fix names its commit — any revision git resolves, recorded as the full
+hash — and what shows it: a test name (`--test`), a `file:line` that must
+exist at that commit (`--ref`), or both. A note alone is not a resolution;
+neither is a commit without evidence. A finding another one carries closes
+by disposition (`duplicate`, `superseded`) instead of an invented fix hash.
+A finding accepted as it stands is not resolved at all — it is waived.
+
+### `metis findings waive <finding-id> --reason "..." --by <who>`
+
+Accepts a finding as it stands, on record. Severity, category and text stay
+as raised; the waiver carries who accepted it, when, why, what stays wrong
+(`--residual`), who revisits it (`--owner`) and when (`--revisit`: a date
+or the triggering event). The status is `waived`, counted apart from
+`resolved` everywhere, so a pass is never read as a fix.
+
+```bash
+metis findings waive f-454 --by human --reason "bench floor withdrawn with the lab" \
+  --residual "no measured floor until the performance phase" --revisit "performance phase"
+```
+
+### `metis findings reclassify <finding-id> --reason "..." --by <who>`
+
+Corrects a finding's severity or category with provenance, or excludes a
+row from the counts. The classification as raised is kept on the finding
+(`original`), and every correction records who made it, when and why
+(`corrections`). `--exclude` leaves a row out of the severity and category
+counts — an aggregator such as "cycle 3 blocked on f-12..f-15", or a row
+recorded before severities meant anything — while it stays in the ledger
+and in the total.
+
+```bash
+metis findings reclassify f-030 --severity P1 --by human --reason "secret reflection is P1 by rule 23"
+metis findings reclassify f-041 --exclude --by human --reason "aggregator row for f-038..f-040"
 ```
 
 ### `metis skip <id> --reason "..."`
@@ -451,6 +496,12 @@ same content. With `commands.verify_scopes` ([configuration](configuration.md#sc
 only the scopes whose files changed run, and a change outside every scope
 runs the whole command.
 
+Earlier attempts are kept. `verify-post.log` is always the latest run; the
+run it replaced moves to `verify-post.1.log`, then `.2.log`, each with its
+`.exit`, so the failures that explain a slice survive the run that fixed
+them. Every `verify-*` log is kept this way; `env-check` and `interfaces`
+logs are kept only when they failed.
+
 **Exit codes:**
 - 0: all pass
 - 1: verify command failed (code error)
@@ -488,6 +539,20 @@ active slices' briefs (archived briefs are frozen history and stay silent).
 Prose quoting an amended rule passes every other check and is otherwise only
 caught by a reviewer reading. Advisory, never a hard error.
 
+A document that has re-read the amended decision says so, anywhere in its
+text, by naming the amending ADR:
+
+```markdown
+<!-- verified-against: ADR-0009 -->
+```
+
+That silences the warning for the one citation ADR-0009 amended — and only
+while ADR-0009 is still the amending decision: when a later ADR replaces
+it, the annotation names the wrong ADR and the warning returns. A decision
+retired by status alone is verified by naming it directly. Nothing silences
+a class of warnings; `metis check` reports how many citations are silenced
+so the annotations stay reviewable.
+
 ---
 
 ## Git Enforcement
@@ -509,6 +574,7 @@ metis commit --amend                            # amend previous commit
 - Current branch must be `project.integration_branch`, or `auto/<slice-id>` for the slice being committed (the branch `metis auto` cuts)
 - Commit format: `{prefix}({slice_id}): {message}`
 - Prefix must be in `commits.prefixes` list
+- `--brief`: the brief's declared scope must be one the audit can measure — an `owned_paths` field with bare paths (annotations after an em-dash), or `none` for read-only work; a missing field, a template placeholder, an entry with prose in it, or a path declared both owned and read-only is refused (gate briefs are exempt, as they are from the scope audit)
 - `--flip coded`: the slice's brief must exist and the last `verify --post` must have passed
 - `--flip reviewed`: requires `--agent <your-slug>`, validated against the slice's coder (`routing.review: self` relaxes this for single-agent projects), and the slice must pass `metis log <id> --validate` — a failing audit blocks the sign-off
 - `--slice <id>` (any mode): binds the command to the slice you were dispatched — errors if a higher-priority slice arrived since your `metis next`
@@ -603,8 +669,14 @@ metis findings                      # all findings
 metis findings --severity P1        # only P1
 metis findings --category auth      # only auth category
 metis findings --slice feat-0001    # only for specific slice
+metis findings --status waived      # open | advisory | resolved | waived | promoted
 metis findings --stats              # aggregated statistics
 ```
+
+`--stats` labels its denominators: `total` is every row; `counted` leaves
+out rows excluded by `reclassify`, and the severity and category counts are
+over counted rows; `waived` and `recurrences` (follow-ons) are reported on
+their own.
 
 ### `metis status`
 
@@ -626,9 +698,23 @@ Append a new accuracy rule to `.metis/project.yaml`.
 
 Show all accuracy rules (numbered).
 
-### `metis rule promote <finding-id>`
+### `metis rule promote <finding-id> --text "..."`
 
-Promote a review finding to a permanent accuracy rule.
+Promote a review finding to a permanent accuracy rule, rewritten as the
+invariant it is an instance of. The finding stays what it was — one case,
+with its file and line; the rule is written fresh with `--text`, names the
+check that enforces it with `--enforced-by`, and records the finding it
+came from:
+
+```bash
+metis rule promote f-030 \
+  --text "No content of a secret-bearing value reaches an error or a log, whichever branch refuses it" \
+  --enforced-by TestSecretsNeverReflected
+# → accuracy rule: "... whichever branch refuses it (enforced by: TestSecretsNeverReflected; from f-030)"
+```
+
+Text that repeats the finding, or carries a `file:line`, is refused: a rule
+that names a line is stale by the next commit.
 
 ### `metis rule remove [rule-number...]`
 
