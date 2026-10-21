@@ -31,7 +31,12 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    defaults:
+      run:
+        # One shell on every runner: PowerShell splits -flag=value.ext
+        # arguments and go test then looks for a package named ".out".
+        shell: bash
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -40,6 +45,27 @@ jobs:
         uses: actions/setup-go@v6
         with:
           go-version: '1.26'
+
+      # The tests create repositories and commit LF fixtures; the runner's
+      # global autocrlf would report them modified for no change of theirs.
+      - name: Git line endings
+        if: runner.os == 'Windows'
+        run: git config --global core.autocrlf false
+
+      # Which git and bash the runner offers decides the shell metis picks
+      # for configured commands; the log says which it was.
+      - name: Shell on this runner
+        if: runner.os == 'Windows'
+        run: where.exe git bash || true
+
+      - name: Installer syntax
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $tokens = $null; $errors = $null
+          [System.Management.Automation.Language.Parser]::ParseFile("scripts/install.ps1", [ref]$tokens, [ref]$errors) | Out-Null
+          if ($errors.Count) { $errors | ForEach-Object { Write-Error $_.ToString() }; exit 1 }
+          "scripts/install.ps1 parses"
 
       - name: Build
         run: go build ./...

@@ -64,14 +64,24 @@ func TestLoadMalformed(t *testing.T) {
 	}
 }
 
+// abs makes a POSIX-looking test path absolute on the platform the test
+// runs on (C:\home\... on Windows), since Add refuses relative paths.
+func abs(p string) string {
+	a, err := filepath.Abs(p)
+	if err != nil {
+		panic(err)
+	}
+	return a
+}
+
 func TestRoundTrip(t *testing.T) {
 	path := withTempConfig(t)
 
 	uc := &UserConfig{Workspaces: map[string]string{}}
-	if err := uc.Add("metis", "/home/u/proj/metis"); err != nil {
+	if err := uc.Add("metis", abs("/home/u/proj/metis")); err != nil {
 		t.Fatal(err)
 	}
-	if err := uc.Add("acme", "/home/u/proj/acme"); err != nil {
+	if err := uc.Add("acme", abs("/home/u/proj/acme")); err != nil {
 		t.Fatal(err)
 	}
 	if err := uc.Use("metis"); err != nil {
@@ -96,7 +106,7 @@ func TestRoundTrip(t *testing.T) {
 	if loaded.Active != "metis" {
 		t.Errorf("Active = %q, want metis", loaded.Active)
 	}
-	if loaded.Workspaces["acme"] != "/home/u/proj/acme" {
+	if loaded.Workspaces["acme"] != abs("/home/u/proj/acme") {
 		t.Errorf("Workspaces = %v", loaded.Workspaces)
 	}
 }
@@ -105,7 +115,7 @@ func TestSaveCreatesDirectory(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "nested", "dir", "config.yaml")
 	t.Setenv(EnvPath, path)
 
-	uc := &UserConfig{Workspaces: map[string]string{"a": "/x"}}
+	uc := &UserConfig{Workspaces: map[string]string{"a": abs("/x")}}
 	if err := uc.Save(); err != nil {
 		t.Fatalf("Save() should create parent directories: %v", err)
 	}
@@ -114,20 +124,20 @@ func TestSaveCreatesDirectory(t *testing.T) {
 func TestAddValidation(t *testing.T) {
 	uc := &UserConfig{Workspaces: map[string]string{}}
 
-	if err := uc.Add("", "/abs"); err == nil {
+	if err := uc.Add("", abs("/abs")); err == nil {
 		t.Error("Add with empty name: want error")
 	}
 	if err := uc.Add("rel", "relative/path"); err == nil {
 		t.Error("Add with relative path: want error")
 	}
-	if err := uc.Add("a", "/p1"); err != nil {
+	if err := uc.Add("a", abs("/p1")); err != nil {
 		t.Fatal(err)
 	}
-	if err := uc.Add("a", "/p2"); err == nil {
+	if err := uc.Add("a", abs("/p2")); err == nil {
 		t.Error("Add duplicate name with different path: want error")
 	}
 	// Re-adding the same name+path is idempotent.
-	if err := uc.Add("a", "/p1"); err != nil {
+	if err := uc.Add("a", abs("/p1")); err != nil {
 		t.Errorf("Add same name+path should be idempotent: %v", err)
 	}
 }
@@ -135,7 +145,7 @@ func TestAddValidation(t *testing.T) {
 func TestRemove(t *testing.T) {
 	uc := &UserConfig{
 		Active:     "a",
-		Workspaces: map[string]string{"a": "/p1", "b": "/p2"},
+		Workspaces: map[string]string{"a": abs("/p1"), "b": abs("/p2")},
 	}
 
 	if err := uc.Remove("missing"); err == nil {
@@ -156,7 +166,7 @@ func TestRemove(t *testing.T) {
 }
 
 func TestUse(t *testing.T) {
-	uc := &UserConfig{Workspaces: map[string]string{"a": "/p1"}}
+	uc := &UserConfig{Workspaces: map[string]string{"a": abs("/p1")}}
 
 	if err := uc.Use("missing"); err == nil {
 		t.Error("Use unknown: want error")

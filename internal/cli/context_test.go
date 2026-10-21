@@ -17,6 +17,11 @@ func makeProject(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Tests call command functions directly, so nothing releases the
+	// repository lock a command takes; on Windows an open lock file keeps
+	// the temp directory from being removed. Release it with the project:
+	// registered after TempDir so it runs before the directory goes.
+	t.Cleanup(releaseRepoLock)
 	if err := os.MkdirAll(filepath.Join(dir, ".metis"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -33,6 +38,7 @@ func makeLegacyProject(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(releaseRepoLock) // as makeProject, for the same reason
 	if err := os.WriteFile(filepath.Join(dir, "metis.yaml"), []byte("version: 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}

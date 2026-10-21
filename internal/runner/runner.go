@@ -24,10 +24,16 @@ type Result struct {
 	Err      error
 }
 
-// Run executes a shell command with a timeout, capturing combined
-// stdout+stderr. On timeout the process is killed and the result carries a
-// non-zero exit code with an explanatory trailer in the output.
+// Run executes a shell command under the platform's default shell with a
+// timeout, capturing combined stdout+stderr. On timeout the process is
+// killed and the result carries a non-zero exit code with an explanatory
+// trailer in the output.
 func Run(command string, dir string, timeout time.Duration) *Result {
+	return RunShell(DefaultShell(), command, dir, timeout)
+}
+
+// RunShell is Run under a specific shell (commands.shell, or the default).
+func RunShell(shell Shell, command string, dir string, timeout time.Duration) *Result {
 	if timeout <= 0 {
 		timeout = DefaultTimeout
 	}
@@ -36,8 +42,7 @@ func Run(command string, dir string, timeout time.Duration) *Result {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
-	cmd.Dir = dir
+	cmd := shell.Command(ctx, command, dir)
 	cmd.WaitDelay = 5 * time.Second
 
 	var buf bytes.Buffer

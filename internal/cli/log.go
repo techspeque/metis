@@ -132,7 +132,9 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 
 	// Scope contract from the brief AT HEAD — reading the working tree would
 	// let the audited party edit owned_paths, uncommitted, and pass.
-	briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
+	// Slash form throughout: it is compared with the paths git reports,
+	// which are slash-separated on every platform.
+	briefRel := filepath.ToSlash(filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md"))
 	if data, err := git.FileAtHead(ctx.repoRoot, briefRel); err == nil {
 		report.BriefCommitted = true
 		sc := brief.ParseScope(string(data))

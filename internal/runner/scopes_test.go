@@ -16,8 +16,8 @@ func scopedRepo(t *testing.T) (*config.Config, string, map[string]string, func(o
 	cfg, dir, whole, store := cacheRepo(t, "echo run >> COUNTER")
 	counters := map[string]string{"whole": whole, "api": filepath.Join(t.TempDir(), "api"), "web": filepath.Join(t.TempDir(), "web")}
 	cfg.Commands.VerifyScopes = []config.VerifyScope{
-		{Name: "api", Paths: []string{"api/", "**/openapi.json"}, Command: "echo run >> " + counters["api"]},
-		{Name: "web", Paths: []string{"web", "api/openapi.json"}, Command: "echo run >> " + counters["web"]},
+		{Name: "api", Paths: []string{"api/", "**/openapi.json"}, Command: "echo run >> " + filepath.ToSlash(counters["api"])},
+		{Name: "web", Paths: []string{"web", "api/openapi.json"}, Command: "echo run >> " + filepath.ToSlash(counters["web"])},
 	}
 	for _, p := range []string{"api/a.go", "api/openapi.json", "web/w.ts"} {
 		must(t, os.MkdirAll(filepath.Join(dir, filepath.Dir(p)), 0o755))
@@ -38,6 +38,7 @@ func counts(t *testing.T, counters map[string]string) map[string]int {
 }
 
 func TestScopedVerifyRunsOnlyTheScopesWhoseContentChanged(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counters, run := scopedRepo(t)
 
 	// Nothing has passed: the whole command runs and covers every scope.
@@ -95,6 +96,7 @@ func TestScopedVerifyRunsOnlyTheScopesWhoseContentChanged(t *testing.T) {
 }
 
 func TestAFailingScopeFailsVerifyAndIsNotRemembered(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counters, run := scopedRepo(t)
 	if code, _ := run(VerifyOptions{}); code != 0 {
 		t.Fatal("first run")
@@ -113,6 +115,7 @@ func TestAFailingScopeFailsVerifyAndIsNotRemembered(t *testing.T) {
 }
 
 func TestScopePathPatterns(t *testing.T) {
+	requirePOSIXShell(t)
 	cases := []struct {
 		pattern, path string
 		want          bool

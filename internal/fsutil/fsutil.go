@@ -46,7 +46,17 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	if err := os.Chmod(tmpName, mode); err != nil {
 		return fmt.Errorf("setting permissions: %w", err)
 	}
-	return os.Rename(tmpName, path)
+	// On Windows a rename over a file another process has open fails
+	// outright — a reader of the same state file, or an indexer that just
+	// noticed the write. Such holds are brief; a few retries ride them out.
+	var renameErr error
+	for attempt := 0; attempt < 10; attempt++ {
+		if renameErr = os.Rename(tmpName, path); renameErr == nil {
+			return nil
+		}
+		time.Sleep(time.Duration(attempt+1) * 10 * time.Millisecond)
+	}
+	return renameErr
 }
 
 // LockTimeout bounds how long a process waits for the repository lock.

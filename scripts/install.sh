@@ -29,7 +29,7 @@ detect_os() {
     Linux) echo linux ;;
     Darwin) echo darwin ;;
     MINGW* | MSYS* | CYGWIN*)
-      err "Windows detected — download the zip from https://github.com/$REPO/releases/latest instead" ;;
+      err "Windows detected — in PowerShell run: irm https://raw.githubusercontent.com/$REPO/main/scripts/install.ps1 | iex" ;;
     *) err "unsupported operating system: $(uname -s)" ;;
   esac
 }

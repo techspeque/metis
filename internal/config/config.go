@@ -71,6 +71,10 @@ type CommandsConfig struct {
 	Verify     string `yaml:"verify" json:"verify"`
 	EnvCheck   string `yaml:"env_check,omitempty" json:"env_check,omitempty"`
 	Interfaces string `yaml:"interfaces,omitempty" json:"interfaces,omitempty"`
+	// Shell is the interpreter the commands run under, as a command line
+	// prefix ("pwsh -NoProfile -Command"). Unset means sh -c, or on
+	// Windows the bash Git installs when present and cmd /C otherwise.
+	Shell string `yaml:"shell,omitempty" json:"shell,omitempty"`
 	// TimeoutSeconds bounds each configured command; 0 means the runner
 	// default (10 minutes).
 	TimeoutSeconds int `yaml:"timeout_seconds,omitempty" json:"timeout_seconds,omitempty"`

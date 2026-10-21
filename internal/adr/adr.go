@@ -79,6 +79,10 @@ func Citations(repoRoot, adrRel string, scanRels []string) Report {
 			if rerr != nil {
 				return nil
 			}
+			// Slash form, like the ADR records it is compared with; on
+			// Windows Rel answers with backslashes and every ADR would
+			// otherwise be flagged for citing itself.
+			relPath = filepath.ToSlash(relPath)
 			data, rerr := os.ReadFile(path)
 			if rerr != nil {
 				return nil

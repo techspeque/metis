@@ -35,7 +35,9 @@ func cacheRepo(t *testing.T, verify string) (*config.Config, string, string, *ru
 	git("add", "-A")
 	git("commit", "-q", "-m", "init")
 	cfg := config.DefaultConfig()
-	cfg.Commands.Verify = strings.ReplaceAll(verify, "COUNTER", counter)
+	// The path goes into a shell command line: slash form, which bash
+	// reads on every platform, where a backslash would be an escape.
+	cfg.Commands.Verify = strings.ReplaceAll(verify, "COUNTER", filepath.ToSlash(counter))
 	return &cfg, dir, counter, runs.NewStore(filepath.Join(dir, cfg.Paths.Runs))
 }
 
@@ -64,6 +66,7 @@ func verify(t *testing.T, cfg *config.Config, dir string, store *runs.Store, opt
 }
 
 func TestVerifyReusesAGreenRunOfTheSameTree(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counter, store := cacheRepo(t, "echo run >> COUNTER")
 
 	if code, out := verify(t, cfg, dir, store, VerifyOptions{Label: "pre"}); code != 0 || out.Cached != nil {
@@ -97,6 +100,7 @@ func TestVerifyReusesAGreenRunOfTheSameTree(t *testing.T) {
 }
 
 func TestVerifyRemembersOnlyAGreenRunThatLeftTheTreeAsItFoundIt(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counter, store := cacheRepo(t, "echo run >> COUNTER; exit 1")
 	for i := 0; i < 2; i++ {
 		if code, _ := verify(t, cfg, dir, store, VerifyOptions{}); code != ExitCodeFailure {
@@ -117,6 +121,7 @@ func TestVerifyRemembersOnlyAGreenRunThatLeftTheTreeAsItFoundIt(t *testing.T) {
 }
 
 func TestVerifyCacheCanBeTurnedOff(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counter, store := cacheRepo(t, "echo run >> COUNTER")
 	off := false
 	cfg.Commands.VerifyCache = &off
@@ -127,6 +132,7 @@ func TestVerifyCacheCanBeTurnedOff(t *testing.T) {
 }
 
 func TestVerifyStillRunsTheEnvCheckOnACachedTree(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, _, store := cacheRepo(t, "echo run >> COUNTER")
 	up := filepath.Join(t.TempDir(), "service-up")
 	must(t, os.WriteFile(up, nil, 0o644))
@@ -139,6 +145,7 @@ func TestVerifyStillRunsTheEnvCheckOnACachedTree(t *testing.T) {
 }
 
 func TestAReusedRunUnderTheSameLabelKeepsTheGreenLog(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, _, store := cacheRepo(t, "echo run >> COUNTER")
 	verify(t, cfg, dir, store, VerifyOptions{Label: "pre"})
 	_, out := verify(t, cfg, dir, store, VerifyOptions{Label: "pre"})

@@ -1,16 +1,33 @@
 package runner
 
 import (
+	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
+
+// lines is a command's output with the line endings the shell chose
+// normalised, so an assertion reads the words and not the platform.
+func lines(out []byte) string {
+	return strings.ReplaceAll(string(out), "\r\n", "\n")
+}
+
+// requirePOSIXShell skips a test whose fixture command is written for sh
+// when the platform default is cmd, which reads it differently.
+func requirePOSIXShell(t *testing.T) {
+	t.Helper()
+	if base := strings.ToLower(filepath.Base(DefaultShell()[0])); base != "sh" && base != "bash" && base != "bash.exe" {
+		t.Skipf("fixture commands are written for sh; the default shell here is %s", DefaultShell())
+	}
+}
 
 func TestRun_Success(t *testing.T) {
 	result := Run("echo hello", "", 0)
 	if result.ExitCode != 0 {
 		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
 	}
-	if string(result.Output) != "hello\n" {
+	if lines(result.Output) != "hello\n" {
 		t.Errorf("Output = %q, want %q", string(result.Output), "hello\n")
 	}
 }
@@ -30,16 +47,18 @@ func TestRun_SpecificExitCode(t *testing.T) {
 }
 
 func TestRun_CapturesStderr(t *testing.T) {
+	requirePOSIXShell(t)
 	result := Run("echo err >&2", "", 0)
 	if result.ExitCode != 0 {
 		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
 	}
-	if string(result.Output) != "err\n" {
+	if lines(result.Output) != "err\n" {
 		t.Errorf("Output = %q, want stderr captured", string(result.Output))
 	}
 }
 
 func TestRun_CombinedOutput(t *testing.T) {
+	requirePOSIXShell(t)
 	result := Run("echo out && echo err >&2", "", 0)
 	if result.ExitCode != 0 {
 		t.Errorf("ExitCode = %d, want 0", result.ExitCode)
