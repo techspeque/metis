@@ -49,6 +49,9 @@ func (e *buildError) Error() string { return e.err.Error() + "\n" + e.out }
 
 func fakeAgentPath(t *testing.T) string {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("the fake agent is a POSIX shell script")
+	}
 	_, file, _, _ := runtime.Caller(0)
 	return filepath.Join(filepath.Dir(file), "testdata", "fake-agent.sh")
 }
