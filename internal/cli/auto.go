@@ -432,7 +432,7 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 		was, ok := before.findings[fid]
 		if !ok {
 			opened = append(opened, fid)
-		} else if was != "resolved" && status == "resolved" {
+		} else if !closedStatus(was) && closedStatus(status) {
 			resolved = append(resolved, fid)
 		}
 	}
