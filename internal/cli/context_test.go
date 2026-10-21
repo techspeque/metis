@@ -13,14 +13,15 @@ import (
 // and returns its path (symlinks resolved, so paths compare cleanly on macOS).
 func makeProject(t *testing.T) string {
 	t.Helper()
-	// Tests call command functions directly, so nothing releases the
-	// repository lock a command takes; on Windows an open lock file keeps
-	// the temp directory from being removed. Release it with the project.
-	t.Cleanup(releaseRepoLock)
 	dir, err := filepath.EvalSymlinks(t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Tests call command functions directly, so nothing releases the
+	// repository lock a command takes; on Windows an open lock file keeps
+	// the temp directory from being removed. Release it with the project:
+	// registered after TempDir so it runs before the directory goes.
+	t.Cleanup(releaseRepoLock)
 	if err := os.MkdirAll(filepath.Join(dir, ".metis"), 0o755); err != nil {
 		t.Fatal(err)
 	}
