@@ -40,6 +40,12 @@ func TestShellFor(t *testing.T) {
 		"windows override":        {"windows", "pwsh -NoProfile -Command", withGit, only(gitBash), Shell{"pwsh", "-NoProfile", "-Command"}},
 		"windows git bash":        {"windows", "", withGit, only(gitBash), Shell{gitBash, "-c"}},
 		"windows usr bash":        {"windows", "", withGit, only(usrBash), Shell{usrBash, "-c"}},
+		"windows git from mingw64 on PATH": {
+			"windows", "", func(string) (string, error) { return filepath.Join(gitRoot, "mingw64", "bin", "git.exe"), nil }, only(gitBash), Shell{gitBash, "-c"},
+		},
+		"windows git from bin on PATH": {
+			"windows", "", func(string) (string, error) { return filepath.Join(gitRoot, "bin", "git.exe"), nil }, only(usrBash), Shell{usrBash, "-c"},
+		},
 		"windows git without bash": {
 			"windows", "", withGit, only(), Shell{"cmd", "/C"},
 		},

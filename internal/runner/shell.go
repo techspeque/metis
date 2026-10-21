@@ -42,14 +42,19 @@ func shellFor(goos, configured string, lookPath func(string) (string, error), ex
 		return Shell(fields)
 	}
 	if gitPath, err := lookPath("git"); err == nil {
-		// Git for Windows lays out <root>\cmd\git.exe beside <root>\bin\bash.exe
-		// (and <root>\usr\bin\bash.exe); either is the bash a verify line
-		// written for sh expects. The bash.exe on PATH may instead be the
-		// WSL launcher, which runs nothing in this tree, so it is not used.
-		root := filepath.Dir(filepath.Dir(gitPath))
-		for _, rel := range []string{"bin/bash.exe", "usr/bin/bash.exe"} {
-			if candidate := filepath.Join(root, filepath.FromSlash(rel)); exists(candidate) {
-				return Shell{candidate, "-c"}
+		// Git for Windows keeps bash at <root>\bin\bash.exe and
+		// <root>\usr\bin\bash.exe, and git.exe one or two levels below the
+		// root depending on which of its directories is on PATH (cmd\,
+		// bin\, mingw64\bin\). Either bash is the one a verify line written
+		// for sh expects. The bash.exe on PATH may instead be the WSL
+		// launcher, which runs nothing in this tree, so it is not used.
+		dir := filepath.Dir(gitPath)
+		for level := 0; level < 3; level++ {
+			dir = filepath.Dir(dir)
+			for _, rel := range []string{"bin/bash.exe", "usr/bin/bash.exe"} {
+				if candidate := filepath.Join(dir, filepath.FromSlash(rel)); exists(candidate) {
+					return Shell{candidate, "-c"}
+				}
 			}
 		}
 	}
