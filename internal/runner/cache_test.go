@@ -64,6 +64,7 @@ func verify(t *testing.T, cfg *config.Config, dir string, store *runs.Store, opt
 }
 
 func TestVerifyReusesAGreenRunOfTheSameTree(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counter, store := cacheRepo(t, "echo run >> COUNTER")
 
 	if code, out := verify(t, cfg, dir, store, VerifyOptions{Label: "pre"}); code != 0 || out.Cached != nil {
@@ -97,6 +98,7 @@ func TestVerifyReusesAGreenRunOfTheSameTree(t *testing.T) {
 }
 
 func TestVerifyRemembersOnlyAGreenRunThatLeftTheTreeAsItFoundIt(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counter, store := cacheRepo(t, "echo run >> COUNTER; exit 1")
 	for i := 0; i < 2; i++ {
 		if code, _ := verify(t, cfg, dir, store, VerifyOptions{}); code != ExitCodeFailure {
@@ -117,6 +119,7 @@ func TestVerifyRemembersOnlyAGreenRunThatLeftTheTreeAsItFoundIt(t *testing.T) {
 }
 
 func TestVerifyCacheCanBeTurnedOff(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, counter, store := cacheRepo(t, "echo run >> COUNTER")
 	off := false
 	cfg.Commands.VerifyCache = &off
@@ -127,6 +130,7 @@ func TestVerifyCacheCanBeTurnedOff(t *testing.T) {
 }
 
 func TestVerifyStillRunsTheEnvCheckOnACachedTree(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, _, store := cacheRepo(t, "echo run >> COUNTER")
 	up := filepath.Join(t.TempDir(), "service-up")
 	must(t, os.WriteFile(up, nil, 0o644))
@@ -139,6 +143,7 @@ func TestVerifyStillRunsTheEnvCheckOnACachedTree(t *testing.T) {
 }
 
 func TestAReusedRunUnderTheSameLabelKeepsTheGreenLog(t *testing.T) {
+	requirePOSIXShell(t)
 	cfg, dir, _, store := cacheRepo(t, "echo run >> COUNTER")
 	verify(t, cfg, dir, store, VerifyOptions{Label: "pre"})
 	_, out := verify(t, cfg, dir, store, VerifyOptions{Label: "pre"})

@@ -52,6 +52,12 @@ jobs:
         if: runner.os == 'Windows'
         run: git config --global core.autocrlf false
 
+      # Which git and bash the runner offers decides the shell metis picks
+      # for configured commands; the log says which it was.
+      - name: Shell on this runner
+        if: runner.os == 'Windows'
+        run: where.exe git bash || true
+
       - name: Installer syntax
         if: runner.os == 'Windows'
         shell: pwsh
