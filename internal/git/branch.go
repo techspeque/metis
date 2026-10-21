@@ -3,6 +3,7 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -137,7 +138,10 @@ func Push(repoDir, branch string) error {
 }
 
 // FileAt returns the content of a repository-relative file at a revision.
+// The path is always given to git with forward slashes: a tree path is
+// not a filesystem path, and git does not translate a backslash in one.
 func FileAt(repoDir, rev, relPath string) ([]byte, error) {
+	relPath = filepath.ToSlash(relPath)
 	cmd := exec.Command("git", "show", rev+":"+relPath)
 	cmd.Dir = repoDir
 	out, err := cmd.Output()

@@ -5,6 +5,7 @@ package git
 import (
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -107,7 +108,7 @@ func CommitAmend(repoDir, message string) error {
 // Returns "" when no such commit is found (ledger never committed, or the ID
 // never appeared in it).
 func SeedCommit(repoDir, sliceID, ledgerRel string) (string, error) {
-	cmd := exec.Command("git", "log", "--reverse", "--format=%H", "-S", sliceID, "--", ledgerRel)
+	cmd := exec.Command("git", "log", "--reverse", "--format=%H", "-S", sliceID, "--", filepath.ToSlash(ledgerRel))
 	cmd.Dir = repoDir
 	out, err := cmd.Output()
 	if err != nil {
@@ -141,13 +142,7 @@ func AncestorsOf(repoDir, hash string) (map[string]bool, error) {
 // Errors when the file does not exist in the HEAD tree (e.g. it only exists
 // uncommitted in the working tree).
 func FileAtHead(repoDir, relPath string) ([]byte, error) {
-	cmd := exec.Command("git", "show", "HEAD:"+relPath)
-	cmd.Dir = repoDir
-	out, err := cmd.Output()
-	if err != nil {
-		return nil, fmt.Errorf("git show HEAD:%s: %w", relPath, err)
-	}
-	return out, nil
+	return FileAt(repoDir, "HEAD", relPath)
 }
 
 // SliceCommit is one commit associated with a slice.
