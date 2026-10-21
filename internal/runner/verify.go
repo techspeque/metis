@@ -37,7 +37,7 @@ func EnvCheck(cfg *config.Config, repoRoot string, sliceID string, store *runs.S
 		return ExitSuccess, nil
 	}
 
-	result := Run(cfg.Commands.EnvCheck, repoRoot, cfg.CommandTimeout())
+	result := RunShell(ParseShell(cfg.Commands.Shell), cfg.Commands.EnvCheck, repoRoot, cfg.CommandTimeout())
 
 	// Store the log
 	if store != nil && sliceID != "" {
@@ -148,7 +148,7 @@ func Verify(cfg *config.Config, repoRoot string, sliceID string, opts VerifyOpti
 	}
 	outcome.Whole = true
 
-	result := Run(cfg.Commands.Verify, repoRoot, cfg.CommandTimeout())
+	result := RunShell(ParseShell(cfg.Commands.Shell), cfg.Commands.Verify, repoRoot, cfg.CommandTimeout())
 
 	logData := result.FormatLog(sliceID)
 	if store != nil && sliceID != "" {
@@ -243,7 +243,7 @@ func verifyScopes(cfg *config.Config, repoRoot, sliceID, logName, tree string, o
 			continue
 		}
 		outcome.Ran = append(outcome.Ran, st.Name)
-		result := Run(st.Command, repoRoot, cfg.CommandTimeout())
+		result := RunShell(ParseShell(cfg.Commands.Shell), st.Command, repoRoot, cfg.CommandTimeout())
 		fmt.Fprintf(&log, "\n── scope %s: ran\n%s", st.Name, result.FormatLog(sliceID))
 		if result.ExitCode != 0 {
 			if err := write(result.ExitCode); err != nil {
@@ -292,7 +292,7 @@ func Interfaces(cfg *config.Config, repoRoot string, sliceID string, store *runs
 		return ExitSuccess, nil
 	}
 
-	result := Run(cfg.Commands.Interfaces, repoRoot, cfg.CommandTimeout())
+	result := RunShell(ParseShell(cfg.Commands.Shell), cfg.Commands.Interfaces, repoRoot, cfg.CommandTimeout())
 
 	// Store the log
 	if store != nil && sliceID != "" {

@@ -267,12 +267,18 @@ commands:
 | `verify` | Yes | The verification gate — build, lint, test |
 | `env_check` | No | Environment soundness check (exit ≠ 0 means env is broken) |
 | `interfaces` | No | Regenerate API summary for anti-hallucination archaeology |
+| `shell` | No | The interpreter the commands run under, as a prefix (`pwsh -NoProfile -Command`); default below |
 | `timeout_seconds` | No | Bounds each command (default 600) — a hung command is killed, not waited on forever |
 | `verify_cache` | No | Reuse a green verify of the same working-tree content (default true) |
 | `verify_scopes` | No | Split verify by the paths each part covers (below) |
 
-Commands are opaque strings — Metis runs them via `sh -c` and captures output.
-Technology-agnostic: use whatever your stack needs.
+Commands are opaque strings — Metis hands each one to a shell and captures
+its output. Technology-agnostic: use whatever your stack needs. The shell
+is `sh -c` everywhere but Windows. On Windows it is, in order: `shell` when
+set, the `METIS_SHELL` environment variable, the bash that Git for Windows
+installs beside `git.exe` (so a verify line written for `sh` keeps
+working), and otherwise `cmd /C`. A project whose verify is written for
+PowerShell sets `shell: pwsh -NoProfile -Command`.
 
 #### Scoped verify
 
