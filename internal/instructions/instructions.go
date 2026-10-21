@@ -111,9 +111,9 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 		b.WriteString("   - A finding blocks only when it is: " + strings.Join(cfg.Review.Reasons(), "; ") + "\n")
 		b.WriteString("   - Non-blocking observations -> `metis findings record <id> --finding \"...\"` (advisory; no state change)\n")
 		if n := cfg.Review.NarrowAfterCycles(); n > 0 {
-			fmt.Fprintf(&b, "   - From review_cycles %d on, the review is narrowed: confirm (`metis findings resolve`) or re-raise (`metis block ... --finding \"re-raise <f-id>: ...\"`) the open findings; a new blocking finding only at P1, anything else is advisory\n", n)
+			fmt.Fprintf(&b, "   - From review_cycles %d on, the review is narrowed: confirm (`metis findings resolve`, with the evidence below) or re-raise (`metis block ... --follow-on <f-id> --finding \"...\"`) the open findings; a new blocking finding only at P1, anything else is advisory\n", n)
 		}
-		b.WriteString("   - On pass, close findings you verified fixed: `metis findings resolve <f-id> --note <how>`\n")
+		b.WriteString("   - On pass, close findings you verified fixed with the evidence: `metis findings resolve <f-id> --commit <rev> --test <name>` or `--ref <file:line>` (a duplicate: `--duplicate-of <f-id>`). A note alone does not close a finding; a finding accepted as it stands is waived by a person (`metis findings waive`), not resolved\n")
 		b.WriteString("7. **Report** — slice ID, verdict, findings (if any), what's next; facts only, short\n\n")
 	}
 
@@ -373,7 +373,8 @@ func sectionToolingMap() string {
 | ` + "`metis status`" + ` | One-line progress summary |
 | ` + "`metis log <id> --validate`" + ` | Audit slice commits: format + scope vs brief (scope N/A for gates — inspect manually) |
 | ` + "`metis findings record <id>`" + ` | Record advisory (non-blocking) observation |
-| ` + "`metis findings resolve <f-id>`" + ` | Close a finding after verifying its fix |
+| ` + "`metis findings resolve <f-id> --commit <rev> --test <name>`" + ` | Close a finding with the fix's evidence (or ` + "`--ref <file:line>`" + `; ` + "`--duplicate-of <f-id>`" + ` for a duplicate) |
+| ` + "`metis findings waive <f-id> --reason ... --by <who>`" + ` | Accept a finding as it stands, on record (a person's decision; counted apart from fixes) |
 | ` + "`metis config get <key>`" + ` | Read one config value |
 
 Every read command accepts ` + "`-o json`" + `. When you need an exact value
