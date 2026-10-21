@@ -35,7 +35,9 @@ func cacheRepo(t *testing.T, verify string) (*config.Config, string, string, *ru
 	git("add", "-A")
 	git("commit", "-q", "-m", "init")
 	cfg := config.DefaultConfig()
-	cfg.Commands.Verify = strings.ReplaceAll(verify, "COUNTER", counter)
+	// The path goes into a shell command line: slash form, which bash
+	// reads on every platform, where a backslash would be an escape.
+	cfg.Commands.Verify = strings.ReplaceAll(verify, "COUNTER", filepath.ToSlash(counter))
 	return &cfg, dir, counter, runs.NewStore(filepath.Join(dir, cfg.Paths.Runs))
 }
 

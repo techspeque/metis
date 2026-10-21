@@ -38,6 +38,7 @@ func makeLegacyProject(t *testing.T) string {
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Cleanup(releaseRepoLock) // as makeProject, for the same reason
 	if err := os.WriteFile(filepath.Join(dir, "metis.yaml"), []byte("version: 1\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
