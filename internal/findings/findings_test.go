@@ -120,7 +120,7 @@ func TestStore_FilterByStatus(t *testing.T) {
 	s.Add("feat-0001", "P1", "auth", "blocking")                     // open
 	s.AddWithStatus("feat-0001", "P3", "maint", "noted", "advisory") // advisory
 	id := s.Add("feat-0002", "P2", "tests", "fixed later")
-	if err := s.Resolve(id, "commit abc"); err != nil {
+	if err := s.Resolve(id, "4e160050f3a1", "TestFixedLater", ""); err != nil {
 		t.Fatal(err)
 	}
 

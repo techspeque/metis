@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -22,6 +23,15 @@ type superseded struct {
 	via   string // repo-relative path of the superseding ADR, if any
 }
 
+// Report is the outcome of a citation walk: the warnings to print, and the
+// citations a document's verified-against annotation silenced.
+type Report struct {
+	Warnings []string
+	// Silenced lists "<file> cites <token>" for each citation whose document
+	// carries a matching verified-against annotation.
+	Silenced []string
+}
+
 // CheckCitations scans the ADR directory for decisions marked superseded —
 // either named in another ADR's supersedes: field, or carrying a
 // superseded/deprecated status themselves — and returns a warning for every
@@ -32,12 +42,29 @@ type superseded struct {
 // directories (walked for .md files). Missing paths are skipped silently —
 // this is a best-effort advisory, not a gate.
 func CheckCitations(repoRoot, adrRel string, scanRels []string) []string {
+	return Citations(repoRoot, adrRel, scanRels).Warnings
+}
+
+// Citations is CheckCitations with the silenced citations reported too.
+//
+// A document that has re-read an amended decision says so with a line
+// naming the amending ADR, anywhere in its text (an HTML comment keeps it
+// out of rendered prose):
+//
+//	<!-- verified-against: ADR-0009 -->
+//
+// That silences the warning for the one citation ADR-0009 amended, and
+// only while ADR-0009 is still the amending decision: when a later ADR
+// replaces it, the annotation names the wrong ADR and the warning returns.
+// A decision retired by status alone is verified by naming it directly.
+// Nothing silences a class of warnings.
+func Citations(repoRoot, adrRel string, scanRels []string) Report {
 	stale := collectSuperseded(repoRoot, adrRel)
 	if len(stale) == 0 {
-		return nil
+		return Report{}
 	}
 
-	var warnings []string
+	var report Report
 	seen := map[string]bool{}
 	for _, rel := range scanRels {
 		root := filepath.Join(repoRoot, rel)
@@ -57,6 +84,7 @@ func CheckCitations(repoRoot, adrRel string, scanRels []string) []string {
 				return nil
 			}
 			content := string(data)
+			verified := verifiedAgainst(content)
 			for _, s := range stale {
 				if relPath == s.file || relPath == s.via {
 					continue
@@ -66,17 +94,40 @@ func CheckCitations(repoRoot, adrRel string, scanRels []string) []string {
 					continue
 				}
 				seen[key] = true
+				current := s.by
+				if current == "" {
+					current = s.token
+				}
+				if verified[current] {
+					report.Silenced = append(report.Silenced, fmt.Sprintf("%s cites %s (verified-against: %s)", relPath, s.token, current))
+					continue
+				}
 				if s.by != "" {
-					warnings = append(warnings, fmt.Sprintf("%s cites %s, %s by %s — re-verify the quoted decision", relPath, s.token, s.kind, s.by))
+					report.Warnings = append(report.Warnings, fmt.Sprintf("%s cites %s, %s by %s — re-verify the quoted decision, then annotate it: <!-- verified-against: %s -->", relPath, s.token, s.kind, s.by, s.by))
 				} else {
-					warnings = append(warnings, fmt.Sprintf("%s cites %s, which is no longer current — re-verify the quoted decision", relPath, s.token))
+					report.Warnings = append(report.Warnings, fmt.Sprintf("%s cites %s, which is no longer current — re-verify the quoted decision, then annotate it: <!-- verified-against: %s -->", relPath, s.token, s.token))
 				}
 			}
 			return nil
 		})
 	}
-	sort.Strings(warnings)
-	return warnings
+	sort.Strings(report.Warnings)
+	sort.Strings(report.Silenced)
+	return report
+}
+
+// verifiedAgainstRe matches one annotation; the token may be written as
+// ADR-0009, adr-0009 or 0009.
+var verifiedAgainstRe = regexp.MustCompile(`(?i)verified-against:\s*((?:adr-)?\d+)`)
+
+// verifiedAgainst collects the ADR tokens a document declares it has been
+// re-verified against, in citation form.
+func verifiedAgainst(content string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range verifiedAgainstRe.FindAllStringSubmatch(content, -1) {
+		out[normalizeToken(m[1])] = true
+	}
+	return out
 }
 
 // citesToken reports whether content cites the token as a whole ID — a

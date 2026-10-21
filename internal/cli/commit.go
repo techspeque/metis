@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/techspeque/metis/internal/brief"
 	"github.com/techspeque/metis/internal/git"
 	"github.com/techspeque/metis/internal/ledger"
 	"github.com/techspeque/metis/internal/runs"
@@ -173,8 +174,24 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 
 func commitBrief(ctx *context, sliceID, message string) error {
 	briefPath := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Briefs, sliceID+".md")
-	if _, err := os.Stat(briefPath); os.IsNotExist(err) {
+	data, err := os.ReadFile(briefPath)
+	if os.IsNotExist(err) {
 		return fmt.Errorf("brief not found at %s — create it first with 'metis brief %s --write'", briefPath, sliceID)
+	}
+	if err != nil {
+		return err
+	}
+
+	// The brief is the scope contract the audit measures every commit
+	// against, with the same parser. A contract the parser cannot read
+	// fails the audit at review time, one cycle later, for a reason the
+	// coder could have seen now — so an unreadable one does not commit.
+	// Gate slices validate composition, not file edits; their briefs are
+	// not held to it.
+	if !isGateSlice(ctx, sliceID) {
+		if problems := brief.ParseScope(string(data)).Validate(); len(problems) > 0 {
+			return fmt.Errorf("cannot commit the brief: %s\nowned_paths is the contract the scope audit measures commits against: bare paths (annotations after an em-dash), or 'none' for read-only work; read_only_paths must not repeat an owned path", strings.Join(problems, "; "))
+		}
 	}
 
 	if err := git.Add(ctx.repoRoot, briefPath); err != nil {
@@ -201,6 +218,24 @@ func commitBrief(ctx *context, sliceID, message string) error {
 	}
 	fmt.Printf("Committed brief: %s\n", full)
 	return nil
+}
+
+// isGateSlice reports whether the slice is a gate, in the ledger or the
+// archive.
+func isGateSlice(ctx *context, sliceID string) bool {
+	if l, err := ctx.loadLedger(); err == nil {
+		if s := l.FindByID(sliceID); s != nil {
+			return s.Type == slice.TypeGate
+		}
+	}
+	if archive, err := ctx.loadArchive(); err == nil {
+		for i := range archive.Slices {
+			if archive.Slices[i].ID == sliceID {
+				return archive.Slices[i].Type == slice.TypeGate
+			}
+		}
+	}
+	return false
 }
 
 // commitFlip flips a lifecycle flag and commits the ledger in one step. For

@@ -18,6 +18,8 @@ import (
 )
 
 func init() {
+	rulePromoteCmd.Flags().String("text", "", "The rule, written as an invariant (required; the finding's text is evidence, not a rule)")
+	rulePromoteCmd.Flags().String("enforced-by", "", "The check that enforces it: a test name, a lint, a verify step")
 	ruleCmd.AddCommand(ruleAddCmd)
 	ruleCmd.AddCommand(ruleListCmd)
 	ruleCmd.AddCommand(rulePromoteCmd)
@@ -85,9 +87,21 @@ var ruleListCmd = &cobra.Command{
 }
 
 var rulePromoteCmd = &cobra.Command{
-	Use:   "promote <finding-id>",
-	Short: "Promote a finding to an accuracy rule",
-	Args:  cobra.ExactArgs(1),
+	Use:   "promote <finding-id> --text \"<invariant>\"",
+	Short: "Promote a finding to an accuracy rule, rewritten as an invariant",
+	Long: `Promotes a finding to an accuracy rule. The finding stays what it was —
+one instance, with its file and line — and the rule is the invariant it
+points at, written fresh with --text:
+
+  metis rule promote f-030 \
+    --text "No content of a secret-bearing value reaches an error or a log, whichever branch refuses it" \
+    --enforced-by TestSecretsNeverReflected
+
+The rule records the finding it came from and, with --enforced-by, the
+check that keeps it. Text that repeats the finding, or carries a
+file:line, is refused: a rule that names a line is stale by the next
+commit.`,
+	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, err := loadContext()
 		if err != nil {
@@ -109,8 +123,15 @@ var rulePromoteCmd = &cobra.Command{
 			return fmt.Errorf("finding %q is already promoted", args[0])
 		}
 
+		text, _ := cmd.Flags().GetString("text")
+		enforcedBy, _ := cmd.Flags().GetString("enforced-by")
+		rule, err := promotedRule(f, text, enforcedBy)
+		if err != nil {
+			return err
+		}
+
 		// Add to accuracy rules
-		ctx.cfg.AccuracyRules = append(ctx.cfg.AccuracyRules, f.Finding)
+		ctx.cfg.AccuracyRules = append(ctx.cfg.AccuracyRules, rule)
 		ruleIdx := len(ctx.cfg.AccuracyRules)
 
 		// Mark finding as promoted
@@ -125,10 +146,32 @@ var rulePromoteCmd = &cobra.Command{
 			return err
 		}
 
-		fmt.Printf("Promoted %s to accuracy rule #%d: %s\n", f.ID, ruleIdx, f.Finding)
+		fmt.Printf("Promoted %s to accuracy rule #%d: %s\n", f.ID, ruleIdx, rule)
 		ctx.commitStateSoft(f.Slice, "promote finding "+f.ID+" to rule", ctx.cfgPath, findingsPath)
 		return nil
 	},
+}
+
+// promotedRule composes the rule text a promotion writes: the invariant,
+// the check that enforces it, and the finding it came from.
+func promotedRule(f *findings.Finding, text, enforcedBy string) (string, error) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return "", fmt.Errorf("--text is required: write the rule as an invariant; the finding's text is one instance, not the rule")
+	}
+	if strings.EqualFold(text, strings.TrimSpace(f.Finding)) {
+		return "", fmt.Errorf("--text repeats the finding; write the invariant it is an instance of")
+	}
+	if findings.HasLineRef(text) {
+		return "", fmt.Errorf("--text carries a file:line reference; a rule that names a line is stale by the next commit — state the invariant, and name the check with --enforced-by")
+	}
+	rule := text
+	if enforcedBy = strings.TrimSpace(enforcedBy); enforcedBy != "" {
+		rule += " (enforced by: " + enforcedBy + "; from " + f.ID + ")"
+	} else {
+		rule += " (from " + f.ID + ")"
+	}
+	return rule, nil
 }
 
 var ruleRemoveCmd = &cobra.Command{

@@ -113,8 +113,14 @@ var checkCmd = &cobra.Command{
 						scanRels = append(scanRels, filepath.Join(ctx.cfg.Paths.Briefs, id+".md"))
 					}
 				}
-				for _, w := range adr.CheckCitations(ctx.repoRoot, ctx.cfg.Paths.ADR, scanRels) {
+				citations := adr.Citations(ctx.repoRoot, ctx.cfg.Paths.ADR, scanRels)
+				for _, w := range citations.Warnings {
 					fmt.Printf("WARNING: %s\n", w)
+				}
+				// A silenced warning is still a fact about the tree; say
+				// how many there are so the annotations stay reviewable.
+				if n := len(citations.Silenced); n > 0 {
+					fmt.Printf("NOTE: %d stale citation(s) re-verified by annotation (verified-against); they warn again when the amending ADR changes\n", n)
 				}
 				if branch, err := git.CurrentBranch(ctx.repoRoot); err == nil && branch != ctx.cfg.Project.IntegrationBranch && !strings.HasPrefix(branch, git.AutoBranchPrefix) {
 					fmt.Printf("WARNING: current branch is %q but agents only work on %q — git checkout -b %s\n",

@@ -135,13 +135,16 @@ func auditSlice(ctx *context, sliceID string, commits []git.SliceCommit) auditRe
 	briefRel := filepath.Join(ctx.cfg.Paths.Briefs, sliceID+".md")
 	if data, err := git.FileAtHead(ctx.repoRoot, briefRel); err == nil {
 		report.BriefCommitted = true
-		report.OwnedPaths, report.ScopeWarnings = brief.ParseOwnedPathsWithWarnings(string(data))
+		sc := brief.ParseScope(string(data))
+		report.OwnedPaths, report.ScopeWarnings = sc.Owned, sc.Warnings
+		// "owned_paths: none" is a contract too — read-only work — under
+		// which every touched file is out of scope.
+		report.ScopeVerifiable = sc.OwnedDeclared
 	} else if _, serr := os.Stat(filepath.Join(ctx.repoRoot, briefRel)); serr == nil {
 		// Brief exists only uncommitted: the contract isn't in history yet,
 		// so scope stays unverifiable — the fix is to commit the brief.
 		report.BriefUncommitted = true
 	}
-	report.ScopeVerifiable = len(report.OwnedPaths) > 0
 	if report.OwnedPaths == nil {
 		report.OwnedPaths = []string{}
 	}
@@ -282,7 +285,11 @@ func printAuditText(r *auditReport) {
 	// The contract as the parser saw it — when a FAIL surprises you, the
 	// mismatch between this list and the brief's text is the first suspect.
 	if !r.Gate && r.ScopeVerifiable {
-		fmt.Printf("Scope contract (parsed owned_paths): %s\n", strings.Join(r.OwnedPaths, ", "))
+		contract := strings.Join(r.OwnedPaths, ", ")
+		if len(r.OwnedPaths) == 0 {
+			contract = "none (read-only slice)"
+		}
+		fmt.Printf("Scope contract (parsed owned_paths): %s\n", contract)
 	}
 	// An exemption the reviewer cannot see is indistinguishable from a file
 	// that was never touched, so name them rather than skipping in silence.

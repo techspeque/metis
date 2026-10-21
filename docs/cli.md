@@ -73,14 +73,17 @@ they change, so the tree is never left dirty between protocol steps.
 |---|---|---|---|
 | `metis commit` | `-m/--message` · `--prefix` · `--brief` · `--flip <coded\|reviewed>` · `--agent <slug>` (identity, required for reviewed flips) · `--slice <id>` (dispatch binding) · `--amend` | — | Agent |
 | `metis log <id>` | `--validate` (scope + format audit; exit 1 on violations) | ✓ | Agent (reviewer), Both |
-| `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` · `--file <path>` | — | Agent (reviewer) |
+| `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` · `--file <path>` · `--follow-on <finding-id>` | — | Agent (reviewer) |
 | `metis skip <id>` | `--reason`\* | — | Both (recon) |
 | `metis wait <id>` | `--reason`\* · `--until <RFC 3339>` · `--for <duration>` · `--clear` · `--human` (only a person clears it) | — | Agent, Both |
 | `metis remove <id>` | `--reason`\* | — | Human |
 | `metis reopen <id>` | `--reason`\* | — | Human |
 | `metis archive` | — | — | Agent (reviewer) |
 
-`commit --flip coded` requires the slice's brief and a green `verify --post`
+`commit --brief` refuses a brief whose `owned_paths` the scope audit could
+not measure (missing, a placeholder, prose in an entry, or a path also in
+`read_only_paths`); `none` declares read-only work. `commit --flip coded`
+requires the slice's brief and a green `verify --post`
 run; `--flip reviewed` requires `--agent <slug>` (validated against the
 coder — set `routing.review: self` for single-agent projects). `--slice <id>`
 binds the command to the dispatched slice and errors if dispatch moved on.
@@ -101,7 +104,10 @@ Finding categories: `auth`, `protocol`, `scope`, `tests`, `arch-dup`,
 | `metis check` | `--config` · `--ledger` | ✓ | Both |
 
 Exit codes are the contract: `0` = pass, `1` = code failure, `2` =
-environment failure (agents must NOT modify code on exit 2).
+environment failure (agents must NOT modify code on exit 2). `verify`
+keeps earlier attempts as `<name>.<n>.log`; `check`'s stale-citation
+warnings are silenced one at a time by a `verified-against: ADR-NNNN`
+annotation naming the amending ADR.
 
 ## Agent-Facing Generation
 
@@ -124,10 +130,12 @@ version** changed since the last generate.
 | `metis config get <key>` | dotted path, e.g. `project.name`, `agents.<slug>.model` | ✓ | Both |
 | `metis config set <key> <value>` | comments preserved; lists comma-separated | — | Human |
 | `metis rule add "<text>"` | — | — | Both |
-| `metis findings record <slice-id>` | `--severity` · `--category` · `--finding`\* · `--file` | — | Agent (reviewer) — advisory, no state change |
-| `metis findings resolve <finding-id>` | `--note` | — | Agent (reviewer) / Both |
+| `metis findings record <slice-id>` | `--severity` · `--category` · `--finding`\* · `--file` · `--follow-on <finding-id>` | — | Agent (reviewer) — advisory, no state change |
+| `metis findings resolve <finding-id>` | `--commit <rev>` with `--test <name>` and/or `--ref <file:line>` · or `--duplicate-of <id>` / `--superseded-by <id>` · `--note` | — | Agent (reviewer) / Both |
+| `metis findings waive <finding-id>` | `--reason`\* · `--by`\* · `--residual` · `--owner` · `--revisit` | — | Human (or an agent on a recorded decision) |
+| `metis findings reclassify <finding-id>` | `--severity` · `--category` · `--exclude` · `--reason`\* · `--by`\* | — | Human |
 | `metis rule list` | — | ✓ | Human |
-| `metis rule promote <finding-id>` | — | — | Both |
+| `metis rule promote <finding-id>` | `--text`\* · `--enforced-by` | — | Both |
 | `metis rule remove [rule-number...]` | no args on a terminal: pick from a list | — | Both |
 
 ## Project & User Setup

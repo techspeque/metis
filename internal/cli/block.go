@@ -15,6 +15,7 @@ func init() {
 	blockCmd.Flags().String("category", "", "Category: auth|protocol|scope|tests|arch-dup|arch-fit|data|maint|security|behavior|performance")
 	blockCmd.Flags().String("finding", "", "Description of the finding")
 	blockCmd.Flags().String("file", "", "The file the finding is about (default: the first file:line in its text)")
+	blockCmd.Flags().String("follow-on", "", "The earlier finding this one follows (a recurrence, or a fix that did not finish); a fresh defect is recorded without it")
 	rootCmd.AddCommand(blockCmd)
 }
 
@@ -69,11 +70,24 @@ without starting a new cycle, so one review can carry several blocks.`,
 			id := store.Add(args[0], severity, category, findingText)
 			file, _ := cmd.Flags().GetString("file")
 			store.FindByID(id).Place(reviewOf(l.FindByID(args[0])), file)
+			// A follow-on names its parent so a chain of partial fixes
+			// reads as one problem, not three; the link is a fact the
+			// reviewer states, never inferred from the text.
+			parent, _ := cmd.Flags().GetString("follow-on")
+			if parent != "" {
+				if err := store.Follow(id, parent); err != nil {
+					return err
+				}
+			}
 			if err := store.Save(findingsPath); err != nil {
 				return err
 			}
 
-			fmt.Printf("Finding %s recorded: [%s/%s] %s\n", id, severity, category, findingText)
+			if parent != "" {
+				fmt.Printf("Finding %s recorded (follows %s): [%s/%s] %s\n", id, parent, severity, category, findingText)
+			} else {
+				fmt.Printf("Finding %s recorded: [%s/%s] %s\n", id, severity, category, findingText)
+			}
 		}
 
 		// State transitions are atomic: commit the ledger and findings so
