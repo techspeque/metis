@@ -260,6 +260,7 @@ commands:
   verify: "go build ./... && go vet ./... && go test ./..."  # Required
   env_check: "go version"                                     # Optional
   interfaces: "go doc ./..."                                  # Optional
+  toolchain: '. "$HOME/.nvm/nvm.sh" && nvm use "$(cat web/.node-version)"'  # Optional
 ```
 
 | Field | Required | Purpose |
@@ -267,6 +268,7 @@ commands:
 | `verify` | Yes | The verification gate — build, lint, test |
 | `env_check` | No | Environment soundness check (exit ≠ 0 means env is broken) |
 | `interfaces` | No | Regenerate API summary for anti-hallucination archaeology |
+| `toolchain` | No | The shell line an agent runs before any project command it types itself (a version manager's select, a virtualenv's activate); the review, re-review and gate-review handoffs carry it as a Toolchain section |
 | `shell` | No | The interpreter the commands run under, as a prefix (`pwsh -NoProfile -Command`); default below |
 | `timeout_seconds` | No | Bounds each command (default 600) — a hung command is killed, not waited on forever |
 | `verify_cache` | No | Reuse a green verify of the same working-tree content (default true) |
@@ -279,6 +281,14 @@ set, the `METIS_SHELL` environment variable, the bash that Git for Windows
 installs beside `git.exe` (so a verify line written for `sh` keeps
 working), and otherwise `cmd /C`. A project whose verify is written for
 PowerShell sets `shell: pwsh -NoProfile -Command`.
+
+`toolchain` is not run by Metis. It is for the commands an agent types
+itself — a reviewer's independent `vitest` or `pytest` — which otherwise run
+on whatever the shell finds first: a reviewer that forgets the project's
+Node selects a system Node and reports a failure the tree does not have. The
+configured `verify` and `env_check` select their own toolchain (a Makefile
+that puts the pinned Node first on `PATH`), so the line names what the
+Makefile does for them.
 
 #### Scoped verify
 

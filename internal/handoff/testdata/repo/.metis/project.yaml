@@ -18,3 +18,4 @@ review_checklist:
   - Test sufficiency
 commands:
   verify: go test ./...
+  toolchain: . "$HOME/.nvm/nvm.sh" && nvm use "$(cat web/.node-version)" >/dev/null

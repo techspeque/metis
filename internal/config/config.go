@@ -71,6 +71,12 @@ type CommandsConfig struct {
 	Verify     string `yaml:"verify" json:"verify"`
 	EnvCheck   string `yaml:"env_check,omitempty" json:"env_check,omitempty"`
 	Interfaces string `yaml:"interfaces,omitempty" json:"interfaces,omitempty"`
+	// Toolchain is the shell line an agent runs before any project command
+	// it types itself (a test, a type check, a script), so the command
+	// finds the project's pinned tools — a version manager's select, a
+	// virtualenv's activate. The handoff prompts carry it; the configured
+	// commands above select their own toolchain and do not use it.
+	Toolchain string `yaml:"toolchain,omitempty" json:"toolchain,omitempty"`
 	// Shell is the interpreter the commands run under, as a command line
 	// prefix ("pwsh -NoProfile -Command"). Unset means sh -c, or on
 	// Windows the bash Git installs when present and cmd /C otherwise.

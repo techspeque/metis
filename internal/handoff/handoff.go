@@ -124,6 +124,7 @@ type Data struct {
 	ReviewedCommand     string
 	Branch              string
 	IntegrationBranch   string
+	Toolchain           string
 }
 
 // BuildData assembles the template data for one template.
@@ -143,6 +144,7 @@ func BuildData(in *Input, tmpl string) Data {
 		Narrowed:          cfg.Review.Narrowed(s.ReviewCycles),
 		Branch:            in.Branch,
 		IntegrationBranch: cfg.Project.IntegrationBranch,
+		Toolchain:         cfg.Commands.Toolchain,
 	}
 	if d.Branch == "" {
 		d.Branch = d.IntegrationBranch
