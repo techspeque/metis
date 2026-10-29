@@ -9,6 +9,16 @@ Branch: work on `{{.Branch}}`.{{if ne .Branch .IntegrationBranch}} metis auto cu
 
 A decision only a person can make (the brief is silent or contradicts the plan, a finding asks for what the brief rules out): run `metis wait {{.Slice.ID}} --reason "<the question, one line>" --human` and stop. Do not guess. An environment failure (`metis verify` exit 2) is reported verbatim; do not change code to work around it.{{end}}
 
+{{define "toolchain"}}{{if .Toolchain}}## Toolchain
+
+Every command you run yourself — a test, a type check, a script, anything outside `metis verify` — starts in a shell that has selected the project's toolchain:
+
+```sh
+{{.Toolchain}}
+```
+
+Run it in each new shell before the first such command. A command run without it uses whatever the shell finds first, and its result is not evidence.{{end}}{{end}}
+
 {{define "conventions"}}{{if .Conventions}}## Conventions
 
 {{range .Conventions}}- {{.}}

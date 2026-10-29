@@ -11,6 +11,16 @@ Branch: work on `auto/phase-1-ws-1.2`. metis auto cut it from `dev` for this sli
 
 Run `metis kickoff --role reviewer` and follow it from step 1. The brief at `.metis/briefs/phase-1-ws-1.2.md` is the source of truth.
 
+## Toolchain
+
+Every command you run yourself — a test, a type check, a script, anything outside `metis verify` — starts in a shell that has selected the project's toolchain:
+
+```sh
+. "$HOME/.nvm/nvm.sh" && nvm use "$(cat web/.node-version)" >/dev/null
+```
+
+Run it in each new shell before the first such command. A command run without it uses whatever the shell finds first, and its result is not evidence.
+
 ## What this review covers
 
 This is review 3. Review 2 blocked the slice with:

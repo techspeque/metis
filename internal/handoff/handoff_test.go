@@ -192,3 +192,32 @@ func TestOverride(t *testing.T) {
 		t.Errorf("override not used: %q", out)
 	}
 }
+
+// The reviewer prompts carry the project's toolchain line, so a check the
+// reviewer types runs on the pinned tools; the coder prompts do not, and a
+// project without one prints no section.
+func TestReviewPromptsCarryTheToolchain(t *testing.T) {
+	for _, c := range []struct {
+		tmpl string
+		want bool
+	}{{Review, true}, {ReReview, true}, {GateReview, true}, {Code, false}, {Rework, false}} {
+		in := fixture(t, "phase-1-ws-1.1")
+		out, err := Render(&in, c.tmpl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		has := strings.Contains(out, "## Toolchain") && strings.Contains(out, in.Cfg.Commands.Toolchain)
+		if has != c.want {
+			t.Errorf("%s: toolchain section = %v, want %v", c.tmpl, has, c.want)
+		}
+	}
+	in := fixture(t, "phase-1-ws-1.1")
+	in.Cfg.Commands.Toolchain = ""
+	out, err := Render(&in, Review)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(out, "Toolchain") {
+		t.Errorf("review prompt without a configured toolchain prints a section:\n%s", out)
+	}
+}

@@ -97,7 +97,8 @@ Every prompt states the slug the session runs as, so `metis kickoff`'s
 self-identification matches. A brief's `## Review` section replaces the
 project checklist in a review prompt; `review.block_reasons` and
 `review.narrow_after` ([configuration](configuration.md#review)) are stated
-in it. Templates are overridable: copy one to
+in it; `commands.toolchain` is printed as a Toolchain section in the review,
+re-review and gate-review prompts. Templates are overridable: copy one to
 `.metis/templates/handoff/<name>.md.tmpl` (Go `text/template`; the shared
 definitions live in `_header.md.tmpl`).
 
