@@ -26,7 +26,9 @@ func init() {
 var nextCmd = &cobra.Command{
 	Use:   "next",
 	Short: "Find the active slice and display dispatch info",
-	Long:  `Finds the highest-priority unblocked slice and reports its ID, role, required agent, and reading rules.`,
+	Long: `Finds the highest-priority unblocked slice and reports its ID, role, required agent, and reading rules.
+
+On a slice's auto/<slice-id> branch that slice is dispatched while it is actionable, ahead of priority order.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		ctx, err := loadContext()
 		if err != nil {
@@ -38,7 +40,7 @@ var nextCmd = &cobra.Command{
 			return err
 		}
 
-		result := l.Next()
+		result := ctx.dispatch(l)
 		waiting := waitingOutput(l)
 		if result == nil {
 			if nextQuiet {

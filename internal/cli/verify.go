@@ -52,7 +52,7 @@ Exit codes: 0=pass, 1=code failure, 2=environment failure (do NOT modify code).`
 
 		// Determine active slice for log storage
 		sliceID := ""
-		result := l.Next()
+		result := ctx.dispatch(l)
 		if result != nil {
 			sliceID = result.Slice.ID
 		}
@@ -155,7 +155,7 @@ var interfacesCmd = &cobra.Command{
 		}
 
 		sliceID := ""
-		result := l.Next()
+		result := ctx.dispatch(l)
 		if result != nil {
 			sliceID = result.Slice.ID
 		}

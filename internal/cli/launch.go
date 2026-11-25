@@ -18,6 +18,7 @@ import (
 	"github.com/techspeque/metis/internal/git"
 	"github.com/techspeque/metis/internal/launch"
 	"github.com/techspeque/metis/internal/ledger"
+	"github.com/techspeque/metis/internal/slice"
 )
 
 func init() {
@@ -226,4 +227,19 @@ func currentAutoBranch(ctx *context) string {
 		return ""
 	}
 	return b
+}
+
+// dispatch is the slice metis dispatches now. On a slice's auto branch
+// that slice is the one in flight: it is dispatched ahead of any
+// higher-priority slice until it is done, blocked or waiting, so the
+// commands a session runs (next, status, verify, commit, handoff) name
+// the slice metis auto launched the session for.
+func (c *context) dispatch(l *ledger.Ledger) *ledger.DispatchResult {
+	if b := currentAutoBranch(c); b != "" {
+		onBranch := func(s *slice.Slice) bool { return git.AutoBranch(s.ID) == b }
+		if r := l.NextWhere(onBranch); r != nil {
+			return r
+		}
+	}
+	return l.Next()
 }

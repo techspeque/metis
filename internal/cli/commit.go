@@ -43,7 +43,7 @@ The commit subject is formatted as: {prefix}({slice_id}): {message}`,
 		if err != nil {
 			return err
 		}
-		result := l.Next()
+		result := ctx.dispatch(l)
 		claimed, _ := cmd.Flags().GetString("slice")
 
 		// Validate branch: the integration branch, or the auto branch metis
