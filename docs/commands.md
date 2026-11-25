@@ -179,7 +179,7 @@ or `manual` one ends the run.
 | `growing_findings` | review N opens more blocking findings than review N−1 | yes |
 | `p1` | a P1 finding is recorded | yes |
 | `needs_human` | an agent ran `metis wait <id> --reason … --human`, or the brief's `## Human decisions` has an unchecked `- [ ]` item | yes |
-| `verify_env` | the env check fails before a session, or `metis verify` exits 2 during one | yes |
+| `verify_env` | the env check (`commands.env_check`) fails before a session or during one. A failing `commands.verify` is a code failure whatever its own exit code, so `make` exiting 2 does not stop the run | yes |
 | `scope` | `metis log <id> --validate` fails after a coder flipped coded | yes |
 | `dirty_tree` | uncommitted files outside the slice's scope before a session | no |
 | `session_failed` | a session exits non-zero or times out, after the retries (`auto.stop.session_failed`, default 1) | yes |

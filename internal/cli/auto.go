@@ -507,7 +507,7 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 
 	if config.On(stop.VerifyEnv) {
 		if name := envFailureSince(ctx, id, start); name != "" {
-			return ruleStop(ruleVerifyEnv, cur, true, "metis verify exited 2 (environment) during the session: see %s", filepath.Join(ctx.cfg.Paths.Runs, id, name+".log"))
+			return ruleStop(ruleVerifyEnv, cur, true, "the environment check failed during the session (metis verify exit 2): see %s", filepath.Join(ctx.cfg.Paths.Runs, id, name+".log"))
 		}
 	}
 
@@ -548,7 +548,10 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 	return nil
 }
 
-// envFailureSince names a verify run of the slice that exited 2 after t.
+// envFailureSince names an env-check run of the slice that failed after t.
+// Only the env check speaks for the environment. A verify-* log records the
+// verify command's own exit code, and tools such as make exit 2 for any
+// failed target, so that code says nothing about the environment.
 func envFailureSince(ctx *context, id string, t time.Time) string {
 	dir := filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs, id)
 	entries, err := os.ReadDir(dir)
@@ -556,7 +559,8 @@ func envFailureSince(ctx *context, id string, t time.Time) string {
 		return ""
 	}
 	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".exit") {
+		name, ok := strings.CutSuffix(e.Name(), ".exit")
+		if !ok || (name != "env-check" && !strings.HasPrefix(name, "env-check.")) {
 			continue
 		}
 		info, err := e.Info()
@@ -564,8 +568,11 @@ func envFailureSince(ctx *context, id string, t time.Time) string {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
-		if err == nil && strings.TrimSpace(string(data)) == strconv.Itoa(runner.ExitEnvFailure) {
-			return strings.TrimSuffix(e.Name(), ".exit")
+		if err != nil {
+			continue
+		}
+		if code, err := strconv.Atoi(strings.TrimSpace(string(data))); err == nil && code != 0 {
+			return name
 		}
 	}
 	return ""
