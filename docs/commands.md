@@ -508,6 +508,12 @@ logs are kept only when they failed.
 - 1: verify command failed (code error)
 - 2: environment failure (do NOT modify code)
 
+These are the exit codes of `metis verify` itself. The verify command's own
+exit code is printed in the failure report and stored in the log's `.exit`
+file for diagnosis; it is never the verdict. `make` exits 2 for any failed
+target, and `metis verify` reports that as exit 1 with
+`VERDICT: CODE FAILURE`.
+
 On environment failure (exit 2) it prints:
 ```
 VERDICT: ENVIRONMENT FAILURE — NOT A CODE FAILURE.

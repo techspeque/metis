@@ -83,6 +83,8 @@ func GenerateKickoff(cfg *config.Config, role string) string {
 	b.WriteString("- Exit 2 (env failure) -> stop, report verbatim, do not modify code\n")
 	b.WriteString("- Exit 1 (code failure before your changes) -> stop, report pre-existing breakage\n")
 	b.WriteString("- Exit 0 -> continue\n\n")
+	b.WriteString("These are the exit codes of `metis verify` itself, and it prints a VERDICT line for 1 and 2. ")
+	b.WriteString("The exit code of the command it ran appears in the output and is not one of them: `make` exits 2 for any failed target, and that is exit 1 here.\n\n")
 
 	if role == "" || role == "coder" {
 		b.WriteString("## Step 6a: Coder Flow\n\n")
