@@ -246,7 +246,7 @@ from (`slice`, `phase`, `risk`, `project`, `default`); `metis list` and
 | `growing_findings` | on | cycle N opens more blocking findings than cycle N−1 |
 | `p1` | on | any P1 finding is recorded |
 | `needs_human` | on | an agent runs `metis wait <id> --reason … --human` (new flag), or a brief has an unanswered `## Human decisions` item |
-| `verify_env` | on | `metis verify` exits 2 (environment), before or after a session |
+| `verify_env` | on | the env check fails (`metis verify` exits 2), before or after a session; the verify command's own exit code is never read as an environment verdict |
 | `scope` | on | `metis log <id> --validate` fails after a coder session |
 | `dirty_tree` | on | the tree is dirty and the dirty files are outside the slice's scope |
 | `session_failed` | 1 retry | the agent exits non-zero or times out twice |

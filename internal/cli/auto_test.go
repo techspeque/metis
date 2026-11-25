@@ -9,6 +9,9 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
+
+	"github.com/techspeque/metis/internal/config"
 )
 
 var (
@@ -431,5 +434,54 @@ func TestAutoHonoursAWaitOnTheSliceBranch(t *testing.T) {
 	esc, _ := os.ReadFile(filepath.Join(dir, ".metis", "runs", "s-1", "auto", "escalation.md"))
 	if !strings.Contains(string(esc), "`p1`") {
 		t.Errorf("the p1 escalation was replaced:\n%s", esc)
+	}
+}
+
+// A verify command's own exit code is not an environment verdict: make
+// exits 2 for any failed target. Only a failed env-check is.
+func TestEnvFailureSince(t *testing.T) {
+	start := time.Now().Add(-time.Minute)
+	cases := []struct {
+		name  string
+		files map[string]string
+		old   bool
+		want  string
+	}{
+		{name: "verify command exited 2", files: map[string]string{"verify-post.exit": "2\n", "verify-post.1.exit": "2\n", "verify-pre.exit": "2\n"}},
+		{name: "env check failed with 2", files: map[string]string{"env-check.exit": "2\n"}, want: "env-check"},
+		{name: "env check failed with 1", files: map[string]string{"env-check.exit": "1\n"}, want: "env-check"},
+		{name: "earlier failed env check kept beside a green one", files: map[string]string{"env-check.exit": "0\n", "env-check.1.exit": "127\n"}, want: "env-check.1"},
+		{name: "env check passed", files: map[string]string{"env-check.exit": "0\n", "verify-post.exit": "2\n"}},
+		{name: "env check failed before the session", files: map[string]string{"env-check.exit": "2\n"}, old: true},
+		{name: "unreadable exit code", files: map[string]string{"env-check.exit": "\n"}},
+		{name: "no runs directory"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			cfg := config.DefaultConfig()
+			ctx := &context{cfg: &cfg, repoRoot: root}
+			dir := filepath.Join(root, cfg.Paths.Runs, "s1")
+			if tc.files != nil {
+				if err := os.MkdirAll(dir, 0o755); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for name, body := range tc.files {
+				p := filepath.Join(dir, name)
+				if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if tc.old {
+					past := start.Add(-time.Hour)
+					if err := os.Chtimes(p, past, past); err != nil {
+						t.Fatal(err)
+					}
+				}
+			}
+			if got := envFailureSince(ctx, "s1", start); got != tc.want {
+				t.Errorf("envFailureSince = %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
