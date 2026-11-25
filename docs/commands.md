@@ -52,6 +52,12 @@ human-readable text, which may change between versions.**
 5. If `coded: true` but `reviewed: false` → role is **Reviewer**
 6. If both true → skip (should be archived)
 
+On an `auto/<slice-id>` branch (the one `metis auto` cuts for a slice) that
+slice is dispatched first while it is unblocked, not waiting and not
+reviewed, whatever its priority. `status`, `verify`, `commit` and `handoff`
+follow the same rule, so a higher-priority slice added mid-run does not
+pull a session off the slice it was launched for.
+
 Returns the slice ID, title, type, risk, role, required agent slug, plan
 reference, review cycles count, and reading rule. `-o json` adds the
 handoff `template` that applies, the slice's effective `auto_mode` and

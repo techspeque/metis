@@ -80,7 +80,7 @@ type handoffResult struct {
 func buildHandoff(ctx *context, l *ledger.Ledger, id, role, tmpl, branch string) (*handoffResult, error) {
 	var s *slice.Slice
 	if id == "" {
-		next := l.Next()
+		next := ctx.dispatch(l)
 		if next == nil {
 			return nil, fmt.Errorf("no active slice — name one: metis handoff <slice-id>")
 		}

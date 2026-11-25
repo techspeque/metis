@@ -485,3 +485,39 @@ func TestEnvFailureSince(t *testing.T) {
 		})
 	}
 }
+
+// On a slice's auto branch the session commands dispatch that slice, even
+// when the ledger holds one that plain priority order would pick first: a
+// fix added mid-run must not make `metis next` contradict the session
+// metis auto launched.
+func TestDispatchFollowsTheAutoBranch(t *testing.T) {
+	dir := makeAutoProject(t, "  mode: auto", []autoSlice{{id: "s-1"}, {id: "s-2"}})
+	dispatched := func() string {
+		t.Helper()
+		ctx, err := loadContext()
+		if err != nil {
+			t.Fatal(err)
+		}
+		l, err := ctx.loadLedger()
+		if err != nil {
+			t.Fatal(err)
+		}
+		r := ctx.dispatch(l)
+		if r == nil {
+			return ""
+		}
+		return r.Slice.ID
+	}
+	if got := dispatched(); got != "s-1" {
+		t.Fatalf("on the work branch: dispatched %q, want s-1", got)
+	}
+	gitOut(t, dir, "checkout", "-q", "-b", "auto/s-2")
+	if got := dispatched(); got != "s-2" {
+		t.Errorf("on auto/s-2: dispatched %q, want s-2", got)
+	}
+	// A branch whose slice is not actionable falls back to priority order.
+	gitOut(t, dir, "checkout", "-q", "-b", "auto/gone")
+	if got := dispatched(); got != "s-1" {
+		t.Errorf("on auto/gone: dispatched %q, want s-1", got)
+	}
+}

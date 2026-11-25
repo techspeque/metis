@@ -40,7 +40,7 @@ var statusCmd = &cobra.Command{
 			pct = float64(done) / float64(total) * 100
 		}
 
-		result := l.Next()
+		result := ctx.dispatch(l)
 
 		if jsonOutput() {
 			out := statusOutput{Done: done, Total: total, Percent: pct, Waiting: waitingOutput(l)}
