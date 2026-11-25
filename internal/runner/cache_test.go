@@ -157,3 +157,31 @@ func TestAReusedRunUnderTheSameLabelKeepsTheGreenLog(t *testing.T) {
 		t.Fatalf("the reused run's log points at itself, not the green run (%s): %v\n%s", out.Cached.Log, err, kept)
 	}
 }
+
+// make exits 2 for any failed target. That is the command's exit code, not
+// metis verify's, where 2 is reserved for the environment.
+func TestAVerifyCommandExitingTwoIsACodeFailure(t *testing.T) {
+	requirePOSIXShell(t)
+	cfg, dir, _, store := cacheRepo(t, "exit 2")
+	if code, _ := verify(t, cfg, dir, store, VerifyOptions{}); code != ExitCodeFailure {
+		t.Fatalf("a verify command that exited 2 made metis verify exit %d, want %d", code, ExitCodeFailure)
+	}
+}
+
+func TestCodeFailureReportNamesTheCommandsExitCodeAsItsOwn(t *testing.T) {
+	got := codeFailureReport("verify", 2, []byte("make: *** [test] Error 101\n"))
+	for _, want := range []string{
+		"the command exited 2",
+		"metis verify exits 1",
+		"make: *** [test] Error 101",
+		"VERDICT: CODE FAILURE",
+		"NOT an environment failure",
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("report lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "verify failed (exit 2)") {
+		t.Errorf("report still reads as metis verify exiting 2:\n%s", got)
+	}
+}

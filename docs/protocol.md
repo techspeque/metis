@@ -110,7 +110,7 @@ metis verify --pre
 ```
 
 - **Exit 0:** continue
-- **Exit 2 (environment failure):** STOP. Report verbatim. Do NOT modify code.
+- **Exit 2 (environment failure):** STOP. Report verbatim. Do NOT modify code. This is `metis verify`'s own exit code and comes with `VERDICT: ENVIRONMENT FAILURE`; a verify command that itself exited 2 (as `make` does) is exit 1, a code failure.
   The fix is sandbox/network configuration — a human decision.
 - **Exit 1 (code failure before your changes):** STOP. Report pre-existing
   breakage. Do not fix it — scope violation.

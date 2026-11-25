@@ -29,6 +29,19 @@ Do NOT flip ledger booleans.
 Stop and report this verbatim to the human.
 ══════════════════════════════════════════════════════════════`
 
+const codeFailureVerdict = `VERDICT: CODE FAILURE — metis verify exits 1.
+This is NOT an environment failure, whatever exit code the command itself
+returned (make exits 2 for any failed target). A coder fixes the code; a
+reviewer records the failure as a finding. Neither stops for it.`
+
+// codeFailureReport is what a failed verify command prints. The command's
+// own exit code is named as the command's, so that it is never read as the
+// exit code of metis verify, where 2 means the environment.
+func codeFailureReport(what string, commandExit int, output []byte) string {
+	return fmt.Sprintf("%s failed: the command exited %d (a code failure; metis verify exits %d)\n%s\n\n%s\n",
+		what, commandExit, ExitCodeFailure, strings.TrimSpace(string(output)), codeFailureVerdict)
+}
+
 // EnvCheck runs the configured env_check command.
 // Returns exit code 0 on success, 2 on environment failure.
 func EnvCheck(cfg *config.Config, repoRoot string, sliceID string, store *runs.Store) (int, error) {
@@ -158,8 +171,7 @@ func Verify(cfg *config.Config, repoRoot string, sliceID string, opts VerifyOpti
 	}
 
 	if result.ExitCode != 0 {
-		fmt.Fprintf(os.Stderr, "verify failed (exit %d):\n%s\n",
-			result.ExitCode, strings.TrimSpace(string(result.Output)))
+		fmt.Fprint(os.Stderr, codeFailureReport("verify", result.ExitCode, result.Output))
 		return ExitCodeFailure, outcome, nil
 	}
 
@@ -249,7 +261,7 @@ func verifyScopes(cfg *config.Config, repoRoot, sliceID, logName, tree string, o
 			if err := write(result.ExitCode); err != nil {
 				return 0, outcome, err
 			}
-			fmt.Fprintf(os.Stderr, "verify failed in scope %s (exit %d):\n%s\n", st.Name, result.ExitCode, strings.TrimSpace(string(result.Output)))
+			fmt.Fprint(os.Stderr, codeFailureReport("verify scope "+st.Name, result.ExitCode, result.Output))
 			return ExitCodeFailure, outcome, nil
 		}
 		// The scope's content is read again: a command that rewrote its
