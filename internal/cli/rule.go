@@ -114,6 +114,7 @@ commit.`,
 			return err
 		}
 
+		noteAliases(store, args[0])
 		f := store.FindByID(args[0])
 		if f == nil {
 			return fmt.Errorf("finding %q not found", args[0])

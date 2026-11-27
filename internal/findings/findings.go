@@ -400,6 +400,25 @@ func (s *Store) FindByID(id string) *Finding {
 	return found
 }
 
+// WasAlso returns the findings that had this id before a state merge
+// renumbered them, when another finding holds the id now: the ones a
+// citation of the id may have meant.
+func (s *Store) WasAlso(id string) []Finding {
+	var out []Finding
+	for i := range s.Findings {
+		if s.Findings[i].ID != id {
+			continue
+		}
+		for j := range s.Findings {
+			if s.Findings[j].Alias == id && j != i {
+				out = append(out, s.Findings[j])
+			}
+		}
+		break
+	}
+	return out
+}
+
 // Statuses is the closed status vocabulary, in lifecycle order.
 var Statuses = []string{"open", "advisory", "resolved", "waived", "promoted"}
 
