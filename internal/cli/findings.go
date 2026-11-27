@@ -157,7 +157,7 @@ resolved either: 'metis findings waive' records that on its own terms.`,
 			if err := store.Dispose(id, disposition, of); err != nil {
 				return err
 			}
-			how = disposition + " of " + of
+			how = disposition + " of " + store.FindByID(of).ID
 		case commit == "" || (test == "" && ref == ""):
 			return fmt.Errorf("resolving %s needs evidence: --commit <rev> with --test <name> or --ref <file:line> for a fix, --duplicate-of/--superseded-by <id> for a disposition, or 'metis findings waive %s' to accept it as it stands", id, id)
 		default:
@@ -179,8 +179,8 @@ resolved either: 'metis findings waive' records that on its own terms.`,
 			return err
 		}
 		f := store.FindByID(id)
-		fmt.Printf("Resolved %s (%s): %s\n", id, how, f.Finding)
-		ctx.commitStateSoft(f.Slice, "resolve finding "+id, path)
+		fmt.Printf("Resolved %s (%s): %s\n", f.ID, how, f.Finding)
+		ctx.commitStateSoft(f.Slice, "resolve finding "+f.ID, path)
 		return nil
 	},
 }
@@ -235,8 +235,8 @@ waived apart from resolved, so a pass is never read as a fix.`,
 			return err
 		}
 		f := store.FindByID(args[0])
-		fmt.Printf("Waived %s by %s: %s\n", args[0], w.By, f.Finding)
-		ctx.commitStateSoft(f.Slice, "waive finding "+args[0], path)
+		fmt.Printf("Waived %s by %s: %s\n", f.ID, w.By, f.Finding)
+		ctx.commitStateSoft(f.Slice, "waive finding "+f.ID, path)
 		return nil
 	},
 }
@@ -276,8 +276,8 @@ in the total.`,
 			return err
 		}
 		f := store.FindByID(args[0])
-		fmt.Printf("Reclassified %s: [%s/%s] excluded=%v (as raised: [%s/%s])\n", args[0], f.Severity, f.Category, f.Excluded, f.Original.Severity, f.Original.Category)
-		ctx.commitStateSoft(f.Slice, "reclassify finding "+args[0], path)
+		fmt.Printf("Reclassified %s: [%s/%s] excluded=%v (as raised: [%s/%s])\n", f.ID, f.Severity, f.Category, f.Excluded, f.Original.Severity, f.Original.Category)
+		ctx.commitStateSoft(f.Slice, "reclassify finding "+f.ID, path)
 		return nil
 	},
 }
@@ -414,6 +414,9 @@ var findingsCmd = &cobra.Command{
 			}
 			if f.FollowOn != "" {
 				finding = "↳ " + f.FollowOn + " " + finding
+			}
+			if f.Alias != "" {
+				finding = "(was " + f.Alias + ") " + finding
 			}
 			fmt.Printf("%-5s %-4s %-12s %-9s %-20s %s\n", f.ID, f.Severity, f.Category, f.Status, f.Slice, finding)
 		}
