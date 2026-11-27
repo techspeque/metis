@@ -205,11 +205,26 @@ As built:
   is `rate_limited`, with the exit code in its detail. No rule of its own.
 - A `sync` stop does not park the slice: the park would be one more commit
   `origin` does not have. `metis auto` again retries the sync.
+- Before the push the branch is fetched. `origin` ahead (a lost or
+  interrupted session pushed late): fast-forward, launch nothing, and plan
+  again from the ledger the commits brought — the session's prompt was
+  rendered before them and they may hold a flip. `metis auto` simply
+  iterates (and lands the slice if it is now reviewed); `metis launch`
+  fails and says to run it again. Diverged: `sync`. No such branch on
+  `origin` yet: push, as before.
+- That does not cover a late push after `metis auto` committed in between:
+  the wait recorded for a transient exit (95), or the park of a stop, is a
+  commit `origin` lacks, so the late push leaves two histories and the
+  next session stops `sync`. Open.
+- An interrupted session is still fetched and fast-forwarded; a failure
+  there is not reported over the interrupt (exit 130).
 - "Any remote agent" is read from the run log's session lines, the same
   source as the budget. The work branch is pushed after the slice is
   recorded done; a rejected push there is a `sync` stop with the slice
-  archived. With `auto.branch: pr` nothing extra is pushed or deleted, and
-  with `off` the work branch is pushed.
+  archived, and the next `metis auto` retries it first: a slice with a
+  `sync` stop and no later `pushed` line in the run log, archived here.
+  With `auto.branch: pr` nothing extra is pushed or deleted, and with
+  `off` the work branch is pushed.
 - The auto branch's upstream is unset before it lands: `git branch -d`
   measures a branch against its upstream, and the archive commit is made
   here.

@@ -201,9 +201,10 @@ agents:
 A launcher may run the agent in another checkout, on another machine (`gaia
 run`, `ssh`): the agent's commits then reach this repository only through
 `origin`. With `remote: true`, `metis launch` and `metis auto` push the
-current branch to `origin` before the session and fetch and fast-forward
-it afterwards; a push `origin` rejects, or a branch that cannot
-fast-forward, stops with `sync` and nothing is rebased or reset
+current branch to `origin` before the session — after a fetch that takes,
+fast-forward only, anything `origin` already has — and fetch and
+fast-forward it afterwards; a push `origin` rejects, or a branch that
+cannot fast-forward, stops with `sync` and nothing is rebased or reset
 ([`metis auto`](commands.md#metis-auto)). The launcher's side of the
 bargain: check out the same branch of `origin`, run the argv after its own
 flags there, push before it exits, and exit with the agent's code. The

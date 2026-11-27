@@ -138,8 +138,13 @@ the current branch is pushed to `origin` before the session (`git push -u`)
 and fetched and fast-forwarded after it, so the agent's commits and flips
 are here when the command returns. A push that is rejected (nothing is
 launched), or a branch that cannot fast-forward afterwards, is an error;
-nothing is rebased or reset. Without `remote`, `metis launch` runs no
-push and no fetch.
+nothing is rebased or reset. The branch is first brought up to `origin`'s:
+when `origin` holds commits this checkout lacks (an earlier session pushed
+late) it is fast-forwarded to them, nothing is launched and the command
+fails saying so — the prompt was rendered before them, so run `metis
+launch` again for the session the ledger now calls for; a branch that has
+diverged from `origin`'s is an error. Without `remote`, `metis launch`
+runs no push and no fetch.
 
 ### `metis auto`
 
@@ -181,16 +186,31 @@ made progress is progress like any other.
 
 **Remote sessions.** For an agent with `remote: true` each session is
 wrapped in a sync with `origin`: the checked-out branch (`auto/<slice-id>`,
-or the work branch with `auto.branch: off`) is pushed with its upstream
-set, the launcher runs, the branch is fetched and fast-forwarded, and only
-then is the ledger read. A rejected push stops the run before anything is
-launched, and a branch that cannot fast-forward stops it after the
-session, both with `sync`; metis never rebases or resets here, so both
-histories are as they were. When a slice that ran any remote session
-lands, the work branch is pushed and `origin`'s `auto/<slice-id>` is
-deleted (with `auto.branch: pr` the pull request carries it instead); a
-work branch that cannot be pushed stops with `sync`, the slice already
-archived. Without `remote` none of this runs.
+or the work branch with `auto.branch: off`) is fetched and pushed with its
+upstream set, the launcher runs, the branch is fetched and fast-forwarded,
+and only then is the ledger read. A branch that has diverged from
+`origin`'s, or a rejected push, stops the run before anything is launched,
+and a branch that cannot fast-forward stops it after the session, all
+with `sync`; metis never rebases or resets here, so both histories are as
+they were. An interrupted session is still fetched and fast-forwarded
+before the run exits 130.
+
+When the fetch before a session finds commits on `origin` that this
+checkout lacks — an earlier session, lost or interrupted, pushed late —
+the branch is fast-forwarded to them and the session is not launched: its
+prompt was planned from the ledger before them. The run reads the ledger
+again and goes on from what it now says: the other role's session, the
+same one if the commits changed nothing it reads, or landing the slice if
+they hold the reviewed flip. Nothing is charged for it. This cannot help
+after `metis auto` itself committed in between — the wait it records for a
+transient exit, the park of a stop: the late push then leaves two
+histories, and the next session stops with `sync`.
+
+When a slice that ran any remote session lands, the work branch is pushed
+and `origin`'s `auto/<slice-id>` is deleted (with `auto.branch: pr` the
+pull request carries it instead); a work branch that cannot be pushed
+stops with `sync`, the slice already archived, and the next `metis auto`
+pushes it first. Without `remote` none of this runs.
 
 A failed session without progress whose exit code is in
 `agents.<slug>.transient_exit_codes` (the launcher could not reach its
@@ -239,7 +259,7 @@ or `manual` one ends the run.
 | `session_failed` | a session exits non-zero or times out, after the retries (`auto.stop.session_failed`, default 1) | yes |
 | `no_progress` | a session made no progress, after the retries | yes |
 | `rate_limited` | the agent is rate limited, or its launcher keeps exiting with a transient code, and the next wait would take the slice past `auto.rate_limit.max_wait` (default 6h). Not a switch under `auto.stop` | until a time, not for a person |
-| `sync` | a remote agent's branch is rejected by `origin` before a session, cannot fast-forward to `origin`'s after it, or the work branch cannot be pushed once the slice landed. Not a switch under `auto.stop` | no |
+| `sync` | a remote agent's branch has diverged from `origin`'s or is rejected by it before a session, cannot fast-forward to `origin`'s after it, or the work branch cannot be pushed once the slice landed. Not a switch under `auto.stop` | no |
 | `budget` | the slice used 8 sessions or 6h of sessions since its last stop | yes |
 | `human_agent` | the role's agent has `surface: human` | no |
 | `no_launcher` | the role's agent is not configured or has no launcher | no |
@@ -263,7 +283,9 @@ the time carries on. `step_done`, `manual`, a reached `--until`,
 Each session is one line of `.metis/runs/auto.jsonl` (time, slice, role,
 agent and model, template, duration, exit code, outcome, findings opened
 and resolved, `rate_limited` when a limit stopped it, `transient` when
-the launcher's exit code was a transient one), and each wait is one too (`"event":"wait"`, with `wait_until` and its length);
+the launcher's exit code was a transient one), each wait is one too
+(`"event":"wait"`, with `wait_until` and its length), and so is the push
+of a landed slice that ran remotely (`"event":"pushed"`);
 `metis auto --status` summarises the last run.
 
 **Branching** (`auto.branch`): with `slice` (default) a slice's sessions
