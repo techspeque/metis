@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 )
 
@@ -90,6 +91,50 @@ type AutoConfig struct {
 	PRCommand      []string          `yaml:"pr_command,omitempty" json:"pr_command,omitempty"`
 	Notify         []string          `yaml:"notify,omitempty" json:"notify,omitempty"`
 	Stop           AutoStopConfig    `yaml:"stop,omitempty" json:"stop,omitempty"`
+	RateLimit      AutoRateLimit     `yaml:"rate_limit,omitempty" json:"rate_limit,omitempty"`
+}
+
+// AutoRateLimit bounds how metis auto waits out a rate-limited session.
+type AutoRateLimit struct {
+	// MaxWait bounds the waiting one slice may do between stops.
+	MaxWait string `yaml:"max_wait,omitempty" json:"max_wait,omitempty"`
+	// Backoff is the first wait when the log names no reset time; each
+	// further one doubles, up to MaxBackoff.
+	Backoff string `yaml:"backoff,omitempty" json:"backoff,omitempty"`
+}
+
+// MaxBackoff caps the doubling of auto.rate_limit.backoff.
+const MaxBackoff = time.Hour
+
+// MaxWaitTime returns auto.rate_limit.max_wait with its default (6h)
+// applied.
+func (r *AutoRateLimit) MaxWaitTime() time.Duration {
+	d, err := durationOr(r.MaxWait, 6*time.Hour)
+	if err != nil || d <= 0 {
+		return 6 * time.Hour
+	}
+	return d
+}
+
+// BackoffAfter returns the wait after the given number of waits in a row:
+// auto.rate_limit.backoff (default 15m), doubled each time, capped at
+// MaxBackoff (or at backoff itself when that is longer).
+func (r *AutoRateLimit) BackoffAfter(waits int) time.Duration {
+	d, err := durationOr(r.Backoff, 15*time.Minute)
+	if err != nil || d <= 0 {
+		d = 15 * time.Minute
+	}
+	limit := max(d, MaxBackoff)
+	for ; waits > 0 && d < limit; waits-- {
+		d *= 2
+	}
+	return min(d, limit)
+}
+
+// CompilePattern compiles a rate-limit pattern: a case-insensitive
+// regular expression.
+func CompilePattern(p string) (*regexp.Regexp, error) {
+	return regexp.Compile("(?i)" + p)
 }
 
 // AutoStopConfig switches and bounds the stop rules. Unset switches are on.
@@ -229,6 +274,8 @@ func (c *Config) validateAuto() []error {
 	for key, v := range map[string]string{
 		"auto.session_timeout":        a.SessionTimeout,
 		"auto.stop.budget.wall_clock": a.Stop.Budget.WallClock,
+		"auto.rate_limit.max_wait":    a.RateLimit.MaxWait,
+		"auto.rate_limit.backoff":     a.RateLimit.Backoff,
 	} {
 		if v == "" {
 			continue
@@ -250,6 +297,13 @@ func (c *Config) validateAuto() []error {
 	for slug, agent := range c.Agents {
 		if agent.Surface == SurfaceHuman && len(agent.Launch) > 0 {
 			errs = append(errs, fmt.Errorf("agent %q: a human agent has no launch command", slug))
+		}
+		if rl := agent.RateLimit; rl != nil {
+			for _, p := range append(append([]string{}, rl.Patterns...), rl.ResetPattern) {
+				if _, err := CompilePattern(p); err != nil {
+					errs = append(errs, fmt.Errorf("agent %q: rate_limit pattern %q does not compile: %v", slug, p, err))
+				}
+			}
 		}
 	}
 	return errs

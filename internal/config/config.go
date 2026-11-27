@@ -56,6 +56,24 @@ type Agent struct {
 	// ({prompt}, {prompt_file}, {model} and {slice} are substituted; no
 	// shell). Unset means the built-in default for the surface, if any.
 	Launch []string `yaml:"launch,omitempty" json:"launch,omitempty"`
+	// RateLimit says how a session of this agent that failed on a usage
+	// or rate limit is told from any other failure. Each unset key takes
+	// the built-in default for the surface, if any.
+	RateLimit *RateLimit `yaml:"rate_limit,omitempty" json:"rate_limit,omitempty"`
+}
+
+// RateLimit recognises a session stopped by the agent's usage or rate
+// limit: metis auto waits and runs it again instead of counting a failure.
+type RateLimit struct {
+	// ExitCodes are the agent's exit codes that mean limited.
+	ExitCodes []int `yaml:"exit_codes,omitempty" json:"exit_codes,omitempty"`
+	// Patterns are case-insensitive regular expressions; one matching the
+	// end of the session log means limited.
+	Patterns []string `yaml:"patterns,omitempty" json:"patterns,omitempty"`
+	// ResetPattern is a case-insensitive regular expression whose first
+	// non-empty capture group is when the limit resets: a clock time, a
+	// duration, or a timestamp.
+	ResetPattern string `yaml:"reset_pattern,omitempty" json:"reset_pattern,omitempty"`
 }
 
 // RoutingConfig determines which agents handle which risk levels.

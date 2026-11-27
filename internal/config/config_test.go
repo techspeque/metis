@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestParse_FullConfig(t *testing.T) {
@@ -389,5 +390,63 @@ func TestManagedPathsEmptyOverview(t *testing.T) {
 	}
 	if cfg.IsManagedPath("anything.md") {
 		t.Error("empty overview exempted an unrelated file")
+	}
+}
+
+func TestValidate_RateLimit(t *testing.T) {
+	cfg, err := Parse([]byte(`version: 1
+project: { name: test }
+agents:
+  codex/gpt:
+    surface: codex
+    model: gpt
+    label: Codex
+    rate_limit:
+      exit_codes: [75]
+      patterns: ["usage limit", "rate limit("]
+      reset_pattern: "resets? (?:at|in) (.+"
+commands: { verify: "true" }
+auto:
+  rate_limit: { max_wait: soon, backoff: -5m }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range cfg.Validate() {
+		got = append(got, e.Error())
+	}
+	all := strings.Join(got, "\n")
+	for _, want := range []string{
+		`agent "codex/gpt": rate_limit pattern "rate limit(" does not compile`,
+		`agent "codex/gpt": rate_limit pattern "resets? (?:at|in) (.+" does not compile`,
+		`auto.rate_limit.max_wait "soon" is not a positive duration`,
+		`auto.rate_limit.backoff "-5m" is not a positive duration`,
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %q in:\n%s", want, all)
+		}
+	}
+	if len(got) != 4 {
+		t.Errorf("errors:\n%s", all)
+	}
+	if rl := cfg.Agents["codex/gpt"].RateLimit; rl == nil || len(rl.ExitCodes) != 1 || rl.ExitCodes[0] != 75 {
+		t.Errorf("rate_limit = %+v", rl)
+	}
+}
+
+func TestAutoRateLimitDefaults(t *testing.T) {
+	var r AutoRateLimit
+	if r.MaxWaitTime() != 6*time.Hour {
+		t.Errorf("max_wait = %s", r.MaxWaitTime())
+	}
+	for waits, want := range []time.Duration{15 * time.Minute, 30 * time.Minute, time.Hour, time.Hour, time.Hour} {
+		if got := r.BackoffAfter(waits); got != want {
+			t.Errorf("backoff after %d = %s, want %s", waits, got, want)
+		}
+	}
+	r = AutoRateLimit{MaxWait: "90m", Backoff: "2h"}
+	if r.MaxWaitTime() != 90*time.Minute || r.BackoffAfter(0) != 2*time.Hour || r.BackoffAfter(3) != 2*time.Hour {
+		t.Errorf("configured: %s, %s, %s", r.MaxWaitTime(), r.BackoffAfter(0), r.BackoffAfter(3))
 	}
 }

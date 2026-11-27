@@ -25,6 +25,13 @@ func Lookup(cfg *Config, path string) (any, error) {
 	segs := strings.Split(path, ".")
 	for i, seg := range segs {
 		prefix := strings.Join(segs[:i], ".")
+		if v.Kind() == reflect.Pointer {
+			// An optional section: unset, it has no keys to read.
+			if v.IsNil() {
+				return nil, fmt.Errorf("%q is not set", prefix)
+			}
+			v = v.Elem()
+		}
 		switch v.Kind() {
 		case reflect.Struct:
 			f, ok := fieldByYAMLTag(v.Type(), seg)
@@ -52,6 +59,9 @@ func PathType(path string) (reflect.Type, error) {
 	segs := strings.Split(path, ".")
 	for i, seg := range segs {
 		prefix := strings.Join(segs[:i], ".")
+		if t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
 		switch t.Kind() {
 		case reflect.Struct:
 			f, ok := fieldByYAMLTag(t, seg)

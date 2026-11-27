@@ -152,6 +152,9 @@ func TestSetInFileTypes(t *testing.T) {
 	if err := SetInFile(path, "agents.new-agent.model", "opus"); err != nil {
 		t.Fatalf("map-entry set with intermediate creation: %v", err)
 	}
+	if err := SetInFile(path, "agents.new-agent.rate_limit.patterns", "usage limit, too many requests"); err != nil {
+		t.Fatalf("set inside an optional section: %v", err)
+	}
 
 	cfg, err := Load(path)
 	if err != nil {
@@ -165,6 +168,9 @@ func TestSetInFileTypes(t *testing.T) {
 	}
 	if cfg.Agents["new-agent"].Model != "opus" {
 		t.Errorf("agents.new-agent.model = %q", cfg.Agents["new-agent"].Model)
+	}
+	if got, err := Lookup(cfg, "agents.new-agent.rate_limit.patterns"); err != nil || len(got.([]string)) != 2 {
+		t.Errorf("agents.new-agent.rate_limit.patterns = %v, %v", got, err)
 	}
 }
 
