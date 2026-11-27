@@ -137,6 +137,24 @@ func Push(repoDir, branch string) error {
 	return err
 }
 
+// Fetch fetches a branch from origin into FETCH_HEAD.
+func Fetch(repoDir, branch string) error {
+	_, err := run(repoDir, "fetch", "-q", "origin", branch)
+	return err
+}
+
+// DeleteRemoteBranch deletes a branch on origin.
+func DeleteRemoteBranch(repoDir, branch string) error {
+	_, err := run(repoDir, "push", "-q", "origin", "--delete", branch)
+	return err
+}
+
+// UnsetUpstream forgets a local branch's upstream.
+func UnsetUpstream(repoDir, branch string) error {
+	_, err := run(repoDir, "branch", "--unset-upstream", branch)
+	return err
+}
+
 // FileAt returns the content of a repository-relative file at a revision.
 // The path is always given to git with forward slashes: a tree path is
 // not a filesystem path, and git does not translate a backslash in one.
