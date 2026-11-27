@@ -243,13 +243,15 @@ resumes it. `pr` pushes the branch and opens a pull request
 `off` commits on the work branch. `metis commit` accepts a slice's own
 auto branch.
 
-A rebase step whose only conflicts are in the state files (the ledger,
-the archive, the findings store) is settled by metis: the files are merged
-by slice and finding id, not by line (the rules are under
-[`metis state merge`](#metis-state-merge-base-ours-theirs)), and the
-rebase goes on. A conflict in any other file, or the same slice changed on
-both branches, aborts the rebase, leaves the branch as it was and stops
-with `merge` (exit 3).
+During that rebase the state files (the ledger, the archive, the findings
+store) are merged by slice and finding id, not by line, at every step
+where both branches changed them, whether or not git would report a
+conflict (the rules are under
+[`metis state merge`](#metis-state-merge-base-ours-theirs)). metis runs
+itself as their merge driver for that rebase alone: nothing is written to
+the repository's or the user's git configuration. A conflict in any other
+file, or the same slice changed on both branches, aborts the rebase,
+leaves the branch as it was and stops with `merge` (exit 3).
 
 Interrupting `metis auto` (Ctrl-C) terminates the running session and
 leaves the repository as the ledger says; run it again to resume.
@@ -671,9 +673,12 @@ for a project whose `paths` name the files otherwise. Exit 0: merged. Exit
 1: a conflict or a file that does not parse, with `<ours>` left as it was,
 which git reports as a conflicted path.
 
-An alias resolves wherever a finding id is given, when no finding has
-that id itself. `metis findings` and the handoff prompts show a renumbered
-finding as `f-006 (was f-005)`.
+A finding's own id always wins. An alias resolves wherever a finding id
+is given when no finding has that id itself; when one does, the command
+acts on that finding and says on stderr which finding the id used to
+name: `note: f-005 was also the id of f-007 (slice s-2) before a merge`.
+`metis findings` and the handoff prompts show a renumbered finding as
+`f-007 (was f-005)`.
 
 ---
 
