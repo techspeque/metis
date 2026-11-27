@@ -15,7 +15,7 @@ import (
 )
 
 func TestTemplateAndArgv(t *testing.T) {
-	tmpl, err := Template(config.Agent{Surface: "claude-code", Model: "opus"})
+	tmpl, err := Template(&config.Agent{Surface: "claude-code", Model: "opus"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -26,16 +26,16 @@ func TestTemplateAndArgv(t *testing.T) {
 	}
 
 	own := config.Agent{Surface: "claude-code", Launch: []string{"wrap", "--file={prompt_file}", "--slice", "{slice}"}}
-	tmpl, _ = Template(own)
+	tmpl, _ = Template(&own)
 	got = Argv(tmpl, Vars{PromptFile: "/tmp/p.md", Slice: "s-2"})
 	if !reflect.DeepEqual(got, []string{"wrap", "--file=/tmp/p.md", "--slice", "s-2"}) {
 		t.Errorf("an agent's own launch wins: %q", got)
 	}
 
-	if _, err := Template(config.Agent{Surface: "human"}); !errors.Is(err, ErrNoLauncher) {
+	if _, err := Template(&config.Agent{Surface: "human"}); !errors.Is(err, ErrNoLauncher) {
 		t.Errorf("human: %v", err)
 	}
-	if _, err := Template(config.Agent{Surface: "unknown"}); !errors.Is(err, ErrNoLauncher) {
+	if _, err := Template(&config.Agent{Surface: "unknown"}); !errors.Is(err, ErrNoLauncher) {
 		t.Errorf("unknown surface: %v", err)
 	}
 }

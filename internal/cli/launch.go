@@ -171,7 +171,7 @@ func planSession(ctx *context, l *ledger.Ledger, id, role, tmpl, branch string) 
 	if agent.Surface == config.SurfaceHuman {
 		return nil, &launchError{ruleHumanAgent, fmt.Sprintf("the %s of %s is %s, a person: run this session yourself (metis handoff %s)", strings.ToLower(h.Role), h.Slice, h.AgentSlug, h.Slice)}
 	}
-	tmplArgv, err := launch.Template(agent)
+	tmplArgv, err := launch.Template(&agent)
 	if err != nil {
 		if errors.Is(err, launch.ErrNoLauncher) {
 			return nil, &launchError{ruleNoLauncher, fmt.Sprintf("agent %s: %v", h.AgentSlug, err)}

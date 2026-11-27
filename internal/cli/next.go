@@ -233,7 +233,7 @@ func autoVerdict(ctx *context, s *slice.Slice, role slice.Role, mode string) str
 	case agent.Surface == config.SurfaceHuman:
 		return ruleHumanAgent
 	}
-	if _, err := launch.Template(agent); err != nil {
+	if _, err := launch.Template(&agent); err != nil {
 		return ruleNoLauncher
 	}
 	return "ok"
