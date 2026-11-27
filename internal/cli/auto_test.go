@@ -2,9 +2,11 @@ package cli
 
 import (
 	"bytes"
+	stdcontext "context"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"sync"
@@ -83,11 +85,17 @@ agents:
     model: m-a
     label: Coder A
     launch: [sh, "` + agent + `", "{prompt_file}", coder/a]
+    rate_limit:
+      patterns: ["usage limit reached"]
+      reset_pattern: "resets in ([^.]+)"
   reviewer/b:
     surface: fake
     model: m-b
     label: Reviewer B
     launch: [sh, "` + agent + `", "{prompt_file}", reviewer/b]
+    rate_limit:
+      patterns: ["usage limit reached"]
+      reset_pattern: "resets in ([^.]+)"
   human:
     surface: human
     model: human
@@ -519,5 +527,165 @@ func TestDispatchFollowsTheAutoBranch(t *testing.T) {
 	gitOut(t, dir, "checkout", "-q", "-b", "auto/gone")
 	if got := dispatched(); got != "s-1" {
 		t.Errorf("on auto/gone: dispatched %q, want s-1", got)
+	}
+}
+
+// fakeSleep replaces the rate-limit sleep: it returns at once with err and
+// records the times it was asked to wait until.
+func fakeSleep(t *testing.T, err error) *[]time.Time {
+	t.Helper()
+	var untils []time.Time
+	real := autoSleep
+	autoSleep = func(_ stdcontext.Context, until time.Time) error {
+		untils = append(untils, until)
+		return err
+	}
+	t.Cleanup(func() { autoSleep = real })
+	return &untils
+}
+
+func expectWait(t *testing.T, until time.Time, want time.Duration) {
+	t.Helper()
+	if got := time.Until(until); got < want-time.Minute || got > want+time.Minute {
+		t.Errorf("waits %s, want about %s", got.Round(time.Second), want)
+	}
+}
+
+// A session stopped by the agent's usage limit is waited out and run
+// again: with no retries allowed, any charge to session_failed would stop
+// the run. The log names no reset time, so the wait backs off and doubles.
+func TestAutoWaitsOutARateLimit(t *testing.T) {
+	dir := makeAutoProject(t, "  mode: auto\n  branch: off\n  stop: { session_failed: 0 }", []autoSlice{{id: "s-1"}}, "code", "limit", "limit", "pass")
+	untils := fakeSleep(t, nil)
+	out, code := runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if !strings.Contains(archivedIDs(t, dir), "id: s-1") || sessions(t) != 4 {
+		t.Errorf("s-1 should be done in 4 sessions, got %d:\n%s", sessions(t), out)
+	}
+	if len(*untils) != 2 {
+		t.Fatalf("waits = %d, want 2:\n%s", len(*untils), out)
+	}
+	expectWait(t, (*untils)[0], 15*time.Minute)
+	expectWait(t, (*untils)[1], 30*time.Minute)
+
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	events := ctx.readAutoEvents()
+	limited, waits := 0, 0
+	for _, e := range events {
+		switch {
+		case e.Event == "session" && e.RateLimited:
+			limited++
+		case e.Event == "wait" && e.Slice == "s-1" && e.Rule == ruleRateLimited && e.WaitUntil != "" && e.DurationSeconds > 0:
+			waits++
+		}
+	}
+	if limited != 2 || waits != 2 {
+		t.Errorf("run log: %d limited session(s), %d wait(s)", limited, waits)
+	}
+	// Neither the limited sessions nor the waits are charged to the budget.
+	if n, wall := sliceBudgetUse(events, "s-1"); n != 2 || wall > time.Minute {
+		t.Errorf("budget use = %d session(s), %s", n, wall)
+	}
+	// The ledger said why nothing was happening, and stopped saying it.
+	if log := gitOut(t, dir, "log", "--format=%s"); strings.Count(log, "wait: auto: rate_limited") != 2 || strings.Count(log, "wait cleared") != 2 {
+		t.Errorf("the waits are not in the history:\n%s", log)
+	}
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("tree dirty after the run:\n%s", status)
+	}
+}
+
+// A limit that outlasts auto.rate_limit.max_wait stops the run with the
+// slice waiting until a time, not for a person: a later run carries on.
+func TestAutoStopsWhenALimitOutlastsMaxWait(t *testing.T) {
+	dir := makeAutoProject(t, "  mode: auto\n  branch: off\n  rate_limit: { max_wait: 40m }", []autoSlice{{id: "s-1"}}, "code", "limit", "limit", "pass")
+	untils := fakeSleep(t, nil)
+	out, code := runAuto(t)
+	expectStop(t, out, code, 3, ruleRateLimited)
+	if len(*untils) != 1 || sessions(t) != 3 {
+		t.Errorf("want one 15m wait and a stop before a 30m one: %d wait(s), %d session(s)\n%s", len(*untils), sessions(t), out)
+	}
+	l := ledgerText(t, dir)
+	if !strings.Contains(l, "reason: 'auto: rate_limited'") || !strings.Contains(l, "until:") || strings.Contains(l, "human: true") {
+		t.Errorf("the slice should wait until a time, not for a person:\n%s", l)
+	}
+	esc, _ := os.ReadFile(filepath.Join(dir, ".metis", "runs", "s-1", "auto", "escalation.md"))
+	if !strings.Contains(string(esc), "`rate_limited`") || !strings.Contains(string(esc), "Nothing to settle") {
+		t.Errorf("escalation:\n%s", esc)
+	}
+
+	// Before the time: nothing runs, and nobody is needed.
+	out, code = runAuto(t)
+	expectStop(t, out, code, 0, ruleAllWaiting)
+	if sessions(t) != 3 {
+		t.Errorf("sessions = %d: nothing may run during the wait", sessions(t))
+	}
+
+	// After it: the wait has ended by itself.
+	m := regexp.MustCompile(`until: "?[0-9TZ:-]+"?`).FindString(l)
+	if m == "" {
+		t.Fatalf("no until in:\n%s", l)
+	}
+	past := strings.Replace(l, m, `until: "`+time.Now().Add(-time.Minute).UTC().Format(time.RFC3339)+`"`, 1)
+	if err := os.WriteFile(filepath.Join(dir, ".metis", "slices.yaml"), []byte(past), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	gitOut(t, dir, "commit", "-qam", "chore: time passes")
+	out, code = runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if !strings.Contains(archivedIDs(t, dir), "id: s-1") {
+		t.Errorf("the later run should finish s-1:\n%s", out)
+	}
+}
+
+// A reset time in the log sets the wait: until then plus a minute.
+func TestAutoWaitsUntilTheResetTimeInTheLog(t *testing.T) {
+	makeAutoProject(t, "  mode: auto", []autoSlice{{id: "s-1"}},
+		"code", "limit:Error: usage limit reached, resets in 2 hours 30 minutes. See your plan.", "pass")
+	untils := fakeSleep(t, nil)
+	out, code := runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if len(*untils) != 1 {
+		t.Fatalf("waits = %d, want 1:\n%s", len(*untils), out)
+	}
+	expectWait(t, (*untils)[0], 151*time.Minute)
+}
+
+// An interrupt during the wait exits 130 and leaves the wait in the ledger.
+func TestAutoInterruptedWhileWaitingOutALimit(t *testing.T) {
+	dir := makeAutoProject(t, "  mode: auto\n  branch: off", []autoSlice{{id: "s-1"}}, "code", "limit", "pass")
+	fakeSleep(t, stdcontext.Canceled)
+	out, code := runAuto(t)
+	expectStop(t, out, code, exitAutoInterrupted, ruleInterrupted)
+	if sessions(t) != 2 {
+		t.Errorf("sessions = %d: nothing runs after the interrupt", sessions(t))
+	}
+	if l := ledgerText(t, dir); !strings.Contains(l, "reason: 'auto: rate_limited'") || !strings.Contains(l, "until:") || strings.Contains(l, "human: true") {
+		t.Errorf("the wait should be left in place:\n%s", l)
+	}
+}
+
+// A failure that matches no pattern is a failed session, as before.
+func TestAutoDoesNotWaitOnAnotherFailure(t *testing.T) {
+	makeAutoProject(t, "  mode: auto\n  branch: off", []autoSlice{{id: "s-1"}}, "code", "limit:Error: the request was refused", "fail")
+	untils := fakeSleep(t, nil)
+	out, code := runAuto(t)
+	expectStop(t, out, code, 3, ruleSessionFailed)
+	if len(*untils) != 0 || sessions(t) != 3 {
+		t.Errorf("%d wait(s), %d session(s):\n%s", len(*untils), sessions(t), out)
+	}
+}
+
+// A limited session that made progress is progress: nothing waits.
+func TestAutoALimitedSessionWithProgressIsProgress(t *testing.T) {
+	dir := makeAutoProject(t, "  mode: auto\n  branch: off", []autoSlice{{id: "s-1"}}, "code+limit", "pass")
+	untils := fakeSleep(t, nil)
+	out, code := runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if len(*untils) != 0 || !strings.Contains(archivedIDs(t, dir), "id: s-1") {
+		t.Errorf("%d wait(s):\n%s", len(*untils), out)
 	}
 }

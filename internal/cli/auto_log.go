@@ -14,7 +14,7 @@ import (
 type autoEvent struct {
 	Time  string `json:"time"`
 	Run   string `json:"run"`
-	Event string `json:"event"` // start, session, done, stop
+	Event string `json:"event"` // start, session, wait, done, stop
 
 	Slice string `json:"slice,omitempty"`
 
@@ -35,6 +35,12 @@ type autoEvent struct {
 	FindingsOpened   []string `json:"findings_opened,omitempty"`
 	FindingsResolved []string `json:"findings_resolved,omitempty"`
 	Log              string   `json:"log,omitempty"`
+	// RateLimited marks a failed session the agent's usage or rate limit
+	// stopped: a wait follows it, and it is charged to no budget.
+	RateLimited bool `json:"rate_limited,omitempty"`
+
+	// wait: a rate-limit wait starting, with its length as duration_s
+	WaitUntil string `json:"wait_until,omitempty"`
 
 	// done
 	ReviewCycles *int   `json:"review_cycles,omitempty"`
@@ -107,11 +113,38 @@ func sliceBudgetUse(events []autoEvent, sliceID string) (sessions int, wall time
 		case "stop":
 			sessions, wall = 0, 0
 		case "session":
+			if e.RateLimited {
+				continue
+			}
 			sessions++
 			wall += time.Duration(e.DurationSeconds * float64(time.Second))
 		}
 	}
 	return sessions, wall
+}
+
+// sliceWaitUse counts a slice's rate-limit waits: how many in a row (no
+// session that was not limited between them), which sets the backoff, and
+// how long in total since its last stop, which max_wait bounds.
+func sliceWaitUse(events []autoEvent, sliceID string) (inRow int, total time.Duration) {
+	for i := range events {
+		e := &events[i]
+		if e.Slice != sliceID {
+			continue
+		}
+		switch e.Event {
+		case "stop":
+			inRow, total = 0, 0
+		case "session":
+			if !e.RateLimited {
+				inRow = 0
+			}
+		case "wait":
+			inRow++
+			total += time.Duration(e.DurationSeconds * float64(time.Second))
+		}
+	}
+	return inRow, total
 }
 
 // autoStatus summarises the last run in the log.
