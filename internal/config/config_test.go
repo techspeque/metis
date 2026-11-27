@@ -435,6 +435,61 @@ auto:
 	}
 }
 
+func TestValidate_RemoteAgent(t *testing.T) {
+	cfg, err := Parse([]byte(`version: 1
+project: { name: test }
+agents:
+  claude-code/opus:
+    surface: claude-code
+    model: opus
+    label: Claude
+    remote: true
+    transient_exit_codes: [91, 95]
+    launch: [gaia, run, --node, studio, --wait, --, claude, -p, "{prompt}"]
+  codex/gpt:
+    surface: codex
+    model: gpt
+    label: Codex
+    transient_exit_codes: [0, 256]
+  human:
+    surface: human
+    model: human
+    label: Human
+    remote: true
+commands: { verify: "true" }
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, e := range cfg.Validate() {
+		got = append(got, e.Error())
+	}
+	all := strings.Join(got, "\n")
+	for _, want := range []string{
+		`agent "codex/gpt": transient_exit_codes: 0 is not a failing exit code (1 to 255)`,
+		`agent "codex/gpt": transient_exit_codes: 256 is not a failing exit code (1 to 255)`,
+		`agent "human": a human agent is not launched: remote and transient_exit_codes do not apply`,
+	} {
+		if !strings.Contains(all, want) {
+			t.Errorf("missing %q in:\n%s", want, all)
+		}
+	}
+	if len(got) != 3 {
+		t.Errorf("errors:\n%s", all)
+	}
+	a := cfg.Agents["claude-code/opus"]
+	if !a.Remote || !a.Transient(91) || !a.Transient(95) || a.Transient(93) || a.Transient(-1) {
+		t.Errorf("agent = %+v", a)
+	}
+	if b := cfg.Agents["codex/gpt"]; b.Remote {
+		t.Error("remote is off unless set")
+	}
+	if _, err := Parse([]byte("version: 1\nagents:\n  a/b: { surface: codex, model: m, label: L, remote: sometimes }\n")); err == nil {
+		t.Error("remote: sometimes should not parse")
+	}
+}
+
 func TestAutoRateLimitDefaults(t *testing.T) {
 	var r AutoRateLimit
 	if r.MaxWaitTime() != 6*time.Hour {
