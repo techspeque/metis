@@ -243,6 +243,14 @@ resumes it. `pr` pushes the branch and opens a pull request
 `off` commits on the work branch. `metis commit` accepts a slice's own
 auto branch.
 
+A rebase step whose only conflicts are in the state files (the ledger,
+the archive, the findings store) is settled by metis: the files are merged
+by slice and finding id, not by line (the rules are under
+[`metis state merge`](#metis-state-merge-base-ours-theirs)), and the
+rebase goes on. A conflict in any other file, or the same slice changed on
+both branches, aborts the rebase, leaves the branch as it was and stops
+with `merge` (exit 3).
+
 Interrupting `metis auto` (Ctrl-C) terminates the running session and
 leaves the repository as the ledger says; run it again to resume.
 
@@ -630,6 +638,43 @@ metis log feat-0012 --validate -o json
 ```
 - Attribution stripped (Co-Authored-By, Generated with, model names)
 
+### `metis state merge <base> <ours> <theirs>`
+
+Three-way merge one state file on its entries and write the result to
+`<ours>`. Every command rewrites these files whole, so two branches
+conflict on their text almost always and disagree almost never. `metis
+auto` does this merge itself when it rebases a slice's branch; the command
+is the same merge as a git merge driver, for a rebase or merge by hand.
+`metis init` does not install it:
+
+```
+# .gitattributes
+.metis/slices.yaml      merge=metis-state
+.metis/slices-done.yaml merge=metis-state
+.metis/findings.yaml    merge=metis-state
+```
+
+```bash
+git config merge.metis-state.name "metis state merge"
+git config merge.metis-state.driver "metis state merge %O %A %B --path %P"
+```
+
+| File | Key | Rule |
+|---|---|---|
+| ledger | slice id | A slice changed, added or removed (archived, retired) on one side takes that side. `blocked_by` is merged apart from the rest: a dependency either side added or dropped is added or dropped, then every slice that left the merged ledger is stripped. The same slice changed on both sides, or changed on one and removed on the other, is a conflict. |
+| archive | slice id | Union, ours' entries first. The same id on both sides with different content is a conflict. |
+| findings | finding id | Union, ours' findings first; a finding changed on one side takes that side. An id both sides created for different findings is not a conflict: theirs' finding (in a rebase, the branch being rebased) takes the next free id and keeps `alias: <old id>`, and theirs' `follow_on` and `of` references follow it. The same finding changed on both sides is a conflict. |
+
+`--path` is the file's path in the repository (git's `%P`); its file name
+says which of the three it is. `--kind ledger|archive|findings` says it
+for a project whose `paths` name the files otherwise. Exit 0: merged. Exit
+1: a conflict or a file that does not parse, with `<ours>` left as it was,
+which git reports as a conflicted path.
+
+An alias resolves wherever a finding id is given, when no finding has
+that id itself. `metis findings` and the handoff prompts show a renumbered
+finding as `f-006 (was f-005)`.
+
 ---
 
 ## Instructions
@@ -707,6 +752,8 @@ metis findings --slice feat-0001    # only for specific slice
 metis findings --status waived      # open | advisory | resolved | waived | promoted
 metis findings --stats              # aggregated statistics
 ```
+
+A finding a state merge renumbered shows its earlier id: `(was f-005)`.
 
 `--stats` labels its denominators: `total` is every row; `counted` leaves
 out rows excluded by `reclassify`, and the severity and category counts are

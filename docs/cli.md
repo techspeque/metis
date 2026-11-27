@@ -73,6 +73,7 @@ they change, so the tree is never left dirty between protocol steps.
 |---|---|---|---|
 | `metis commit` | `-m/--message` · `--prefix` · `--brief` · `--flip <coded\|reviewed>` · `--agent <slug>` (identity, required for reviewed flips) · `--slice <id>` (dispatch binding) · `--amend` | — | Agent |
 | `metis log <id>` | `--validate` (scope + format audit; exit 1 on violations) | ✓ | Agent (reviewer), Both |
+| `metis state merge <base> <ours> <theirs>` | `--path <git's %P>` · `--kind <ledger\|archive\|findings>` (a git merge driver for the state files; exit 1 on a real conflict) | — | Human |
 | `metis block <id>` | `--severity <P1\|P2\|P3>` · `--category <cat>` · `--finding "<text>"` · `--file <path>` · `--follow-on <finding-id>` | — | Agent (reviewer) |
 | `metis skip <id>` | `--reason`\* | — | Both (recon) |
 | `metis wait <id>` | `--reason`\* · `--until <RFC 3339>` · `--for <duration>` · `--clear` · `--human` (only a person clears it) | — | Agent, Both |
