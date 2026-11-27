@@ -135,6 +135,35 @@ The same merge is exposed as `metis state merge <base> <ours> <theirs>` so
 it can be a git merge driver for people who rebase by hand; `metis init`
 does not install it.
 
+### As built
+
+- The merge runs at every rebase step where both sides changed a state
+  file, not only on a conflict: `landBranch` runs the binary's own `metis
+  state merge` as a git merge driver for that rebase alone (`git -c
+  merge.metis-<kind>.driver=… -c core.attributesFile=<temp file>`).
+  Nothing is written to the repository or the user's configuration. A
+  conflict git reports anyway (the driver could not run, a state path the
+  attributes file cannot name) is settled in process by the same merge.
+- The rebase uses `--reapply-cherry-picks`. Two slices' flips are the same
+  patch to git, and a plain rebase drops the second as already upstream.
+- `slices-done.yaml` is ordered ours first, then theirs: slices carry no
+  archive time. In a landing that is landing order.
+- `blocked_by` is merged as a set and then stripped of every slice that
+  left the merged ledger, not recomputed against the archive: the same
+  result, and the driver merges one file at a time.
+- An alias is by construction an id another finding holds. The id's own
+  finding wins; an alias resolves only when no finding has the id. A
+  command given an id that is also an alias says so on stderr, and
+  `metis findings` and the handoff prompts show `(was f-NNN)`.
+- A later step of the same rebase still names a renumbered finding by its
+  old id; it is matched by alias plus slice, date and text.
+- `metis state merge` takes `--path` (git's `%P`) or `--kind`, since git
+  hands a driver temporary files. It writes to `<ours>` and exits 1 on a
+  conflict.
+- "A's archive strips B's `blocked_by`" is tested in `metis auto` as a
+  third slice blocked by both, since a blocked slice is not dispatched;
+  the literal case is a unit test of the ledger merge.
+
 ### Not doing
 
 - Per-slice state files. It would end the conflicts at the source but

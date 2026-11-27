@@ -63,6 +63,7 @@ func fakeAgentPath(t *testing.T) string {
 
 type autoSlice struct {
 	id, plan, typ, reviewer, mode string
+	blockedBy                     string // "s-1, s-2"
 }
 
 // makeAutoProject creates a git project on dev whose agents are fake
@@ -122,6 +123,9 @@ auto:
 		if s.mode != "" {
 			ledger.WriteString("    auto_mode: " + s.mode + "\n")
 		}
+		if s.blockedBy != "" {
+			ledger.WriteString("    blocked_by: [" + s.blockedBy + "]\n")
+		}
 	}
 	for path, content := range map[string]string{
 		".metis/project.yaml": cfg,
@@ -153,6 +157,7 @@ auto:
 	t.Setenv("FAKE_SCRIPT", script)
 	t.Setenv("FAKE_STATE", state)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	useBuiltMetisAsMergeDriver(t)
 	t.Chdir(dir)
 	return dir
 }

@@ -75,6 +75,7 @@ without starting a new cycle, so one review can carry several blocks.`,
 			// reviewer states, never inferred from the text.
 			parent, _ := cmd.Flags().GetString("follow-on")
 			if parent != "" {
+				noteAliases(store, parent)
 				if err := store.Follow(id, parent); err != nil {
 					return err
 				}

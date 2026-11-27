@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -96,6 +97,22 @@ func fillAgentStats(ctx *context, store *findings.Store, stats *findings.Stats) 
 	stats.ByAgent = agg
 }
 
+// noteAliases says, on stderr, when an id given to a command is also the
+// id another finding had before a state merge renumbered it: the id wins,
+// and the person may have meant the other.
+func noteAliases(store *findings.Store, ids ...string) {
+	for _, id := range ids {
+		if id == "" {
+			continue
+		}
+		was := store.WasAlso(id)
+		for i := range was {
+			f := &was[i]
+			fmt.Fprintf(os.Stderr, "note: %s was also the id of %s (slice %s) before a merge\n", id, f.ID, f.Slice)
+		}
+	}
+}
+
 // loadFindings opens the project's findings store and returns it with its
 // path.
 func loadFindings(ctx *context) (*findings.Store, string, error) {
@@ -141,6 +158,7 @@ resolved either: 'metis findings waive' records that on its own terms.`,
 		dup, _ := cmd.Flags().GetString("duplicate-of")
 		sup, _ := cmd.Flags().GetString("superseded-by")
 		note, _ := cmd.Flags().GetString("note")
+		noteAliases(store, id, dup, sup)
 
 		var how string
 		switch {
@@ -157,7 +175,7 @@ resolved either: 'metis findings waive' records that on its own terms.`,
 			if err := store.Dispose(id, disposition, of); err != nil {
 				return err
 			}
-			how = disposition + " of " + of
+			how = disposition + " of " + store.FindByID(of).ID
 		case commit == "" || (test == "" && ref == ""):
 			return fmt.Errorf("resolving %s needs evidence: --commit <rev> with --test <name> or --ref <file:line> for a fix, --duplicate-of/--superseded-by <id> for a disposition, or 'metis findings waive %s' to accept it as it stands", id, id)
 		default:
@@ -179,8 +197,8 @@ resolved either: 'metis findings waive' records that on its own terms.`,
 			return err
 		}
 		f := store.FindByID(id)
-		fmt.Printf("Resolved %s (%s): %s\n", id, how, f.Finding)
-		ctx.commitStateSoft(f.Slice, "resolve finding "+id, path)
+		fmt.Printf("Resolved %s (%s): %s\n", f.ID, how, f.Finding)
+		ctx.commitStateSoft(f.Slice, "resolve finding "+f.ID, path)
 		return nil
 	},
 }
@@ -228,6 +246,7 @@ waived apart from resolved, so a pass is never read as a fix.`,
 		w.Residual, _ = cmd.Flags().GetString("residual")
 		w.Owner, _ = cmd.Flags().GetString("owner")
 		w.Revisit, _ = cmd.Flags().GetString("revisit")
+		noteAliases(store, args[0])
 		if err := store.Waive(args[0], &w); err != nil {
 			return err
 		}
@@ -235,8 +254,8 @@ waived apart from resolved, so a pass is never read as a fix.`,
 			return err
 		}
 		f := store.FindByID(args[0])
-		fmt.Printf("Waived %s by %s: %s\n", args[0], w.By, f.Finding)
-		ctx.commitStateSoft(f.Slice, "waive finding "+args[0], path)
+		fmt.Printf("Waived %s by %s: %s\n", f.ID, w.By, f.Finding)
+		ctx.commitStateSoft(f.Slice, "waive finding "+f.ID, path)
 		return nil
 	},
 }
@@ -269,6 +288,7 @@ in the total.`,
 		if c.Severity == "" && c.Category == "" && !c.Excluded {
 			return fmt.Errorf("nothing to correct: pass --severity, --category or --exclude")
 		}
+		noteAliases(store, args[0])
 		if err := store.Reclassify(args[0], &c); err != nil {
 			return err
 		}
@@ -276,8 +296,8 @@ in the total.`,
 			return err
 		}
 		f := store.FindByID(args[0])
-		fmt.Printf("Reclassified %s: [%s/%s] excluded=%v (as raised: [%s/%s])\n", args[0], f.Severity, f.Category, f.Excluded, f.Original.Severity, f.Original.Category)
-		ctx.commitStateSoft(f.Slice, "reclassify finding "+args[0], path)
+		fmt.Printf("Reclassified %s: [%s/%s] excluded=%v (as raised: [%s/%s])\n", f.ID, f.Severity, f.Category, f.Excluded, f.Original.Severity, f.Original.Category)
+		ctx.commitStateSoft(f.Slice, "reclassify finding "+f.ID, path)
 		return nil
 	},
 }
@@ -312,6 +332,7 @@ worth-remembering observations that don't warrant blocking the review.`,
 		}
 		store.FindByID(id).Place(cycle, file)
 		if parent, _ := cmd.Flags().GetString("follow-on"); parent != "" {
+			noteAliases(store, parent)
 			if err := store.Follow(id, parent); err != nil {
 				return err
 			}
@@ -414,6 +435,9 @@ var findingsCmd = &cobra.Command{
 			}
 			if f.FollowOn != "" {
 				finding = "↳ " + f.FollowOn + " " + finding
+			}
+			if f.Alias != "" {
+				finding = "(was " + f.Alias + ") " + finding
 			}
 			fmt.Printf("%-5s %-4s %-12s %-9s %-20s %s\n", f.ID, f.Severity, f.Category, f.Status, f.Slice, finding)
 		}

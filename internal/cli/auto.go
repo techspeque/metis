@@ -939,7 +939,8 @@ func (r *autoRun) enterBranch(s *slice.Slice) *autoStop {
 }
 
 // landBranch lands a reviewed slice's branch: rebased onto the work branch
-// if it moved, verified, fast-forward merged and deleted (slice); or
+// if it moved (state files merged by entry, see resolveStateConflicts),
+// verified, fast-forward merged and deleted (slice); or
 // pushed with a pull request opened (pr). Off: nothing to do.
 func (r *autoRun) landBranch(id string) (string, *autoStop) {
 	ctx := r.ctx
@@ -976,7 +977,9 @@ func (r *autoRun) landBranch(id string) (string, *autoStop) {
 
 	how := "fast-forward merged into " + work
 	if !git.IsAncestor(ctx.repoRoot, work, b) {
-		if err := git.Rebase(ctx.repoRoot, work); err != nil {
+		// The state files are merged on their entries; any other conflict
+		// aborts the rebase.
+		if err := rebaseMergingState(ctx, work); err != nil {
 			return "", stop("rebasing %s onto %s failed (the rebase was aborted, the branch is as it was): %v", b, work, err)
 		}
 		store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))

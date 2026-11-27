@@ -162,7 +162,7 @@ const repeatThreshold = 0.5
 // it is about the same file (when both name one) and reads alike.
 func repeats(newer, older *findings.Finding) bool {
 	for _, id := range findingIDRe.FindAllString(newer.Finding, -1) {
-		if id == older.ID {
+		if id == older.ID || id == older.Alias {
 			return true
 		}
 	}

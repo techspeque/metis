@@ -29,5 +29,5 @@ Run it in each new shell before the first such command. A command run without it
 {{end}}
 Anything else is an advisory: `metis findings record {{.Slice.ID}} --severity P3 --category <category> --finding "..."` (no state change).{{end}}
 
-{{define "findings"}}{{range .}}- **{{.ID}}** [{{.Severity}}/{{.Category}}{{if .Cycle}}, review {{.Cycle}}{{end}}] {{.Finding}}
+{{define "findings"}}{{range .}}- **{{.ID}}**{{if .Alias}} (was {{.Alias}}){{end}} [{{.Severity}}/{{.Category}}{{if .Cycle}}, review {{.Cycle}}{{end}}] {{.Finding}}
 {{end}}{{end}}
