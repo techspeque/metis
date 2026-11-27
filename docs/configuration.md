@@ -185,6 +185,39 @@ logs of sessions a ChatGPT usage limit stopped; the `codex` and
 against a captured log. Any other surface has no defaults: without
 `rate_limit` its limits are failed sessions.
 
+#### `remote` — a launcher that runs the agent elsewhere
+
+```yaml
+agents:
+  claude-code/opus:
+    surface: claude-code
+    model: opus
+    label: "Claude Code (Opus), on studio"
+    remote: true                      # push the branch before each session, fetch and fast-forward after
+    transient_exit_codes: [91, 95]    # the launcher's "try again later" codes
+    launch: ["gaia", "run", "--node", "studio", "--wait", "--", "claude", "-p", "{prompt}", "--model", "{model}", "--permission-mode", "acceptEdits", "--allowedTools", "Bash(metis:*)", "Bash(git:*)"]
+```
+
+A launcher may run the agent in another checkout, on another machine (`gaia
+run`, `ssh`): the agent's commits then reach this repository only through
+`origin`. With `remote: true`, `metis launch` and `metis auto` push the
+current branch to `origin` before the session and fetch and fast-forward
+it afterwards; a push `origin` rejects, or a branch that cannot
+fast-forward, stops with `sync` and nothing is rebased or reset
+([`metis auto`](commands.md#metis-auto)). The launcher's side of the
+bargain: check out the same branch of `origin`, run the argv after its own
+flags there, push before it exits, and exit with the agent's code. The
+prompt must travel in the argv (`{prompt}`): `{prompt_file}` names a file
+in this checkout.
+
+`transient_exit_codes` are exit codes (1 to 255) with which the launcher
+says "try again later" and not "the agent failed" — the machine is
+offline, the session was lost. `metis auto` waits such a session out like
+a rate-limited one (`auto.rate_limit`) and runs it again; any other
+non-zero code is a failed session. It does not need `remote`. Both keys
+default to off: an agent without them is never pushed, fetched or waited
+for.
+
 ---
 
 ### `routing`
@@ -523,6 +556,7 @@ Run `metis check --config` to validate:
 - `paths.ledger` is set
 - `auto.mode`, `auto.phases.*` and `auto.by_risk.*` are modes; `auto.by_risk` keys are risks; `auto.branch` and `auto.until` are known values; durations parse; counts are not negative; a `human` agent has no `launch`
 - every `agents.<slug>.rate_limit` pattern compiles
+- every `agents.<slug>.transient_exit_codes` entry is 1 to 255; a `human` agent has neither `remote` nor `transient_exit_codes`
 
 `metis check` (with the ledger) also rejects an `auto.phases` key that
 matches no plan or slice phase, and a slice whose `auto_mode` is not a mode.

@@ -195,6 +195,25 @@ unavailable) and 95 (session lost); the full table is in Gaia's
 `docs/contracts/launcher-v1.md`. Any other non-zero code is a failed
 session, as today, and the launcher's own stderr is in the session log.
 
+As built:
+
+- A transient exit is classified like a limit: only on a failed session
+  without progress. One that did make progress (a lost session whose
+  commits arrived) is progress; the next session runs at once and waits if
+  the launcher is still in trouble.
+- The wait is in the ledger as `auto: transient`; past `max_wait` the stop
+  is `rate_limited`, with the exit code in its detail. No rule of its own.
+- A `sync` stop does not park the slice: the park would be one more commit
+  `origin` does not have. `metis auto` again retries the sync.
+- "Any remote agent" is read from the run log's session lines, the same
+  source as the budget. The work branch is pushed after the slice is
+  recorded done; a rejected push there is a `sync` stop with the slice
+  archived. With `auto.branch: pr` nothing extra is pushed or deleted, and
+  with `off` the work branch is pushed.
+- The auto branch's upstream is unset before it lands: `git branch -d`
+  measures a branch against its upstream, and the archive commit is made
+  here.
+
 ### Tests
 
 A fake remote launcher that clones a bare remote elsewhere, commits and

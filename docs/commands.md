@@ -132,6 +132,15 @@ A reviewer must be able to commit — `metis block` and the flips commit —
 so the agent's sandbox and permission flags in `launch` must allow running
 `metis` and `git`. They are the project's choice; metis passes none.
 
+For an agent with `remote: true`
+([configuration](configuration.md#remote--a-launcher-that-runs-the-agent-elsewhere))
+the current branch is pushed to `origin` before the session (`git push -u`)
+and fetched and fast-forwarded after it, so the agent's commits and flips
+are here when the command returns. A push that is rejected (nothing is
+launched), or a branch that cannot fast-forward afterwards, is an error;
+nothing is rebased or reset. Without `remote`, `metis launch` runs no
+push and no fetch.
+
 ### `metis auto`
 
 ```bash
@@ -170,6 +179,28 @@ waits at most `auto.rate_limit.max_wait` (6h) between stops; a wait that
 would pass it stops the run with `rate_limited`. A limited session that
 made progress is progress like any other.
 
+**Remote sessions.** For an agent with `remote: true` each session is
+wrapped in a sync with `origin`: the checked-out branch (`auto/<slice-id>`,
+or the work branch with `auto.branch: off`) is pushed with its upstream
+set, the launcher runs, the branch is fetched and fast-forwarded, and only
+then is the ledger read. A rejected push stops the run before anything is
+launched, and a branch that cannot fast-forward stops it after the
+session, both with `sync`; metis never rebases or resets here, so both
+histories are as they were. When a slice that ran any remote session
+lands, the work branch is pushed and `origin`'s `auto/<slice-id>` is
+deleted (with `auto.branch: pr` the pull request carries it instead); a
+work branch that cannot be pushed stops with `sync`, the slice already
+archived. Without `remote` none of this runs.
+
+A failed session without progress whose exit code is in
+`agents.<slug>.transient_exit_codes` (the launcher could not reach its
+machine, say) is waited out exactly like a limited one: the same backoff,
+the same `max_wait`, charged to no rule and no budget, the wait in the
+ledger as `auto: transient`, and `rate_limited` as the stop past the
+bound. A transient exit after progress (the session was lost, its commits
+arrived) is progress: the next session runs at once, and waits if the
+launcher is still in trouble.
+
 **Modes.** How far a run goes is the slice's effective mode — `manual`
 (the loop stops before it), `step` (one slice to reviewed and archived,
 then stop), `auto` (continue). The narrowest setting wins:
@@ -207,7 +238,8 @@ or `manual` one ends the run.
 | `dirty_tree` | uncommitted files outside the slice's scope before a session | no |
 | `session_failed` | a session exits non-zero or times out, after the retries (`auto.stop.session_failed`, default 1) | yes |
 | `no_progress` | a session made no progress, after the retries | yes |
-| `rate_limited` | the agent is rate limited and the next wait would take the slice past `auto.rate_limit.max_wait` (default 6h). Not a switch under `auto.stop` | until a time, not for a person |
+| `rate_limited` | the agent is rate limited, or its launcher keeps exiting with a transient code, and the next wait would take the slice past `auto.rate_limit.max_wait` (default 6h). Not a switch under `auto.stop` | until a time, not for a person |
+| `sync` | a remote agent's branch is rejected by `origin` before a session, cannot fast-forward to `origin`'s after it, or the work branch cannot be pushed once the slice landed. Not a switch under `auto.stop` | no |
 | `budget` | the slice used 8 sessions or 6h of sessions since its last stop | yes |
 | `human_agent` | the role's agent has `surface: human` | no |
 | `no_launcher` | the role's agent is not configured or has no launcher | no |
@@ -230,8 +262,8 @@ the time carries on. `step_done`, `manual`, a reached `--until`,
 
 Each session is one line of `.metis/runs/auto.jsonl` (time, slice, role,
 agent and model, template, duration, exit code, outcome, findings opened
-and resolved, `rate_limited` when a limit stopped it), and each rate-limit
-wait is one too (`"event":"wait"`, with `wait_until` and its length);
+and resolved, `rate_limited` when a limit stopped it, `transient` when
+the launcher's exit code was a transient one), and each wait is one too (`"event":"wait"`, with `wait_until` and its length);
 `metis auto --status` summarises the last run.
 
 **Branching** (`auto.branch`): with `slice` (default) a slice's sessions
