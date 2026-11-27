@@ -165,6 +165,63 @@ func conflictOf(what string, err error) error {
 	return err
 }
 
+// stateMergeExe is the metis binary git runs as the state files' merge
+// driver during a rebase: the running one.
+var stateMergeExe = os.Executable
+
+// rebaseMergingState rebases the current branch onto upstream with the
+// state files merged on their entries at every step where both sides
+// changed them, whether or not git would report a conflict: git runs this
+// binary's 'state merge' as their merge driver, set for this rebase alone.
+// A conflict the driver reports, like any conflict in another file,
+// aborts the rebase and is returned.
+func rebaseMergingState(ctx *context, upstream string) error {
+	config, cleanup := stateMergeDriver(ctx)
+	defer cleanup()
+	return git.Rebase(ctx.repoRoot, upstream, config, func(paths []string) error {
+		return resolveStateConflicts(ctx, paths)
+	})
+}
+
+// stateMergeDriver returns the git settings that make 'metis state merge'
+// the merge driver of the project's state files, and the cleanup of the
+// attributes file they name. Without a driver (this binary's path is
+// unknown, or a state path holds characters an attributes pattern gives
+// a meaning) the settings are empty and only the conflicts git reports
+// are merged by entry.
+func stateMergeDriver(ctx *context) (config []string, cleanup func()) {
+	cleanup = func() {}
+	exe, err := stateMergeExe()
+	if err != nil || exe == "" {
+		return nil, cleanup
+	}
+	// git runs a driver through the shell, on Windows too (its own sh).
+	exe = "'" + strings.ReplaceAll(filepath.ToSlash(exe), "'", `'\''`) + "'"
+	var attrs strings.Builder
+	for _, k := range []struct{ kind, path string }{
+		{stateLedger, ctx.cfg.Paths.Ledger},
+		{stateArchive, ctx.cfg.Paths.Archive},
+		{stateFindings, ctx.cfg.Paths.Findings},
+	} {
+		path := filepath.ToSlash(k.path)
+		if path == "" || strings.ContainsAny(path, " \t*?[]\\\"!#") {
+			continue
+		}
+		fmt.Fprintf(&attrs, "/%s merge=metis-%s\n", strings.TrimPrefix(path, "/"), k.kind)
+		config = append(config, fmt.Sprintf("merge.metis-%s.driver=%s state merge %%O %%A %%B --kind %s", k.kind, exe, k.kind))
+	}
+	f, err := os.CreateTemp("", "metis-attributes-")
+	if err != nil {
+		return nil, cleanup
+	}
+	cleanup = func() { _ = os.Remove(f.Name()) }
+	_, werr := f.WriteString(attrs.String())
+	if cerr := f.Close(); werr != nil || cerr != nil {
+		return nil, cleanup
+	}
+	return append(config, "core.attributesFile="+f.Name()), cleanup
+}
+
 // resolveStateConflicts settles a rebase step's conflicts when every
 // conflicted path is a state file: each is merged on its entries, written
 // and staged. Any other conflicted path, or a real conflict within a

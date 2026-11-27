@@ -10,6 +10,17 @@ import (
 	"github.com/techspeque/metis/internal/findings"
 )
 
+// useBuiltMetisAsMergeDriver makes a rebase run the built metis as the
+// state files' merge driver: under test the running binary is the test
+// binary, which has no 'state merge'.
+func useBuiltMetisAsMergeDriver(t *testing.T) {
+	t.Helper()
+	exe := filepath.Join(metisBinary(t), "metis")
+	old := stateMergeExe
+	stateMergeExe = func() (string, error) { return exe, nil }
+	t.Cleanup(func() { stateMergeExe = old })
+}
+
 // runMetis runs one metis command in-process.
 func runMetis(t *testing.T, args ...string) error {
 	t.Helper()
@@ -137,7 +148,9 @@ func TestAutoStopsOnASourceConflict(t *testing.T) {
 }
 
 // The same slice changed on both sides is a real conflict, state file or
-// not.
+// not. git would merge the two changes by line without a word (a title
+// and a flag are lines apart): the stop comes from the merge by entry at
+// the first step where both sides changed the ledger.
 func TestAutoStopsWhenBothSidesChangedASlice(t *testing.T) {
 	dir := makeAutoProject(t, "  mode: auto", []autoSlice{{id: "s-1"}, {id: "s-2"}}, "code", "human:which vendor?", "pass")
 	stopOnBranch(t)
@@ -148,7 +161,7 @@ func TestAutoStopsWhenBothSidesChangedASlice(t *testing.T) {
 
 	out, code := resumeOnBranch(t, dir)
 	expectStop(t, out, code, 3, ruleMerge)
-	if !strings.Contains(out, "conflict in .metis/slices.yaml: slice s-2 changed on") {
+	if !strings.Contains(out, "conflict in .metis/slices.yaml: slice s-2 changed on both sides") {
 		t.Errorf("the stop should name the slice:\n%s", out)
 	}
 	expectBranchAsItWas(t, dir)
@@ -311,5 +324,188 @@ func TestStateMergeDriverUnderGitRebase(t *testing.T) {
 	}
 	if f := store.Findings[2]; f.ID != "f-003" || f.Finding != "from the topic" || f.Alias != "f-002" {
 		t.Errorf("the rebased finding: %+v", f)
+	}
+}
+
+// stderrOf returns what run wrote to stderr.
+func stderrOf(t *testing.T, run func()) string {
+	t.Helper()
+	f, err := os.CreateTemp(t.TempDir(), "stderr")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := os.Stderr
+	os.Stderr = f
+	defer func() { os.Stderr = old }()
+	run()
+	os.Stderr = old
+	_ = f.Close()
+	data, err := os.ReadFile(f.Name())
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
+// An id that is also the id another finding had before a merge still
+// names the finding that holds it now, and the command says so.
+func TestFindingIDThatIsAlsoAnAliasIsNoted(t *testing.T) {
+	dir := makeGitProjectWithLedger(t)
+	path := filepath.Join(dir, ".metis", "findings.yaml")
+	store := &findings.Store{}
+	store.Add("feat-0001", "P2", "tests", "the empty case is untested")
+	store.Add("feat-0002", "P2", "tests", "the retry bound is missing")
+	store.Add("feat-0001", "P3", "maint", "a stale comment")
+	store.Findings[1].Alias = "f-001"
+	if err := store.Save(path); err != nil {
+		t.Fatal(err)
+	}
+	gitOut(t, dir, "add", "-A")
+	gitOut(t, dir, "commit", "-qm", "chore(feat-0001): findings")
+	const note = "note: f-001 was also the id of f-002 (slice feat-0002) before a merge\n"
+
+	for _, args := range [][]string{
+		{"findings", "record", "feat-0001", "--finding", "still untested", "--follow-on", "f-001"},
+		{"findings", "resolve", "f-003", "--duplicate-of", "f-001"},
+		{"findings", "reclassify", "f-001", "--severity", "P1", "--by", "human", "--reason", "it is"},
+		{"findings", "waive", "f-001", "--by", "human", "--reason", "accepted"},
+	} {
+		var err error
+		if got := stderrOf(t, func() { err = runMetis(t, args...) }); err != nil || !strings.Contains(got, note) {
+			t.Errorf("%v: err %v, stderr %q", args, err, got)
+		}
+	}
+	got, err := findings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.Findings[0].Status != "waived" || got.Findings[1].Status != "open" {
+		t.Errorf("the id's own finding is the one acted on: %+v", got.Findings[:2])
+	}
+
+	// No note for an id nothing else was called.
+	var runErr error
+	if out := stderrOf(t, func() { runErr = runMetis(t, "findings", "waive", "f-002", "--by", "human", "--reason", "accepted") }); runErr != nil || strings.Contains(out, "note:") {
+		t.Errorf("f-002: err %v, stderr %q", runErr, out)
+	}
+}
+
+// The landing rebase with the merge driver: a change to the branch's own
+// f-002 follows the finding to the id the merge gave it, and nothing is
+// left in the repository's configuration.
+func TestRebaseWithTheMergeDriverLeavesNothingBehind(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the merge driver is run through a POSIX shell; not exercised on Windows")
+	}
+	dir := makeGitProjectWithLedger(t)
+	path := filepath.Join(dir, ".metis", "findings.yaml")
+	commit := func(subject string, change func(*findings.Store)) {
+		t.Helper()
+		store, err := findings.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		change(store)
+		if err := store.Save(path); err != nil {
+			t.Fatal(err)
+		}
+		gitOut(t, dir, "add", "-A")
+		gitOut(t, dir, "commit", "-qm", "chore(feat-0001): "+subject)
+	}
+	raise := func(text string) func(*findings.Store) {
+		return func(s *findings.Store) {
+			s.FindByID(s.Add("feat-0001", "P2", "tests", text)).Place(1, "src/x.go")
+		}
+	}
+	work := strings.TrimSpace(gitOut(t, dir, "rev-parse", "--abbrev-ref", "HEAD"))
+	commit("shared", raise("shared"))
+	gitOut(t, dir, "checkout", "-q", "-b", "topic")
+	commit("topic raises f-002", raise("from the topic"))
+	commit("topic moves its f-002 to review 2", func(s *findings.Store) { s.FindByID("f-002").Cycle = 2 })
+	gitOut(t, dir, "checkout", "-q", work)
+	commit("work raises f-002", raise("from the work branch"))
+	gitOut(t, dir, "checkout", "-q", "topic")
+
+	useBuiltMetisAsMergeDriver(t)
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = rebaseMergingState(ctx, work)
+	releaseRepoLock()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	store, err := findings.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(store.Findings) != 3 {
+		t.Fatalf("findings = %+v", store.Findings)
+	}
+	if f := store.Findings[1]; f.ID != "f-002" || f.Finding != "from the work branch" || f.Cycle != 1 {
+		t.Errorf("the work branch's finding must be untouched: %+v", f)
+	}
+	if f := store.Findings[2]; f.ID != "f-003" || f.Alias != "f-002" || f.Finding != "from the topic" || f.Cycle != 2 {
+		t.Errorf("the topic's change follows its finding: %+v", f)
+	}
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("tree dirty after the rebase:\n%s", status)
+	}
+	if cfg := gitOut(t, dir, "config", "--local", "--list"); strings.Contains(cfg, "metis") {
+		t.Errorf("the driver must not be written to the repository's config:\n%s", cfg)
+	}
+	if _, err := os.Stat(filepath.Join(dir, ".git", "info", "attributes")); err == nil {
+		t.Error("no attributes file may be left in the repository")
+	}
+}
+
+// git merges these two histories by line without a conflict: the title
+// and the coded flag of one slice are lines apart. By entry the slice
+// changed on both sides, which is a person's to settle. Only the merge
+// driver sees it, since git reports no conflict to resolve: without the
+// driver the rebase succeeds.
+func TestRebaseStopsWhereGitWouldMergeByLine(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("the merge driver is run through a POSIX shell; not exercised on Windows")
+	}
+	dir := makeGitProjectWithLedger(t)
+	ledger := filepath.Join(dir, ".metis", "slices.yaml")
+	work := strings.TrimSpace(gitOut(t, dir, "rev-parse", "--abbrev-ref", "HEAD"))
+	gitOut(t, dir, "checkout", "-q", "-b", "topic")
+	replaceInFile(t, ledger, "coded: false", "coded: true")
+	gitOut(t, dir, "commit", "-qam", "chore(feat-0001): coded")
+	gitOut(t, dir, "checkout", "-q", work)
+	replaceInFile(t, ledger, "Test slice", "Test slice, retitled")
+	gitOut(t, dir, "commit", "-qam", "chore(feat-0001): retitle")
+	gitOut(t, dir, "checkout", "-q", "topic")
+	before := gitOut(t, dir, "rev-parse", "HEAD")
+
+	ctx, err := loadContext()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer releaseRepoLock()
+
+	useBuiltMetisAsMergeDriver(t)
+	err = rebaseMergingState(ctx, work)
+	if err == nil || !strings.Contains(err.Error(), "slice feat-0001 changed on both sides") {
+		t.Fatalf("with the driver: got %v, want the slice named as changed on both sides", err)
+	}
+	if after := gitOut(t, dir, "rev-parse", "HEAD"); after != before {
+		t.Error("the aborted rebase moved the branch")
+	}
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("the aborted rebase left the tree dirty:\n%s", status)
+	}
+
+	// The hole the driver closes: git alone lets both changes through.
+	stateMergeExe = func() (string, error) { return "", nil }
+	if err := rebaseMergingState(ctx, work); err != nil {
+		t.Fatalf("without the driver git merges by line: %v", err)
+	}
+	if l := ledgerText(t, dir); !strings.Contains(l, "retitled") || !strings.Contains(l, "coded: true") {
+		t.Errorf("both changes should be in the ledger:\n%s", l)
 	}
 }

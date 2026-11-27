@@ -920,10 +920,9 @@ func (r *autoRun) landBranch(id string) (string, *autoStop) {
 
 	how := "fast-forward merged into " + work
 	if !git.IsAncestor(ctx.repoRoot, work, b) {
-		// Conflicts confined to the state files are merged on their
-		// entries; any other conflict aborts the rebase.
-		resolve := func(paths []string) error { return resolveStateConflicts(ctx, paths) }
-		if err := git.Rebase(ctx.repoRoot, work, resolve); err != nil {
+		// The state files are merged on their entries; any other conflict
+		// aborts the rebase.
+		if err := rebaseMergingState(ctx, work); err != nil {
 			return "", stop("rebasing %s onto %s failed (the rebase was aborted, the branch is as it was): %v", b, work, err)
 		}
 		store := runs.NewStore(filepath.Join(ctx.repoRoot, ctx.cfg.Paths.Runs))

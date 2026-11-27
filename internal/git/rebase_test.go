@@ -30,7 +30,7 @@ func divergedRepo(t *testing.T) (dir, main string) {
 func TestRebaseHandsConflictsToTheResolver(t *testing.T) {
 	dir, main := divergedRepo(t)
 	var seen []string
-	err := Rebase(dir, main, func(paths []string) error {
+	err := Rebase(dir, main, nil, func(paths []string) error {
 		seen = append(seen, paths...)
 		if got := string(StageBlob(dir, 1, "src/a.go")) + string(StageBlob(dir, 2, "src/a.go")) + string(StageBlob(dir, 3, "src/a.go")); got != "package a\npackage a // main\npackage a // topic\n" {
 			t.Errorf("stages base, ours, theirs = %q", got)
@@ -55,7 +55,7 @@ func TestRebaseHandsConflictsToTheResolver(t *testing.T) {
 // A resolution that leaves nothing to commit drops the step and goes on.
 func TestRebaseDropsAStepTheResolutionEmpties(t *testing.T) {
 	dir, main := divergedRepo(t)
-	err := Rebase(dir, main, func([]string) error {
+	err := Rebase(dir, main, nil, func([]string) error {
 		write(t, dir, "src/a.go", "package a // main\n")
 		return Add(dir, "src/a.go")
 	})
@@ -71,7 +71,7 @@ func TestRebaseAbortsWhenTheResolverRefuses(t *testing.T) {
 	dir, main := divergedRepo(t)
 	before, _ := HeadHash(dir)
 	refused := errors.New("not mine to settle")
-	if err := Rebase(dir, main, func([]string) error { return refused }); !errors.Is(err, refused) {
+	if err := Rebase(dir, main, nil, func([]string) error { return refused }); !errors.Is(err, refused) {
 		t.Fatalf("err = %v", err)
 	}
 	if after, _ := HeadHash(dir); after != before {
@@ -104,7 +104,7 @@ func TestRebaseKeepsACommitWhosePatchIsUpstream(t *testing.T) {
 	runGit(t, dir, "commit", "-qam", "flip one")
 	runGit(t, dir, "checkout", "-q", "topic")
 
-	if err := Rebase(dir, main, func([]string) error { return errors.New("no conflict expected") }); err != nil {
+	if err := Rebase(dir, main, nil, func([]string) error { return errors.New("no conflict expected") }); err != nil {
 		t.Fatal(err)
 	}
 	if got, _ := os.ReadFile(filepath.Join(dir, "ledger")); string(got) != "- id: one\n"+flipped+"- id: two\n"+flipped {

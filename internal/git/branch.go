@@ -113,12 +113,22 @@ func IsAncestor(repoDir, ancestor, rev string) bool {
 // on conflicted paths is handed to resolve, which leaves them resolved in
 // the working tree and staged, and the rebase continues. An error from
 // resolve, or a step that stops for another reason, aborts the rebase,
-// leaving the branch as it was, and is returned.
-func Rebase(repoDir, upstream string, resolve func(paths []string) error) error {
+// leaving the branch as it was, and is returned. config is "key=value"
+// settings for this rebase alone (git -c): nothing is written to the
+// repository's or the user's configuration.
+func Rebase(repoDir, upstream string, config []string, resolve func(paths []string) error) error {
+	rebase := func(args ...string) error {
+		var argv []string
+		for _, kv := range config {
+			argv = append(argv, "-c", kv)
+		}
+		_, err := run(repoDir, append(append(argv, "-c", "core.editor=true", "rebase"), args...)...)
+		return err
+	}
 	// Two slices' flips are the same patch to git (the changed line and
 	// its context do not include the slice id), and a rebase drops a commit
 	// whose patch is already upstream: every commit is reapplied instead.
-	_, err := run(repoDir, "rebase", "-q", "--reapply-cherry-picks", upstream)
+	err := rebase("-q", "--reapply-cherry-picks", upstream)
 	for err != nil {
 		paths, perr := UnmergedPaths(repoDir)
 		if perr != nil || len(paths) == 0 {
@@ -134,10 +144,10 @@ func Rebase(repoDir, upstream string, resolve func(paths []string) error) error 
 		if staged, serr := HasStagedChanges(repoDir); serr == nil && !staged {
 			next = "--skip"
 		}
-		_, err = run(repoDir, "-c", "core.editor=true", "rebase", next)
+		err = rebase(next)
 	}
 	if err != nil {
-		_, _ = run(repoDir, "rebase", "--abort")
+		_ = rebase("--abort")
 	}
 	return err
 }

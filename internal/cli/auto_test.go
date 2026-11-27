@@ -157,6 +157,7 @@ auto:
 	t.Setenv("FAKE_SCRIPT", script)
 	t.Setenv("FAKE_STATE", state)
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+	useBuiltMetisAsMergeDriver(t)
 	t.Chdir(dir)
 	return dir
 }
