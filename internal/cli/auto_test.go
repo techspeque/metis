@@ -63,6 +63,7 @@ func fakeAgentPath(t *testing.T) string {
 
 type autoSlice struct {
 	id, plan, typ, reviewer, mode string
+	blockedBy                     string // "s-1, s-2"
 }
 
 // makeAutoProject creates a git project on dev whose agents are fake
@@ -121,6 +122,9 @@ auto:
 			"\n    plan: " + s.plan + "\n    plan_section: §1\n    coded: false\n    reviewed: false\n    review_cycles: 0\n    created: 2026-10-01\n")
 		if s.mode != "" {
 			ledger.WriteString("    auto_mode: " + s.mode + "\n")
+		}
+		if s.blockedBy != "" {
+			ledger.WriteString("    blocked_by: [" + s.blockedBy + "]\n")
 		}
 	}
 	for path, content := range map[string]string{

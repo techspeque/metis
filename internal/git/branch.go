@@ -109,14 +109,66 @@ func IsAncestor(repoDir, ancestor, rev string) bool {
 	return cmd.Run() == nil
 }
 
-// Rebase rebases the current branch onto upstream; on a conflict it aborts
-// the rebase, leaving the branch as it was, and returns the error.
-func Rebase(repoDir, upstream string) error {
-	if _, err := run(repoDir, "rebase", "-q", upstream); err != nil {
-		_, _ = run(repoDir, "rebase", "--abort")
-		return err
+// Rebase rebases the current branch onto upstream. Each step that stops
+// on conflicted paths is handed to resolve, which leaves them resolved in
+// the working tree and staged, and the rebase continues. An error from
+// resolve, or a step that stops for another reason, aborts the rebase,
+// leaving the branch as it was, and is returned.
+func Rebase(repoDir, upstream string, resolve func(paths []string) error) error {
+	// Two slices' flips are the same patch to git (the changed line and
+	// its context do not include the slice id), and a rebase drops a commit
+	// whose patch is already upstream: every commit is reapplied instead.
+	_, err := run(repoDir, "rebase", "-q", "--reapply-cherry-picks", upstream)
+	for err != nil {
+		paths, perr := UnmergedPaths(repoDir)
+		if perr != nil || len(paths) == 0 {
+			break
+		}
+		if rerr := resolve(paths); rerr != nil {
+			err = rerr
+			break
+		}
+		// A step whose changes the resolution already holds has nothing
+		// left to commit: it is dropped.
+		next := "--continue"
+		if staged, serr := HasStagedChanges(repoDir); serr == nil && !staged {
+			next = "--skip"
+		}
+		_, err = run(repoDir, "-c", "core.editor=true", "rebase", next)
 	}
-	return nil
+	if err != nil {
+		_, _ = run(repoDir, "rebase", "--abort")
+	}
+	return err
+}
+
+// UnmergedPaths lists the repository-relative paths with conflicts in the
+// index, with forward slashes.
+func UnmergedPaths(repoDir string) ([]string, error) {
+	out, err := run(repoDir, "diff", "--name-only", "--diff-filter=U", "-z")
+	if err != nil {
+		return nil, err
+	}
+	var paths []string
+	for _, p := range strings.Split(out, "\x00") {
+		if p != "" {
+			paths = append(paths, p)
+		}
+	}
+	return paths, nil
+}
+
+// StageBlob returns one side of a conflicted path from the index: stage 1
+// is the common base, 2 ours, 3 theirs. A side that does not have the
+// file (added on both sides, deleted on one) is empty.
+func StageBlob(repoDir string, stage int, relPath string) []byte {
+	cmd := exec.Command("git", "show", fmt.Sprintf(":%d:%s", stage, filepath.ToSlash(relPath)))
+	cmd.Dir = repoDir
+	out, err := cmd.Output()
+	if err != nil {
+		return nil
+	}
+	return out
 }
 
 // MergeFastForward fast-forwards the current branch to rev.
