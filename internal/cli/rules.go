@@ -25,6 +25,7 @@ const (
 	ruleNoLauncher      = "no_launcher"
 	rulePlanning        = "planning"
 	ruleMerge           = "merge"
+	ruleSync            = "sync"
 	ruleBranch          = "branch"
 	rulePROpened        = "pr_opened"
 	ruleInterrupted     = "interrupted"

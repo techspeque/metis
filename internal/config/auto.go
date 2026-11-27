@@ -298,6 +298,14 @@ func (c *Config) validateAuto() []error {
 		if agent.Surface == SurfaceHuman && len(agent.Launch) > 0 {
 			errs = append(errs, fmt.Errorf("agent %q: a human agent has no launch command", slug))
 		}
+		if agent.Surface == SurfaceHuman && (agent.Remote || len(agent.TransientExitCodes) > 0) {
+			errs = append(errs, fmt.Errorf("agent %q: a human agent is not launched: remote and transient_exit_codes do not apply", slug))
+		}
+		for _, code := range agent.TransientExitCodes {
+			if code < 1 || code > 255 {
+				errs = append(errs, fmt.Errorf("agent %q: transient_exit_codes: %d is not a failing exit code (1 to 255)", slug, code))
+			}
+		}
 		if rl := agent.RateLimit; rl != nil {
 			for _, p := range append(append([]string{}, rl.Patterns...), rl.ResetPattern) {
 				if _, err := CompilePattern(p); err != nil {

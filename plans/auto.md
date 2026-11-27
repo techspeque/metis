@@ -251,6 +251,7 @@ from (`slice`, `phase`, `risk`, `project`, `default`); `metis list` and
 | `dirty_tree` | on | the tree is dirty and the dirty files are outside the slice's scope |
 | `session_failed` | 1 retry | the agent exits non-zero or times out twice |
 | `rate_limited` | `auto.rate_limit.max_wait` 6h | the agent's usage or rate limit stopped a session and the next wait would take the slice past the bound; the slice waits until a time, not for a person ([hardening](auto-hardening.md#1-rate-limits-wait-and-retry)) |
+| `sync` | always, for an agent with `remote: true` | the branch is rejected by `origin` before a remote session, cannot fast-forward to `origin`'s after it, or the work branch cannot be pushed once the slice landed; nothing is rebased or reset and the slice is not parked ([hardening](auto-hardening.md#3-remote-sessions-push-before-fetch-after)) |
 | `budget` | per slice 6h wall clock, 8 sessions | either is exceeded |
 | `human_agent` | on | the role's agent has `surface: human` |
 | `no_launcher` | on | the role's agent is not configured or has no `launch` |

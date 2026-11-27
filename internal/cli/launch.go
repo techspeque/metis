@@ -44,6 +44,14 @@ human agent, or one without a launcher, is refused: metis never
 substitutes an agent. The session ends at auto.session_timeout (default
 2h), which terminates its process group.
 
+For an agent with remote: true the launcher runs the agent in another
+checkout: the current branch is pushed to origin before the session and
+fetched, fast-forward only, after it. A rejected push or a branch that
+cannot fast-forward is an error; nothing is rebased or reset. When origin
+already holds commits this checkout lacks, the branch is fast-forwarded to
+them and nothing is launched: run metis launch again, for the session the
+ledger now calls for.
+
 --dry-run prints the argv (the prompt elided) without running it.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -86,6 +94,10 @@ substitutes an agent. The session ends at auto.session_timeout (default
 		sigCtx, stop := signal.NotifyContext(stdcontext.Background(), os.Interrupt, syscall.SIGTERM)
 		defer stop()
 		res, err := plan.run(sigCtx, ctx, echo)
+		var moved *movedError
+		if errors.As(err, &moved) {
+			return fmt.Errorf("%s: run metis launch again", moved.msg)
+		}
 		if err != nil {
 			return err
 		}
@@ -194,15 +206,70 @@ func planSession(ctx *context, l *ledger.Ledger, id, role, tmpl, branch string) 
 	return p, nil
 }
 
-// run writes the prompt file and runs the session.
+// syncError is a remote session whose branch could not be pushed before it
+// or fast-forwarded after it: metis auto stops on it with the sync rule.
+type syncError struct{ msg string }
+
+func (e *syncError) Error() string { return e.msg }
+
+// movedError is a remote session not launched because origin's branch held
+// commits this checkout lacked (an earlier session's late push): the branch
+// was fast-forwarded, and the plan, made from the ledger before them, is
+// stale. The session is planned again from the ledger as it now is.
+type movedError struct{ msg string }
+
+func (e *movedError) Error() string { return e.msg }
+
+// run writes the prompt file and runs the session. For a remote agent the
+// current branch is first brought up to origin's (fast-forward only; a
+// branch origin does not have yet is simply pushed), then pushed, and
+// after the session fetched and fast-forwarded again: the agent's commits
+// arrive through origin. Nothing is ever rebased or reset; a branch that
+// cannot be pushed or fast-forwarded is a syncError, returned with the
+// result when the session did run. A fast-forward before the session is a
+// movedError: nothing is launched.
 func (p *sessionPlan) run(parent stdcontext.Context, ctx *context, echo io.Writer) (*launch.Result, error) {
+	branch := ""
+	if p.Agent.Remote {
+		var err error
+		if branch, err = git.CurrentBranch(ctx.repoRoot); err != nil {
+			return nil, err
+		}
+		// A fetch that fails (no such branch on origin yet, or no origin
+		// to reach) is left to the push to judge.
+		if git.Fetch(ctx.repoRoot, branch) == nil {
+			before, _ := git.HeadHash(ctx.repoRoot)
+			if err := git.MergeFastForward(ctx.repoRoot, "FETCH_HEAD"); err != nil {
+				return nil, &syncError{fmt.Sprintf("%s is a remote agent and %s has diverged from origin's before its session (nothing was launched, nothing was rewritten): %v", p.Handoff.AgentSlug, branch, err)}
+			}
+			if after, _ := git.HeadHash(ctx.repoRoot); after != before {
+				return nil, &movedError{fmt.Sprintf("origin's %s held commits this checkout lacked: fast-forwarded to them; the %s session was not launched, it is planned again from the ledger as it now is", branch, strings.ToLower(p.Handoff.Role))}
+			}
+		}
+		if err := git.Push(ctx.repoRoot, branch); err != nil {
+			return nil, &syncError{fmt.Sprintf("%s is a remote agent and %s could not be pushed to origin before its session (nothing was launched): %v", p.Handoff.AgentSlug, branch, err)}
+		}
+	}
 	if err := os.MkdirAll(filepath.Dir(p.PromptPath), 0o755); err != nil {
 		return nil, err
 	}
 	if err := os.WriteFile(p.PromptPath, []byte(p.Handoff.Prompt), 0o644); err != nil {
 		return nil, fmt.Errorf("writing the prompt file: %w", err)
 	}
-	return launch.Run(parent, p.Argv, ctx.repoRoot, p.LogPath, p.Timeout, echo)
+	if !p.Agent.Remote {
+		return launch.Run(parent, p.Argv, ctx.repoRoot, p.LogPath, p.Timeout, echo)
+	}
+	res, err := launch.Run(parent, p.Argv, ctx.repoRoot, p.LogPath, p.Timeout, echo)
+	if err != nil {
+		return nil, err
+	}
+	if err := git.Fetch(ctx.repoRoot, branch); err != nil {
+		return res, &syncError{fmt.Sprintf("after the remote session of %s (exit %d, log %s), %s could not be fetched from origin: %v", p.Handoff.AgentSlug, res.ExitCode, ctx.rel(p.LogPath), branch, err)}
+	}
+	if err := git.MergeFastForward(ctx.repoRoot, "FETCH_HEAD"); err != nil {
+		return res, &syncError{fmt.Sprintf("after the remote session of %s (exit %d, log %s), %s cannot fast-forward to origin's (nothing was rewritten): %v", p.Handoff.AgentSlug, res.ExitCode, ctx.rel(p.LogPath), branch, err)}
+	}
+	return res, nil
 }
 
 // autoDir is a slice's auto run directory: its session logs, prompts and

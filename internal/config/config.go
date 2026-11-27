@@ -60,6 +60,24 @@ type Agent struct {
 	// or rate limit is told from any other failure. Each unset key takes
 	// the built-in default for the surface, if any.
 	RateLimit *RateLimit `yaml:"rate_limit,omitempty" json:"rate_limit,omitempty"`
+	// Remote says the launcher runs the agent in another checkout (on
+	// another machine): the branch is pushed to origin before the session
+	// and fetched, fast-forward only, after it.
+	Remote bool `yaml:"remote,omitempty" json:"remote,omitempty"`
+	// TransientExitCodes are the launcher's exit codes that mean "try
+	// again later" and not "the agent failed": metis auto waits and runs
+	// the session again, as it does for a rate limit.
+	TransientExitCodes []int `yaml:"transient_exit_codes,omitempty" json:"transient_exit_codes,omitempty"`
+}
+
+// Transient reports whether an exit code is one of TransientExitCodes.
+func (a *Agent) Transient(exitCode int) bool {
+	for _, code := range a.TransientExitCodes {
+		if code == exitCode {
+			return true
+		}
+	}
+	return false
 }
 
 // RateLimit recognises a session stopped by the agent's usage or rate

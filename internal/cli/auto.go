@@ -2,6 +2,7 @@ package cli
 
 import (
 	stdcontext "context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -60,7 +61,14 @@ A session stopped by its agent's usage or rate limit is not a failure: the
 slice waits ('metis wait --until', no --human) and the run sleeps until
 the limit resets, then runs the session again. Waiting longer than
 auto.rate_limit.max_wait stops the run (rate_limited, exit 3) with the
-wait in place; metis auto after it carries on.
+wait in place; metis auto after it carries on. A launcher exit code in the
+agent's transient_exit_codes is waited out the same way.
+
+A session of an agent with remote: true is wrapped in a sync with origin
+(metis launch); a branch origin rejects, or one that cannot fast-forward
+afterwards, stops the run (sync, exit 3) with nothing rewritten. A slice
+that ran one is pushed when it lands: the work branch, and origin's
+auto/<slice-id> deleted.
 
 Each session is one line of .metis/runs/auto.jsonl; --status summarises the
 last run. With auto.branch: slice (the default) a slice's work lands on
@@ -180,6 +188,11 @@ func (r *autoRun) loop(sig stdcontext.Context) *autoStop {
 	}
 	if st := r.resumeBranch(); st != nil {
 		return st
+	}
+	if !r.opts.dryRun {
+		if st := r.retryPushes(); st != nil {
+			return st
+		}
 	}
 	for {
 		if sig.Err() != nil {
@@ -424,7 +437,28 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 	start := time.Now()
 	r.say("session %d on %s: %s %s (%s), log %s", plan.Session, id, strings.ToLower(plan.Handoff.Role), plan.Handoff.AgentSlug, plan.Handoff.Template, ctx.rel(plan.LogPath))
 	res, err := plan.run(sig, ctx, nil)
-	if err != nil {
+	var syncErr *syncError
+	var moved *movedError
+	switch {
+	case errors.As(err, &moved):
+		// An earlier session's commits arrived late: no session ran, and
+		// the next iteration plans from the ledger they brought. They may
+		// have finished the slice.
+		r.say("%s", moved.msg)
+		if l, lerr := ctx.loadLedger(); lerr == nil {
+			if cur := l.FindByID(id); (cur == nil && r.isArchived(id)) || (cur != nil && cur.IsDone()) {
+				return r.complete(id)
+			}
+		}
+		return nil
+	case errors.As(err, &syncErr):
+		// The remote's state is unknown: the ledger here says nothing
+		// about the session. Not parked: a park would be one more commit
+		// origin does not have.
+		if sig.Err() == nil {
+			return ruleStop(ruleSync, s, false, "%s", syncErr.msg)
+		}
+	case err != nil:
 		return ruleStop(ruleSessionFailed, s, true, "the session could not start: %v", err)
 	}
 	if sig.Err() != nil {
@@ -462,20 +496,24 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 	exitCode := res.ExitCode
 	// A failed session is classified before it is counted: one the agent's
 	// usage or rate limit stopped is waited out, not charged as a failure.
-	limited, reset := false, time.Time{}
+	// One whose launcher exited with a transient code is waited out the
+	// same way. Either that made progress is progress: the next session
+	// meets the limit, or the launcher's trouble, and waits.
+	limited, transient, reset := false, false, time.Time{}
 	if res.Failed() && !progressed {
 		code := res.ExitCode
 		if res.TimedOut {
 			code = -1 // the exit code is the kill's, not the agent's
 		}
 		limited, reset = launch.Limited(&plan.Agent, code, plan.LogPath, time.Now())
+		transient = !limited && plan.Agent.Transient(code)
 	}
 	ctx.appendAutoEvent(&autoEvent{
 		Run: r.runID, Event: "session", Slice: id, Session: plan.Session,
 		Role: plan.Handoff.Role, Agent: plan.Handoff.AgentSlug, Model: plan.Agent.Model, Template: plan.Handoff.Template,
 		DurationSeconds: res.Duration.Round(time.Second).Seconds(), ExitCode: &exitCode, TimedOut: res.TimedOut,
 		Outcome: outcome, FindingsOpened: opened, FindingsResolved: resolved, Log: ctx.rel(plan.LogPath),
-		RateLimited: limited,
+		RateLimited: limited, Transient: transient,
 	})
 	r.say("session %d ended: exit %d, %s, outcome %s", plan.Session, res.ExitCode, res.Duration.Round(time.Second), outcome)
 
@@ -543,7 +581,9 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 		delete(r.idle, key)
 		return r.complete(id)
 	case limited:
-		return r.waitOutLimit(sig, cur, plan, reset)
+		return r.waitOutLimit(sig, cur, plan, reset, rateLimitReason, "is rate limited")
+	case transient:
+		return r.waitOutLimit(sig, cur, plan, time.Time{}, transientReason, fmt.Sprintf("exited %d, one of its transient_exit_codes", res.ExitCode))
 	case res.Failed() && !progressed:
 		r.failures[key]++
 		if r.failures[key] > stop.Retries() {
@@ -571,6 +611,10 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 // rate limited.
 const rateLimitReason = "auto: " + ruleRateLimited
 
+// transientReason is the wait metis auto sets on a slice whose agent's
+// launcher exited with a transient code.
+const transientReason = "auto: transient"
+
 // autoSleep waits until a time or until ctx is done, whichever is first,
 // and reports ctx's error. It checks the wall clock in short steps: a
 // timer alone runs late on a machine that slept. Tests replace it.
@@ -594,8 +638,10 @@ var autoSleep = func(ctx stdcontext.Context, until time.Time) error {
 // waits in the ledger until the limit's reset time plus a minute (or, when
 // the log names none, a backoff that doubles), the run sleeps until then,
 // and the same session runs again. Waiting past auto.rate_limit.max_wait
-// stops the run instead, with the wait left in place.
-func (r *autoRun) waitOutLimit(sig stdcontext.Context, s *slice.Slice, plan *sessionPlan, reset time.Time) *autoStop {
+// stops the run instead, with the wait left in place. A session whose
+// launcher exited with a transient code is waited out here too, under its
+// own reason: cause says which, after the agent's name.
+func (r *autoRun) waitOutLimit(sig stdcontext.Context, s *slice.Slice, plan *sessionPlan, reset time.Time, reason, cause string) *autoStop {
 	ctx := r.ctx
 	rl := &ctx.cfg.Auto.RateLimit
 	role := strings.ToLower(plan.Handoff.Role)
@@ -610,19 +656,19 @@ func (r *autoRun) waitOutLimit(sig stdcontext.Context, s *slice.Slice, plan *ses
 	wait := until.Sub(now)
 	stamp := until.UTC().Format(time.RFC3339)
 
-	if err := parkSlice(ctx, s.ID, rateLimitReason, until); err != nil {
+	if err := parkSlice(ctx, s.ID, reason, until); err != nil {
 		fmt.Fprintf(os.Stderr, "warning: could not mark %s waiting: %v\n", s.ID, err)
 	}
 	if limit := rl.MaxWaitTime(); waited+wait > limit {
-		return ruleStop(ruleRateLimited, s, false, "the %s (%s) is rate limited: waiting until %s would pass auto.rate_limit.max_wait (%s; %s waited); %s waits until then",
-			role, plan.Handoff.AgentSlug, stamp, limit, waited.Round(time.Second), s.ID)
+		return ruleStop(ruleRateLimited, s, false, "the %s (%s) %s: waiting until %s would pass auto.rate_limit.max_wait (%s; %s waited); %s waits until then",
+			role, plan.Handoff.AgentSlug, cause, stamp, limit, waited.Round(time.Second), s.ID)
 	}
 	ctx.appendAutoEvent(&autoEvent{Run: r.runID, Event: "wait", Slice: s.ID, Rule: ruleRateLimited, WaitUntil: stamp, DurationSeconds: wait.Round(time.Second).Seconds()})
-	r.say("the %s (%s) is rate limited: waiting %s, until %s (%s)", role, plan.Handoff.AgentSlug, wait.Round(time.Second), stamp, why)
+	r.say("the %s (%s) %s: waiting %s, until %s (%s)", role, plan.Handoff.AgentSlug, cause, wait.Round(time.Second), stamp, why)
 	if err := autoSleep(sig, until); err != nil {
-		return &autoStop{Rule: ruleInterrupted, Slice: s.ID, Detail: "interrupted while waiting out a rate limit (until " + stamp + ")", Exit: exitAutoInterrupted}
+		return &autoStop{Rule: ruleInterrupted, Slice: s.ID, Detail: "interrupted while waiting: the " + role + " " + cause + " (until " + stamp + ")", Exit: exitAutoInterrupted}
 	}
-	if err := unparkSlice(ctx, s.ID, rateLimitReason); err != nil {
+	if err := unparkSlice(ctx, s.ID, reason); err != nil {
 		return r.errStop(s.ID, err)
 	}
 	return nil
@@ -677,6 +723,12 @@ func (r *autoRun) complete(id string) *autoStop {
 			}
 		}
 	}
+	remote := r.usedRemote(id)
+	if remote && r.branchMode() == config.BranchSlice {
+		// The archive commit is not on origin, and git measures a branch
+		// with an upstream against it: the merged branch would not delete.
+		_ = git.UnsetUpstream(ctx.repoRoot, git.AutoBranch(id))
+	}
 	merge, st := r.landBranch(id)
 	if st != nil {
 		return st
@@ -685,6 +737,11 @@ func (r *autoRun) complete(id string) *autoStop {
 	r.done = append(r.done, id)
 	r.inFlight = ""
 	r.say("%s reviewed and archived (%d blocked review(s))%s", id, cycles, map[bool]string{true: "; " + merge, false: ""}[merge != ""])
+	if remote {
+		if st := r.pushLanded(id); st != nil {
+			return st
+		}
+	}
 
 	if r.sliceMod[id] == config.ModeStep {
 		return &autoStop{Rule: ruleStepDone, Slice: id, Detail: id + " is reviewed and archived (step mode): look, then run metis auto again", Exit: exitAutoOK}
@@ -940,6 +997,74 @@ func (r *autoRun) landBranch(id string) (string, *autoStop) {
 		fmt.Fprintf(os.Stderr, "warning: %s merged but not deleted: %v\n", b, err)
 	}
 	return how, nil
+}
+
+// usedRemote reports whether any session of a slice ran a remote agent, by
+// the run log: only then does landing the slice touch origin.
+func (r *autoRun) usedRemote(id string) bool {
+	events := r.ctx.readAutoEvents()
+	for i := range events {
+		e := &events[i]
+		if e.Event == "session" && e.Slice == id && r.ctx.cfg.Agents[e.Agent].Remote {
+			return true
+		}
+	}
+	return false
+}
+
+// pushLanded publishes a landed slice whose sessions ran remotely: the
+// work branch is pushed to origin and origin's copy of the slice's auto
+// branch deleted. With auto.branch: pr the pull request carries the slice.
+func (r *autoRun) pushLanded(id string) *autoStop {
+	ctx := r.ctx
+	if r.branchMode() != config.BranchPR {
+		work := ctx.cfg.Project.IntegrationBranch
+		if err := git.Push(ctx.repoRoot, work); err != nil {
+			return &autoStop{Rule: ruleSync, Slice: id, Exit: exitAutoNeedsPerson,
+				Detail: fmt.Sprintf("%s is reviewed and landed on %s here, but %s could not be pushed to origin (metis auto again retries the push): %v", id, work, work, err)}
+		}
+		if r.branchMode() == config.BranchSlice {
+			if err := git.DeleteRemoteBranch(ctx.repoRoot, git.AutoBranch(id)); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: %s not deleted on origin: %v\n", git.AutoBranch(id), err)
+			}
+		}
+	}
+	ctx.appendAutoEvent(&autoEvent{Run: r.runID, Event: "pushed", Slice: id})
+	return nil
+}
+
+// retryPushes publishes the slices an earlier run landed but could not
+// push: by the run log, those with a sync stop and no pushed line after
+// it, that are archived here.
+func (r *autoRun) retryPushes() *autoStop {
+	events := r.ctx.readAutoEvents()
+	var pending []string
+	for i := range events {
+		e := &events[i]
+		if e.Slice == "" || (e.Event != "pushed" && (e.Event != "stop" || e.Rule != ruleSync)) {
+			continue
+		}
+		kept := pending[:0]
+		for _, id := range pending {
+			if id != e.Slice {
+				kept = append(kept, id)
+			}
+		}
+		pending = kept
+		if e.Event == "stop" {
+			pending = append(pending, e.Slice)
+		}
+	}
+	for _, id := range pending {
+		if !r.isArchived(id) {
+			continue
+		}
+		r.say("%s landed but was not pushed: pushing", id)
+		if st := r.pushLanded(id); st != nil {
+			return st
+		}
+	}
+	return nil
 }
 
 // printAutoStatus shows the last run from the run log.

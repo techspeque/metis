@@ -14,7 +14,7 @@ import (
 type autoEvent struct {
 	Time  string `json:"time"`
 	Run   string `json:"run"`
-	Event string `json:"event"` // start, session, wait, done, stop
+	Event string `json:"event"` // start, session, wait, done, pushed, stop
 
 	Slice string `json:"slice,omitempty"`
 
@@ -38,6 +38,9 @@ type autoEvent struct {
 	// RateLimited marks a failed session the agent's usage or rate limit
 	// stopped: a wait follows it, and it is charged to no budget.
 	RateLimited bool `json:"rate_limited,omitempty"`
+	// Transient marks a failed session whose launcher exited with one of
+	// the agent's transient_exit_codes: waited out and charged the same way.
+	Transient bool `json:"transient,omitempty"`
 
 	// wait: a rate-limit wait starting, with its length as duration_s
 	WaitUntil string `json:"wait_until,omitempty"`
@@ -113,7 +116,7 @@ func sliceBudgetUse(events []autoEvent, sliceID string) (sessions int, wall time
 		case "stop":
 			sessions, wall = 0, 0
 		case "session":
-			if e.RateLimited {
+			if e.RateLimited || e.Transient {
 				continue
 			}
 			sessions++
@@ -123,8 +126,9 @@ func sliceBudgetUse(events []autoEvent, sliceID string) (sessions int, wall time
 	return sessions, wall
 }
 
-// sliceWaitUse counts a slice's rate-limit waits: how many in a row (no
-// session that was not limited between them), which sets the backoff, and
+// sliceWaitUse counts a slice's rate-limit and transient waits: how many
+// in a row (no session that was neither between them), which sets the
+// backoff, and
 // how long in total since its last stop, which max_wait bounds.
 func sliceWaitUse(events []autoEvent, sliceID string) (inRow int, total time.Duration) {
 	for i := range events {
@@ -136,7 +140,7 @@ func sliceWaitUse(events []autoEvent, sliceID string) (inRow int, total time.Dur
 		case "stop":
 			inRow, total = 0, 0
 		case "session":
-			if !e.RateLimited {
+			if !e.RateLimited && !e.Transient {
 				inRow = 0
 			}
 		case "wait":
