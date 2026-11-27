@@ -44,6 +44,9 @@ human:*)
 fail)
 	exit 1
 	;;
+exit:*)
+	exit "$arg"
+	;;
 limit)
 	# What a real session stopped by a usage limit printed.
 	cat "$(dirname "$0")/../../launch/testdata/opencode-usage-limit.log"
