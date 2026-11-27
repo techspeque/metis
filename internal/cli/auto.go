@@ -189,6 +189,11 @@ func (r *autoRun) loop(sig stdcontext.Context) *autoStop {
 	if st := r.resumeBranch(); st != nil {
 		return st
 	}
+	if !r.opts.dryRun {
+		if st := r.retryPushes(); st != nil {
+			return st
+		}
+	}
 	for {
 		if sig.Err() != nil {
 			return &autoStop{Rule: ruleInterrupted, Slice: r.inFlight, Detail: "interrupted", Exit: exitAutoInterrupted}
@@ -433,7 +438,19 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 	r.say("session %d on %s: %s %s (%s), log %s", plan.Session, id, strings.ToLower(plan.Handoff.Role), plan.Handoff.AgentSlug, plan.Handoff.Template, ctx.rel(plan.LogPath))
 	res, err := plan.run(sig, ctx, nil)
 	var syncErr *syncError
+	var moved *movedError
 	switch {
+	case errors.As(err, &moved):
+		// An earlier session's commits arrived late: no session ran, and
+		// the next iteration plans from the ledger they brought. They may
+		// have finished the slice.
+		r.say("%s", moved.msg)
+		if l, lerr := ctx.loadLedger(); lerr == nil {
+			if cur := l.FindByID(id); (cur == nil && r.isArchived(id)) || (cur != nil && cur.IsDone()) {
+				return r.complete(id)
+			}
+		}
+		return nil
 	case errors.As(err, &syncErr):
 		// The remote's state is unknown: the ledger here says nothing
 		// about the session. Not parked: a park would be one more commit
@@ -1000,17 +1017,51 @@ func (r *autoRun) usedRemote(id string) bool {
 // branch deleted. With auto.branch: pr the pull request carries the slice.
 func (r *autoRun) pushLanded(id string) *autoStop {
 	ctx := r.ctx
-	if r.branchMode() == config.BranchPR {
-		return nil
+	if r.branchMode() != config.BranchPR {
+		work := ctx.cfg.Project.IntegrationBranch
+		if err := git.Push(ctx.repoRoot, work); err != nil {
+			return &autoStop{Rule: ruleSync, Slice: id, Exit: exitAutoNeedsPerson,
+				Detail: fmt.Sprintf("%s is reviewed and landed on %s here, but %s could not be pushed to origin (metis auto again retries the push): %v", id, work, work, err)}
+		}
+		if r.branchMode() == config.BranchSlice {
+			if err := git.DeleteRemoteBranch(ctx.repoRoot, git.AutoBranch(id)); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: %s not deleted on origin: %v\n", git.AutoBranch(id), err)
+			}
+		}
 	}
-	work := ctx.cfg.Project.IntegrationBranch
-	if err := git.Push(ctx.repoRoot, work); err != nil {
-		return &autoStop{Rule: ruleSync, Slice: id, Exit: exitAutoNeedsPerson,
-			Detail: fmt.Sprintf("%s is reviewed and landed on %s here, but %s could not be pushed to origin: %v", id, work, work, err)}
+	ctx.appendAutoEvent(&autoEvent{Run: r.runID, Event: "pushed", Slice: id})
+	return nil
+}
+
+// retryPushes publishes the slices an earlier run landed but could not
+// push: by the run log, those with a sync stop and no pushed line after
+// it, that are archived here.
+func (r *autoRun) retryPushes() *autoStop {
+	events := r.ctx.readAutoEvents()
+	var pending []string
+	for i := range events {
+		e := &events[i]
+		if e.Slice == "" || (e.Event != "pushed" && (e.Event != "stop" || e.Rule != ruleSync)) {
+			continue
+		}
+		kept := pending[:0]
+		for _, id := range pending {
+			if id != e.Slice {
+				kept = append(kept, id)
+			}
+		}
+		pending = kept
+		if e.Event == "stop" {
+			pending = append(pending, e.Slice)
+		}
 	}
-	if r.branchMode() == config.BranchSlice {
-		if err := git.DeleteRemoteBranch(ctx.repoRoot, git.AutoBranch(id)); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: %s not deleted on origin: %v\n", git.AutoBranch(id), err)
+	for _, id := range pending {
+		if !r.isArchived(id) {
+			continue
+		}
+		r.say("%s landed but was not pushed: pushing", id)
+		if st := r.pushLanded(id); st != nil {
+			return st
 		}
 	}
 	return nil

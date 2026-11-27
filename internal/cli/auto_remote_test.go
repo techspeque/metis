@@ -285,6 +285,206 @@ func TestAutoWithoutRemoteNeverPushesOrFetches(t *testing.T) {
 	}
 }
 
+// holdPush makes the fake remote launcher keep a session's commits on its
+// node and exit 95, a session lost before its push. The function returned
+// pushes them: the late push.
+func holdPush(t *testing.T, branch string) (latePush func()) {
+	t.Helper()
+	state := os.Getenv("FAKE_STATE")
+	hold := filepath.Join(state, "hold-push")
+	if err := os.WriteFile(hold, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return func() {
+		t.Helper()
+		if err := os.Remove(hold); err != nil {
+			t.Fatal(err)
+		}
+		gitOut(t, filepath.Join(state, "node"), "push", "-q", "origin", branch)
+	}
+}
+
+// A lost session's commits reach origin late. The next session's branch is
+// fast-forwarded to them before anything is launched, and the session is
+// planned again from the ledger they brought: the coder's work is there,
+// so the reviewer runs, not the coder a second time.
+func TestAutoFastForwardsToALatePush(t *testing.T) {
+	dir, origin := makeRemoteProject(t, "  mode: auto\n  branch: off", []autoSlice{{id: "s-1"}}, "code", "pass")
+	latePush := holdPush(t, "dev")
+	if code := resolveExitCode(runLaunch(t)); code != 95 {
+		t.Fatalf("the held session should exit 95, got %d", code)
+	}
+	if strings.Contains(ledgerText(t, dir), "coded: true") {
+		t.Fatal("the held session's flip must not be here yet")
+	}
+	latePush()
+
+	out, code := runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if !strings.Contains(out, "the coder session was not launched") || !strings.Contains(out, "reviewer reviewer/b") || strings.Count(out, " ended: ") != 1 {
+		t.Errorf("the late commits should be taken and only the reviewer launched:\n%s", out)
+	}
+	if !strings.Contains(archivedIDs(t, dir), "id: s-1") || sessions(t) != 2 {
+		t.Errorf("s-1 should be done in 2 sessions, got %d:\n%s", sessions(t), out)
+	}
+	if here, there := gitOut(t, dir, "rev-parse", "dev"), gitOut(t, origin, "rev-parse", "dev"); here != there {
+		t.Errorf("dev is %s here, %s on origin", strings.TrimSpace(here), strings.TrimSpace(there))
+	}
+}
+
+// Late commits that hold the reviewed flip finish the slice: no session is
+// launched for it. metis launch, for its part, launches nothing and says
+// to run it again.
+func TestAutoALatePushMayFinishTheSlice(t *testing.T) {
+	dir, _ := makeRemoteProject(t, "  mode: auto\n  branch: off", []autoSlice{{id: "s-1"}, {id: "s-2"}}, "code", "pass", "code")
+	if err := runLaunch(t); err != nil {
+		t.Fatalf("launch: %v", err)
+	}
+	latePush := holdPush(t, "dev")
+	if code := resolveExitCode(runLaunch(t)); code != 95 {
+		t.Fatalf("the held session should exit 95, got %d", code)
+	}
+	latePush()
+
+	out, code := runAuto(t, "--max-slices", "1")
+	expectStop(t, out, code, 0, ruleMaxSlices)
+	if !strings.Contains(out, "fast-forwarded to them") || !strings.Contains(archivedIDs(t, dir), "id: s-1") || sessions(t) != 2 {
+		t.Errorf("s-1 should be archived with no further session, got %d:\n%s", sessions(t), out)
+	}
+
+	latePush = holdPush(t, "dev")
+	_ = runLaunch(t)
+	latePush()
+	if err := runLaunch(t); err == nil || !strings.Contains(err.Error(), "run metis launch again") || sessions(t) != 3 {
+		t.Errorf("launch: err = %v, %d session(s)", err, sessions(t))
+	}
+	if !strings.Contains(ledgerText(t, dir), "coded: true") {
+		t.Error("launch should have fast-forwarded to the late commits")
+	}
+}
+
+// A branch that has diverged from origin's before the session stops the
+// run with nothing launched and neither history rewritten.
+func TestAutoStopsWhenTheRemoteDivergedBeforeTheSession(t *testing.T) {
+	dir, origin := makeRemoteProject(t, "  mode: auto\n  branch: off", []autoSlice{{id: "s-1"}}, "code", "pass")
+	gitOut(t, dir, "push", "-q", "origin", "dev")
+	other := filepath.Join(t.TempDir(), "other")
+	gitOut(t, dir, "clone", "-q", "-b", "dev", origin, other)
+	gitOut(t, other, "-c", "user.email=o@t.co", "-c", "user.name=O", "commit", "-q", "--allow-empty", "-m", "chore: made elsewhere")
+	gitOut(t, other, "push", "-q", "origin", "dev")
+	gitOut(t, dir, "commit", "-q", "--allow-empty", "-m", "chore: made here")
+	here, there := gitOut(t, dir, "rev-parse", "dev"), gitOut(t, origin, "rev-parse", "dev")
+
+	out, code := runAuto(t)
+	expectStop(t, out, code, 3, ruleSync)
+	if sessions(t) != 0 || !strings.Contains(out, "has diverged from origin's before its session") {
+		t.Errorf("sessions = %d, want none and a diverged branch:\n%s", sessions(t), out)
+	}
+	if err := runLaunch(t); err == nil || !strings.Contains(err.Error(), "has diverged from origin's") || sessions(t) != 0 {
+		t.Errorf("launch: err = %v, %d session(s)", err, sessions(t))
+	}
+	if now := gitOut(t, dir, "rev-parse", "dev"); now != here {
+		t.Errorf("the local branch was rewritten: %s, was %s", strings.TrimSpace(now), strings.TrimSpace(here))
+	}
+	if now := gitOut(t, origin, "rev-parse", "dev"); now != there {
+		t.Errorf("origin's branch was rewritten: %s, was %s", strings.TrimSpace(now), strings.TrimSpace(there))
+	}
+	if strings.Contains(ledgerText(t, dir), "waiting:") {
+		t.Error("a sync stop must not park the slice")
+	}
+}
+
+// An interrupt during a remote session exits 130. The branch is still
+// fetched and fast-forwarded, so what the agent pushed before the
+// interrupt is here and the next run starts level with origin.
+func TestAutoInterruptedDuringARemoteSession(t *testing.T) {
+	dir, origin := makeRemoteProject(t, "  mode: auto", []autoSlice{{id: "s-1"}}, "code", "pass")
+	// The coder's launcher: the remote session, then an interrupt to metis
+	// auto while the launcher is still running.
+	editProjectConfig(t, dir, func(cfg string) string {
+		return strings.Replace(cfg, `launch: [sh, "`, `launch: [sh, -c, 'sh "$0" "$@"; kill -INT $PPID; sleep 30', "`, 1)
+	})
+	out, code := runAuto(t)
+	expectStop(t, out, code, exitAutoInterrupted, ruleInterrupted)
+	if sessions(t) != 1 {
+		t.Errorf("sessions = %d, want 1", sessions(t))
+	}
+	if !strings.Contains(ledgerText(t, dir), "coded: true") {
+		t.Errorf("what the agent pushed before the interrupt should be fetched:\n%s", out)
+	}
+	if here, there := gitOut(t, dir, "rev-parse", "auto/s-1"), gitOut(t, origin, "rev-parse", "auto/s-1"); here != there {
+		t.Errorf("auto/s-1 is %s here, %s on origin", strings.TrimSpace(here), strings.TrimSpace(there))
+	}
+	if strings.Contains(ledgerText(t, dir), "waiting:") {
+		t.Error("an interrupt must not park the slice")
+	}
+	if status := gitOut(t, dir, "status", "--short"); strings.TrimSpace(status) != "" {
+		t.Errorf("tree dirty after the interrupt:\n%s", status)
+	}
+
+	out, code = runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if !strings.Contains(archivedIDs(t, dir), "id: s-1") || sessions(t) != 2 {
+		t.Errorf("the next run should finish s-1 with the review, got %d session(s):\n%s", sessions(t), out)
+	}
+}
+
+// Origin refuses the work branch when a slice lands: the run stops with
+// the slice archived here, and the next run pushes it once origin accepts.
+func TestAutoRetriesTheLandingPush(t *testing.T) {
+	dir, origin := makeRemoteProject(t, "  mode: auto", []autoSlice{{id: "s-1"}}, "code", "pass")
+	closed := filepath.Join(origin, "dev-is-closed")
+	hook := "#!/bin/sh\nif [ \"$1\" = refs/heads/dev ] && [ -f \"" + closed + "\" ]; then echo 'dev is closed' >&2; exit 1; fi\n"
+	if err := os.MkdirAll(filepath.Join(origin, "hooks"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(origin, "hooks", "update"), []byte(hook), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(closed, nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	out, code := runAuto(t)
+	expectStop(t, out, code, 3, ruleSync)
+	if !strings.Contains(out, "could not be pushed to origin") || !strings.Contains(archivedIDs(t, dir), "id: s-1") {
+		t.Errorf("s-1 should be archived here and the push refused:\n%s", out)
+	}
+	if files := gitOut(t, dir, "ls-tree", "-r", "--name-only", "dev"); !strings.Contains(files, "src/s-1.txt") {
+		t.Errorf("s-1 should be landed on dev here:\n%s", files)
+	}
+	if refs := gitOut(t, origin, "for-each-ref", "refs/heads/dev"); strings.TrimSpace(refs) != "" {
+		t.Errorf("origin took dev:\n%s", refs)
+	}
+
+	// Still refused: the next run tries, and stops again.
+	out, code = runAuto(t)
+	expectStop(t, out, code, 3, ruleSync)
+
+	if err := os.Remove(closed); err != nil {
+		t.Fatal(err)
+	}
+	out, code = runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if !strings.Contains(out, "s-1 landed but was not pushed: pushing") {
+		t.Errorf("the push should be retried:\n%s", out)
+	}
+	if here, there := gitOut(t, dir, "rev-parse", "dev"), gitOut(t, origin, "rev-parse", "dev"); here != there {
+		t.Errorf("dev is %s here, %s on origin", strings.TrimSpace(here), strings.TrimSpace(there))
+	}
+	if b := gitOut(t, origin, "branch", "--list", "auto/*"); strings.TrimSpace(b) != "" {
+		t.Errorf("origin still has the auto branch:\n%s", b)
+	}
+
+	// Pushed: nothing is left to retry.
+	ran := traceGit(t)
+	out, code = runAuto(t)
+	expectStop(t, out, code, 0, ruleBacklogEmpty)
+	if n := count(ran(), "push"); n != 0 || strings.Contains(out, "not pushed") {
+		t.Errorf("git push ran %d time(s) with nothing to retry:\n%s", n, out)
+	}
+}
+
 // The trace does see a push and a fetch when they happen.
 func TestAutoRemoteSessionsPushAndFetch(t *testing.T) {
 	makeRemoteProject(t, "  mode: auto", []autoSlice{{id: "s-1"}}, "code", "pass")

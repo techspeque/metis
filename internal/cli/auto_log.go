@@ -14,7 +14,7 @@ import (
 type autoEvent struct {
 	Time  string `json:"time"`
 	Run   string `json:"run"`
-	Event string `json:"event"` // start, session, wait, done, stop
+	Event string `json:"event"` // start, session, wait, done, pushed, stop
 
 	Slice string `json:"slice,omitempty"`
 

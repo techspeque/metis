@@ -18,5 +18,8 @@ git checkout -q "$branch" 2>/dev/null || git checkout -q -b "$branch" FETCH_HEAD
 git merge -q --ff-only FETCH_HEAD || exit 93
 sh "$(dirname "$0")/fake-agent.sh" "$@"
 code=$?
+# A session lost before its push: the commits stay here until a test
+# pushes them, late.
+[ -f "$FAKE_STATE/hold-push" ] && exit 95
 git push -q origin "$branch" || exit 94
 exit $code
