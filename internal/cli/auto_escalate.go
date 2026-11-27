@@ -29,9 +29,10 @@ func (c *context) withLock(fn func() error) error {
 	return fn()
 }
 
-// parkSlice parks a slice with a human wait, as 'metis wait <id> --reason
-// ... --human' would, and commits the ledger.
-func parkSlice(ctx *context, id, reason string) error {
+// parkSlice parks a slice as 'metis wait <id> --reason ...' would, and
+// commits the ledger: with a human wait, or (until set) with one that ends
+// by itself.
+func parkSlice(ctx *context, id, reason string, until time.Time) error {
 	return ctx.withLock(func() error {
 		l, err := ctx.loadLedger()
 		if err != nil {
@@ -41,13 +42,36 @@ func parkSlice(ctx *context, id, reason string) error {
 		if s == nil || s.IsDone() {
 			return nil
 		}
-		if err := l.WaitFor(id, reason, time.Time{}, time.Now(), true); err != nil {
+		if err := l.WaitFor(id, reason, until, time.Now(), until.IsZero()); err != nil {
 			return err
 		}
 		if err := ctx.saveLedger(l); err != nil {
 			return err
 		}
 		ctx.commitStateSoft(id, "wait: "+reason, ctx.ledgerPath())
+		return nil
+	})
+}
+
+// unparkSlice ends a wait metis auto set itself, once it has waited it
+// out; a wait with any other reason is left alone.
+func unparkSlice(ctx *context, id, reason string) error {
+	return ctx.withLock(func() error {
+		l, err := ctx.loadLedger()
+		if err != nil {
+			return err
+		}
+		s := l.FindByID(id)
+		if s == nil || s.Waiting == nil || s.Waiting.Human || s.Waiting.Reason != reason {
+			return nil
+		}
+		if err := l.ClearWait(id); err != nil {
+			return err
+		}
+		if err := ctx.saveLedger(l); err != nil {
+			return err
+		}
+		ctx.commitStateSoft(id, "wait cleared", ctx.ledgerPath())
 		return nil
 	})
 }
@@ -136,9 +160,12 @@ func writeEscalation(ctx *context, st *autoStop, s *slice.Slice, store *findings
 
 	b.WriteString("\n## Ways out\n\n")
 	id := st.Slice
-	if st.Park {
+	switch {
+	case st.Rule == ruleRateLimited:
+		fmt.Fprintf(&b, "Nothing to settle: the slice waits until the time above, and `metis auto` after it carries on. To try sooner:\n\n```sh\nmetis wait %s --clear\nmetis auto\n```\n", id)
+	case st.Park:
 		fmt.Fprintf(&b, "Resume unattended once it is settled:\n\n```sh\nmetis wait %s --clear\nmetis auto\n```\n", id)
-	} else {
+	default:
 		b.WriteString("Settle it, then run `metis auto` again.\n")
 	}
 	if len(open) > 0 {

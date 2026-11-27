@@ -19,6 +19,7 @@ const (
 	ruleDirtyTree       = "dirty_tree"
 	ruleSessionFailed   = "session_failed"
 	ruleNoProgress      = "no_progress"
+	ruleRateLimited     = "rate_limited"
 	ruleBudget          = "budget"
 	ruleHumanAgent      = "human_agent"
 	ruleNoLauncher      = "no_launcher"

@@ -43,7 +43,7 @@ var ErrNoLauncher = errors.New("no launcher")
 
 // Template returns the argv template an agent launches with: its own
 // launch, else the surface default. A human agent has none.
-func Template(a config.Agent) ([]string, error) {
+func Template(a *config.Agent) ([]string, error) {
 	if a.Surface == config.SurfaceHuman {
 		return nil, fmt.Errorf("%w: a human agent is not launched", ErrNoLauncher)
 	}

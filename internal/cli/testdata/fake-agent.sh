@@ -12,7 +12,7 @@ arg="${action#*:}"
 echo "fake $slug: session $n on $slice: $action"
 
 case "$action" in
-code)
+code|code+limit)
 	if [ ! -f ".metis/briefs/$slice.md" ]; then
 		mkdir -p .metis/briefs
 		printf '# %s\n\n## Declared file scope\n\n- **owned_paths:** src/%s.txt\n' "$slice" "$slice" > ".metis/briefs/$slice.md"
@@ -24,6 +24,10 @@ code)
 	metis commit -m "work $n" --slice "$slice" || exit 1
 	metis verify --post --slice "$slice" || exit 1
 	metis commit --flip coded --slice "$slice" || exit 1
+	if [ "$action" = code+limit ]; then
+		echo "Error: usage limit reached"
+		exit 1
+	fi
 	;;
 pass)
 	metis commit --flip reviewed --agent "$slug" --slice "$slice" || exit 1
@@ -38,6 +42,15 @@ human:*)
 	metis wait "$slice" --reason "$arg" --human || exit 1
 	;;
 fail)
+	exit 1
+	;;
+limit)
+	# What a real session stopped by a usage limit printed.
+	cat "$(dirname "$0")/../../launch/testdata/opencode-usage-limit.log"
+	exit 1
+	;;
+limit:*)
+	echo "$arg"
 	exit 1
 	;;
 noop)

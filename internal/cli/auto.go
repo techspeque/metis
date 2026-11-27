@@ -56,6 +56,12 @@ Stops are results. A stop inside a slice's loop parks the slice
 the ways out as commands, runs auto.notify, and exits 3. step_done, manual
 and a reached --until exit 0.
 
+A session stopped by its agent's usage or rate limit is not a failure: the
+slice waits ('metis wait --until', no --human) and the run sleeps until
+the limit resets, then runs the session again. Waiting longer than
+auto.rate_limit.max_wait stops the run (rate_limited, exit 3) with the
+wait in place; metis auto after it carries on.
+
 Each session is one line of .metis/runs/auto.jsonl; --status summarises the
 last run. With auto.branch: slice (the default) a slice's work lands on
 auto/<slice-id>, fast-forward merged into the work branch once reviewed.`,
@@ -454,11 +460,22 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 	}
 	progressed := outcome != "none"
 	exitCode := res.ExitCode
+	// A failed session is classified before it is counted: one the agent's
+	// usage or rate limit stopped is waited out, not charged as a failure.
+	limited, reset := false, time.Time{}
+	if res.Failed() && !progressed {
+		code := res.ExitCode
+		if res.TimedOut {
+			code = -1 // the exit code is the kill's, not the agent's
+		}
+		limited, reset = launch.Limited(&plan.Agent, code, plan.LogPath, time.Now())
+	}
 	ctx.appendAutoEvent(&autoEvent{
 		Run: r.runID, Event: "session", Slice: id, Session: plan.Session,
 		Role: plan.Handoff.Role, Agent: plan.Handoff.AgentSlug, Model: plan.Agent.Model, Template: plan.Handoff.Template,
 		DurationSeconds: res.Duration.Round(time.Second).Seconds(), ExitCode: &exitCode, TimedOut: res.TimedOut,
 		Outcome: outcome, FindingsOpened: opened, FindingsResolved: resolved, Log: ctx.rel(plan.LogPath),
+		RateLimited: limited,
 	})
 	r.say("session %d ended: exit %d, %s, outcome %s", plan.Session, res.ExitCode, res.Duration.Round(time.Second), outcome)
 
@@ -525,6 +542,8 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 		delete(r.failures, key)
 		delete(r.idle, key)
 		return r.complete(id)
+	case limited:
+		return r.waitOutLimit(sig, cur, plan, reset)
 	case res.Failed() && !progressed:
 		r.failures[key]++
 		if r.failures[key] > stop.Retries() {
@@ -544,6 +563,67 @@ func (r *autoRun) runSession(sig stdcontext.Context, s *slice.Slice, plan *sessi
 	default:
 		delete(r.failures, key)
 		delete(r.idle, key)
+	}
+	return nil
+}
+
+// rateLimitReason is the wait metis auto sets on a slice whose agent is
+// rate limited.
+const rateLimitReason = "auto: " + ruleRateLimited
+
+// autoSleep waits until a time or until ctx is done, whichever is first,
+// and reports ctx's error. It checks the wall clock in short steps: a
+// timer alone runs late on a machine that slept. Tests replace it.
+var autoSleep = func(ctx stdcontext.Context, until time.Time) error {
+	for {
+		d := time.Until(until)
+		if d <= 0 {
+			return ctx.Err()
+		}
+		t := time.NewTimer(min(d, 30*time.Second))
+		select {
+		case <-ctx.Done():
+			t.Stop()
+			return ctx.Err()
+		case <-t.C:
+		}
+	}
+}
+
+// waitOutLimit handles a session the agent's rate limit stopped: the slice
+// waits in the ledger until the limit's reset time plus a minute (or, when
+// the log names none, a backoff that doubles), the run sleeps until then,
+// and the same session runs again. Waiting past auto.rate_limit.max_wait
+// stops the run instead, with the wait left in place.
+func (r *autoRun) waitOutLimit(sig stdcontext.Context, s *slice.Slice, plan *sessionPlan, reset time.Time) *autoStop {
+	ctx := r.ctx
+	rl := &ctx.cfg.Auto.RateLimit
+	role := strings.ToLower(plan.Handoff.Role)
+	inRow, waited := sliceWaitUse(ctx.readAutoEvents(), s.ID)
+	now := time.Now()
+	until, why := now.Add(rl.BackoffAfter(inRow)), "backoff"
+	if !reset.IsZero() {
+		until, why = reset.Add(time.Minute), "its log names the reset time"
+	}
+	// The ledger keeps whole seconds.
+	until = until.Add(time.Second - 1).Truncate(time.Second)
+	wait := until.Sub(now)
+	stamp := until.UTC().Format(time.RFC3339)
+
+	if err := parkSlice(ctx, s.ID, rateLimitReason, until); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not mark %s waiting: %v\n", s.ID, err)
+	}
+	if limit := rl.MaxWaitTime(); waited+wait > limit {
+		return ruleStop(ruleRateLimited, s, false, "the %s (%s) is rate limited: waiting until %s would pass auto.rate_limit.max_wait (%s; %s waited); %s waits until then",
+			role, plan.Handoff.AgentSlug, stamp, limit, waited.Round(time.Second), s.ID)
+	}
+	ctx.appendAutoEvent(&autoEvent{Run: r.runID, Event: "wait", Slice: s.ID, Rule: ruleRateLimited, WaitUntil: stamp, DurationSeconds: wait.Round(time.Second).Seconds()})
+	r.say("the %s (%s) is rate limited: waiting %s, until %s (%s)", role, plan.Handoff.AgentSlug, wait.Round(time.Second), stamp, why)
+	if err := autoSleep(sig, until); err != nil {
+		return &autoStop{Rule: ruleInterrupted, Slice: s.ID, Detail: "interrupted while waiting out a rate limit (until " + stamp + ")", Exit: exitAutoInterrupted}
+	}
+	if err := unparkSlice(ctx, s.ID, rateLimitReason); err != nil {
+		return r.errStop(s.ID, err)
 	}
 	return nil
 }
@@ -642,7 +722,7 @@ func (r *autoRun) finish(cmd *cobra.Command, st *autoStop) error {
 			s = l.FindByID(st.Slice)
 		}
 		if st.Park && s != nil && !s.IsDone() && !s.IsWaiting(time.Now()) {
-			if err := parkSlice(ctx, st.Slice, "auto: "+st.Rule); err != nil {
+			if err := parkSlice(ctx, st.Slice, "auto: "+st.Rule, time.Time{}); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: could not park %s: %v\n", st.Slice, err)
 			} else if l, err := ctx.loadLedger(); err == nil {
 				s = l.FindByID(st.Slice)
