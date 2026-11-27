@@ -139,6 +139,52 @@ The `model` fills `{model}`, so two slices on the same surface can run
 different models. `metis init` adds the `human` agent and writes the
 default `launch` for each agent whose surface it knows.
 
+#### `rate_limit` — a session stopped by a usage limit
+
+`metis auto` waits out a session that its agent's usage or rate limit
+stopped, instead of counting a failure
+([`metis auto`](commands.md#metis-auto)). `rate_limit` says how to tell:
+
+```yaml
+agents:
+  codex/gpt:
+    surface: codex
+    model: gpt-5
+    label: "Codex"
+    rate_limit:
+      exit_codes: []                          # exit codes that mean limited
+      patterns: ["usage limit", "rate limit"] # one matching the last 16 KB of the session log means limited
+      reset_pattern: "resets? (?:at|in) (.+)" # its first non-empty capture group is when the limit resets
+```
+
+Patterns are regular expressions (Go syntax), matched without regard to
+case and with colour codes removed. They are only tried on a session that
+failed without progress, but a loose pattern still matches a log that
+merely quotes it: prefer the full message. The reset time may be a clock
+time (`3pm`, `3:15 PM`, `15:04`, optionally with a zone as in `3pm
+(Europe/London)`; the next such time), a duration (`2h 5m`, `3 hours 12
+minutes`), a Unix timestamp or an RFC 3339 time. A date, or anything else,
+is not read, and the wait falls back to `auto.rate_limit.backoff`.
+
+Each unset key takes the built-in default for the surface:
+
+```yaml
+opencode:
+  patterns: ['usage limit reached']
+codex:
+  patterns: ['usage limit reached', 'you.ve hit your usage limit']
+  reset_pattern: 'try again (?:at|in) ([^.\n]+)'
+claude-code:
+  patterns: ['usage limit reached', 'you.ve hit your (?:\w+ )?limit']
+  reset_pattern: 'limit reached\|(\d{9,})|resets?(?: at| in)? ([^.\n]+)'
+```
+
+No surface has default `exit_codes`. The `opencode` pattern is taken from
+logs of sessions a ChatGPT usage limit stopped; the `codex` and
+`claude-code` ones are those CLIs' known messages and are not yet checked
+against a captured log. Any other surface has no defaults: without
+`rate_limit` its limits are failed sessions.
+
 ---
 
 ### `routing`
@@ -411,6 +457,9 @@ auto:
     dirty_tree: true
     session_failed: 1       # retries of a failed (or idle) session before the stop
     budget: { wall_clock: 6h, sessions: 8 }   # per slice, between stops
+  rate_limit:
+    max_wait: 6h            # per slice, between stops: a wait past it stops the run (rate_limited)
+    backoff: 15m            # the first wait when the log names no reset time; doubles, up to 1h
 ```
 
 Mode precedence: slice, phase (`auto.phases`, then a `> Auto: <mode>` line
@@ -473,6 +522,7 @@ Run `metis check --config` to validate:
 - `commits.format` is non-empty
 - `paths.ledger` is set
 - `auto.mode`, `auto.phases.*` and `auto.by_risk.*` are modes; `auto.by_risk` keys are risks; `auto.branch` and `auto.until` are known values; durations parse; counts are not negative; a `human` agent has no `launch`
+- every `agents.<slug>.rate_limit` pattern compiles
 
 `metis check` (with the ledger) also rejects an `auto.phases` key that
 matches no plan or slice phase, and a slice whose `auto_mode` is not a mode.

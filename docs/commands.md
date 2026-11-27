@@ -153,6 +153,23 @@ naming the slice; a session without progress, or one that fails (exit
 non-zero or timeout), is retried once and then stops the run. A reviewed
 slice is archived (`metis archive`) and the run goes on.
 
+**Rate limits.** A failed session without progress is classified before
+it is counted: it is *limited* when the agent's exit code is in
+`agents.<slug>.rate_limit.exit_codes` or the last 16 KB of its log match
+one of `rate_limit.patterns`
+([configuration](configuration.md#rate_limit--a-session-stopped-by-a-usage-limit)).
+A limited session is charged to no rule and no budget. The slice is marked
+waiting (`metis wait <id> --reason "auto: rate_limited" --until <time>`,
+not `--human`), the run sleeps until that time, clears the wait and runs
+the same session again. The time is the reset time `rate_limit.reset_pattern`
+finds in the log plus a minute; without one, `auto.rate_limit.backoff`
+(15m), doubling with each wait in a row, up to 1h. An interrupt during the
+wait exits 130 and leaves the wait in the ledger: `metis auto` before the
+time reports the slice as waiting (exit 0), after it carries on. One slice
+waits at most `auto.rate_limit.max_wait` (6h) between stops; a wait that
+would pass it stops the run with `rate_limited`. A limited session that
+made progress is progress like any other.
+
 **Modes.** How far a run goes is the slice's effective mode — `manual`
 (the loop stops before it), `step` (one slice to reviewed and archived,
 then stop), `auto` (continue). The narrowest setting wins:
@@ -190,6 +207,7 @@ or `manual` one ends the run.
 | `dirty_tree` | uncommitted files outside the slice's scope before a session | no |
 | `session_failed` | a session exits non-zero or times out, after the retries (`auto.stop.session_failed`, default 1) | yes |
 | `no_progress` | a session made no progress, after the retries | yes |
+| `rate_limited` | the agent is rate limited and the next wait would take the slice past `auto.rate_limit.max_wait` (default 6h). Not a switch under `auto.stop` | until a time, not for a person |
 | `budget` | the slice used 8 sessions or 6h of sessions since its last stop | yes |
 | `human_agent` | the role's agent has `surface: human` | no |
 | `no_launcher` | the role's agent is not configured or has no launcher | no |
@@ -205,12 +223,16 @@ final output, and the ways out as commands (resume with `metis wait <id>
 --clear` then `metis auto`, resolve findings by decision, raise the cycle
 cap, or the human review override: `metis edit <id> --reviewer human`,
 `metis commit --flip reviewed --agent human --slice <id>`, `metis
-archive`) — prints it, and runs `auto.notify`. `step_done`, `manual`, a
-reached `--until`, `--max-slices` and an empty backlog exit 0.
+archive`) — prints it, and runs `auto.notify`. `rate_limited` also exits 3
+and escalates, but its wait ends by itself: the next `metis auto` after
+the time carries on. `step_done`, `manual`, a reached `--until`,
+`--max-slices` and an empty backlog exit 0.
 
 Each session is one line of `.metis/runs/auto.jsonl` (time, slice, role,
 agent and model, template, duration, exit code, outcome, findings opened
-and resolved); `metis auto --status` summarises the last run.
+and resolved, `rate_limited` when a limit stopped it), and each rate-limit
+wait is one too (`"event":"wait"`, with `wait_until` and its length);
+`metis auto --status` summarises the last run.
 
 **Branching** (`auto.branch`): with `slice` (default) a slice's sessions
 work on `auto/<slice-id>`, cut from the work branch; once reviewed it is

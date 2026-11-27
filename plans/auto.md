@@ -250,6 +250,7 @@ from (`slice`, `phase`, `risk`, `project`, `default`); `metis list` and
 | `scope` | on | `metis log <id> --validate` fails after a coder session |
 | `dirty_tree` | on | the tree is dirty and the dirty files are outside the slice's scope |
 | `session_failed` | 1 retry | the agent exits non-zero or times out twice |
+| `rate_limited` | `auto.rate_limit.max_wait` 6h | the agent's usage or rate limit stopped a session and the next wait would take the slice past the bound; the slice waits until a time, not for a person ([hardening](auto-hardening.md#1-rate-limits-wait-and-retry)) |
 | `budget` | per slice 6h wall clock, 8 sessions | either is exceeded |
 | `human_agent` | on | the role's agent has `surface: human` |
 | `no_launcher` | on | the role's agent is not configured or has no `launch` |
@@ -317,7 +318,8 @@ mode --clear` restores the level above; init writes the chosen mode.
 Not designed up front; listed so they are not forgotten.
 
 - Rate-limit detection per surface (exit code or output pattern) → wait
-  and retry rather than `session_failed`.
+  and retry rather than `session_failed`. Designed in
+  [`auto-hardening.md`](auto-hardening.md), item 1.
 - `metis auto --watch`: a compact live view of the current session's tail.
 - Cycle statistics per reviewer and per finding category in
   `metis findings --stats`, to tune `block_reasons` and routing.
@@ -343,6 +345,7 @@ auto:
     growing_findings: true
     p1: true
     budget: { wall_clock: 6h, sessions: 8 }
+  rate_limit: { max_wait: 6h, backoff: 15m }
 review:
   narrow_after: 1
   block_reasons:
