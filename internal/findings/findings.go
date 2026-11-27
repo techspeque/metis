@@ -17,7 +17,11 @@ import (
 
 // Finding represents a single review finding.
 type Finding struct {
-	ID         string `yaml:"id" json:"id"`
+	ID string `yaml:"id" json:"id"`
+	// Alias is the id the finding had on its branch before a state merge
+	// renumbered it (two branches both created it); the old id still
+	// resolves to the finding wherever an id is accepted.
+	Alias      string `yaml:"alias,omitempty" json:"alias,omitempty"`
 	Date       string `yaml:"date" json:"date"`
 	Slice      string `yaml:"slice" json:"slice"`
 	Severity   string `yaml:"severity" json:"severity"` // P1, P2, P3
@@ -109,6 +113,11 @@ func Load(path string) (*Store, error) {
 		}
 		return nil, fmt.Errorf("reading findings: %w", err)
 	}
+	return Parse(data)
+}
+
+// Parse parses findings store content from bytes.
+func Parse(data []byte) (*Store, error) {
 	var s Store
 	if err := yaml.Unmarshal(data, &s); err != nil {
 		return nil, fmt.Errorf("parsing findings: %w", err)
@@ -171,13 +180,14 @@ func (s *Store) Follow(id, parent string) error {
 	if f == nil {
 		return fmt.Errorf("finding %q not found", id)
 	}
-	if parent == id {
+	p := s.FindByID(parent)
+	if p == f {
 		return fmt.Errorf("finding %q cannot follow itself", id)
 	}
-	if s.FindByID(parent) == nil {
+	if p == nil {
 		return fmt.Errorf("follow-on target %q not found", parent)
 	}
-	f.FollowOn = parent
+	f.FollowOn = p.ID
 	return nil
 }
 
@@ -225,16 +235,17 @@ func (s *Store) Dispose(id, disposition, of string) error {
 	if !contains(Dispositions, disposition) {
 		return fmt.Errorf("disposition must be one of %s", strings.Join(Dispositions, "|"))
 	}
-	if of == id {
+	target := s.FindByID(of)
+	if target == f {
 		return fmt.Errorf("finding %q cannot be %s of itself", id, disposition)
 	}
-	if s.FindByID(of) == nil {
+	if target == nil {
 		return fmt.Errorf("finding %q not found", of)
 	}
 	f.Status = "resolved"
 	f.Disposition = disposition
-	f.Of = of
-	f.ResolvedBy = disposition + " of " + of
+	f.Of = target.ID
+	f.ResolvedBy = disposition + " of " + target.ID
 	return nil
 }
 
@@ -368,14 +379,25 @@ func (f *Finding) Place(cycle int, file string) {
 	f.File = file
 }
 
-// FindByID returns a pointer to a finding by ID.
+// FindByID returns a pointer to a finding by ID. An id no finding has
+// resolves through an alias, when exactly one finding carries it: the id
+// a finding had before a state merge renumbered it.
 func (s *Store) FindByID(id string) *Finding {
 	for i := range s.Findings {
 		if s.Findings[i].ID == id {
 			return &s.Findings[i]
 		}
 	}
-	return nil
+	var found *Finding
+	for i := range s.Findings {
+		if id != "" && s.Findings[i].Alias == id {
+			if found != nil {
+				return nil
+			}
+			found = &s.Findings[i]
+		}
+	}
+	return found
 }
 
 // Statuses is the closed status vocabulary, in lifecycle order.
